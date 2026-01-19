@@ -1,0 +1,8 @@
+{
+  "name": "FundHub",
+  "description": "A gamified business funding platform that simplifies grants, loans, and equity applications with progress tracking and AI-powered matching.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
