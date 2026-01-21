@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Palette, Wand2, Loader2, Printer, Type as TypeIcon, PieChart } from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { User, AppDocument } from '../types';
 
 interface PresentationDesignerProps {
@@ -137,7 +137,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
     setLoadingMessage('Designing presentation structure...');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenerativeAI({ apiKey: process.env.API_KEY });
       
       const prompt = `
         Create a 5-7 slide presentation structure for a business document titled "${doc.name}".
@@ -195,7 +195,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
     setSlides(prev => prev.map((s, i) => i === index ? { ...s, isGeneratingImage: true } : s));
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenerativeAI({ apiKey: process.env.API_KEY });
       
       let stylePrompt = `Style: High quality, professional, vector art, flat design, ${theme.name} color palette (${theme.accent} accent).`;
       if (slide.type === 'data') stylePrompt += " Create a clean, modern infographic chart visualization on a dark background.";
@@ -314,7 +314,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
                 ))
               ) : (
                 <div className="col-span-2 p-8 rounded-2xl border border-dashed border-white/20 text-gray-500">
-                  No generated text documents found. Go to Profile > Documents and generate a Business Plan first.
+                  No generated text documents found. Go to Profile &gt; Documents and generate a Business Plan first.
                 </div>
               )}
             </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Camera, Upload, X, Loader2, CheckCircle2, AlertTriangle, FileText, ChevronRight, Sparkles, Copy, ScanLine } from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { User } from '../types';
 
 interface FormDigitizerProps {
@@ -41,7 +41,7 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
 
   const analyzeForm = async (base64Image: string) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenerativeAI({ apiKey: process.env.API_KEY });
       const profileData = localStorage.getItem(`fundhub_profile_${user?.id}`);
       const docsData = localStorage.getItem('fundhub_documents');
       
