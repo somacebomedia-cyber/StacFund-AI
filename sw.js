@@ -1,14 +1,13 @@
 
-const CACHE_NAME = 'fundhub-v22';
+const CACHE_NAME = 'fundhub-v23-dev';
+// In development, we want to be careful not to cache everything aggressively
 const ASSETS = [
-  '/',
-  '/index.html',
-  'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap'
+  '/tailwind.css' 
+  // We don't cache index.html or JS bundles here to ensure latest code is always loaded in dev
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force new service worker to activate immediately
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
@@ -19,20 +18,41 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
-          }
+           // Delete all old caches
+           return caches.delete(cache);
         })
       );
     })
   );
-  self.clients.claim(); // Take control of all pages immediately
+  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
+  // Network-first strategy for navigation requests (HTML) to avoid stuck loading screens
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => {
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for others
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+    caches.match(event.request).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
+        // Update cache if successful
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+           const responseToCache = networkResponse.clone();
+           caches.open(CACHE_NAME).then((cache) => {
+             cache.put(event.request, responseToCache);
+           });
+        }
+        return networkResponse;
+      });
+      return cachedResponse || fetchPromise;
     })
   );
 });

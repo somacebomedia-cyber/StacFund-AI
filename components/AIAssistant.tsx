@@ -26,6 +26,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, on
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  // Use VITE_GEMINI_API_KEY from environment, with process.env fallback
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+
+  // Safe initialization of GenAI
+  const getGenAI = () => {
+    if (!apiKey || apiKey === "YOUR_VALID_GEMINI_API_KEY_HERE") return null;
+    return new GoogleGenerativeAI(apiKey);
+  };
+  
+  const genAI = getGenAI();
+
   // Tools Configuration - Fixed using SchemaType instead of Type
   const tools: { functionDeclarations: FunctionDeclaration[] } = {
     functionDeclarations: [
@@ -117,10 +128,14 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, on
     setIsTyping(true);
 
     try {
-      // Initialize with corrected class name
-      const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
+      if (!genAI) {
+        setMessages(prev => [...prev, { role: 'model', text: "I'm currently offline because my API key is missing. Please set VITE_GEMINI_API_KEY in your .env file." }]);
+        return;
+      }
+
+      // Updated model to versioned name to avoid 404
       const model = genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash',
         tools: [tools as any]
       });
 
@@ -149,7 +164,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, on
       }
     } catch (error) {
       console.error('Chat error:', error);
-      setMessages(prev => [...prev, { role: 'model', text: "I'm having trouble connecting. Please check your API key in services/firebase.ts." }]);
+      setMessages(prev => [...prev, { role: 'model', text: "I'm having trouble connecting. Please check your API key." }]);
     } finally {
       setIsTyping(false);
       setIsActing(false);

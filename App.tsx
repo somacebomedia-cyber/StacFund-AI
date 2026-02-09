@@ -11,7 +11,7 @@ import ProfileForm from './pages/ProfileForm';
 import AuthPage from './pages/Auth';
 import PricingPage from './pages/Pricing';
 import AIAssistant from './components/AIAssistant';
-import InstallPrompt from './components/InstallPrompt';
+// import InstallPrompt from './components/InstallPrompt';
 import { User } from './types';
 
 type Page = 'landing' | 'dashboard' | 'marketplace' | 'profile' | 'auth' | 'pricing';
@@ -26,13 +26,28 @@ const App: React.FC = () => {
 
   // Check for existing session on mount via Firebase
   useEffect(() => {
+    console.log("App mounted, checking config...");
     if (!isConfigured()) {
+      console.log("Firebase not configured");
       setConfigError(true);
       setIsInitializing(false);
       return;
     }
 
+    console.log("Firebase configured, setting up auth listener...");
+    
+    // Safety timeout in case Firebase hangs
+    const timeoutId = setTimeout(() => {
+      if (isInitializing) {
+        console.warn("Auth check timed out, forcing initialization to complete.");
+        setIsInitializing(false);
+      }
+    }, 5000);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      clearTimeout(timeoutId);
+      console.log("Auth state changed:", firebaseUser ? "User found" : "No user");
+      
       if (firebaseUser) {
         // User is signed in, fetch extra profile data from Firestore
         try {
@@ -73,7 +88,10 @@ const App: React.FC = () => {
       setIsInitializing(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, []);
 
   const handleAuthSuccess = (user: User) => {
@@ -92,6 +110,14 @@ const App: React.FC = () => {
   };
   
   const triggerPricing = () => setCurrentPage('pricing');
+  
+  const handleBackFromPricing = () => {
+     if (currentUser) {
+       setCurrentPage('dashboard');
+     } else {
+       setCurrentPage('landing');
+     }
+  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -139,7 +165,7 @@ const App: React.FC = () => {
           />
         );
       case 'pricing':
-        return <PricingPage />;
+        return <PricingPage onBackToLanding={handleBackFromPricing} />;
       default:
         return <Landing onGetStarted={() => setCurrentPage('auth')} onGoToPricing={() => setCurrentPage('pricing')} />;
     }
@@ -164,24 +190,26 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-[#050510] flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center">
           <div className="w-12 h-12 bg-purple-600 rounded-xl mb-4"></div>
+          <p className="mt-4 text-gray-500">Initializing...</p>
         </div>
       </div>
     );
   }
 
   // If on landing or auth, don't show the global header or AI Assistant
-  if (currentPage === 'landing' || currentPage === 'auth' || currentPage === 'pricing') {
+  // Removed 'pricing' from here so global header shows on Pricing page
+  if (currentPage === 'landing' || currentPage === 'auth') {
     return (
       <>
         {renderPage()}
-        <InstallPrompt />
+        {/* <InstallPrompt /> */}
       </>
     );
   }
 
   return (
     <div className="min-h-screen bg-[#050510] text-white">
-      <InstallPrompt />
+      {/* <InstallPrompt /> */}
       
       {/* Global Navigation Header */}
       <header className="sticky top-0 z-50 bg-[#050510]/80 backdrop-blur-md border-b border-white/5 px-6 py-4">

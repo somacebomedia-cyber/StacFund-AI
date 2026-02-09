@@ -2,8 +2,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Replace this with your own Firebase configuration.
-const firebaseConfig = {
+// Configuration from project fundhubv1-fixed
+export const firebaseConfig = {
   apiKey: "AIzaSyB2aiLLGlGX8gVs47L4ViuPLYAX113eSpw",
   authDomain: "fundhubv1-fixed.firebaseapp.com",
   projectId: "fundhubv1-fixed",

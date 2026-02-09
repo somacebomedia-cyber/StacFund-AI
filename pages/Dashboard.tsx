@@ -39,9 +39,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   const [showPresentationDesigner, setShowPresentationDesigner] = useState(false);
   
   // Initialize AI once
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string;
-  console.log(apiKey);
-  const genAI = new GoogleGenerativeAI(apiKey);
+  // Use VITE_GEMINI_API_KEY from environment, with process.env fallback
+  const rawKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+  const apiKey = rawKey.trim();
+  
+  // Safe initialization of GenAI
+  const getGenAI = () => {
+    if (!apiKey || apiKey === "YOUR_VALID_GEMINI_API_KEY_HERE") return null;
+    return new GoogleGenerativeAI(apiKey);
+  };
+  
+  const genAI = getGenAI();
 
   // Real Data Fetching
   useEffect(() => {
@@ -85,10 +93,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
 
   const calculateReadiness = async (profileStr: string, docs: number) => {
     if (isOffline) return;
+    if (!genAI) {
+      console.warn("Gemini API Key missing or invalid. Skipping AI readiness calculation.");
+      return;
+    }
+    
     setIsLoadingReadiness(true);
     try {
       const model = genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash',
         generationConfig: { responseMimeType: 'application/json' }
       });
       
@@ -109,6 +122,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
 
   const runAIMatching = async () => {
     if (!user || !hasProfile || isOffline) return;
+    if (!genAI) {
+        console.warn("Gemini API Key missing. Skipping AI matching.");
+        return;
+    }
     
     setIsLoadingAI(true);
     try {
@@ -116,7 +133,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       const profileData = userDoc.exists() ? JSON.stringify(userDoc.data().profile) : '';
 
       const model = genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash',
         generationConfig: { responseMimeType: 'application/json' }
       });
       
@@ -411,12 +428,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                       <div className="w-1 h-1 rounded-full bg-cyan-500 mt-1.5"></div>
                       <p>{tip}</p>
                     </div>
-                  ))}
+                  ))}\
                 </div>
               </div>
             ) : (
               <p className="text-xs text-gray-500 text-center">Calculated once profile is complete.</p>
-            )}
+            )}\
           </div>
 
           <div className="glass-panel rounded-3xl p-6">
@@ -427,7 +444,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                   <h4 className="text-sm font-bold">{a.title}</h4>
                   <p className="text-[10px] text-gray-500">{a.description}</p>
                 </div>
-              ))}
+              ))}\
             </div>
           </div>
         </div>
