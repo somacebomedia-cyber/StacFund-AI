@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Target, Mail, Lock, Building2, ArrowRight, Loader2, CheckCircle2, Inbox, AlertTriangle, Zap, ShieldCheck } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
-import { auth, db } from '../services/firebase';
+import { auth, db, hasValidFirebaseConfig } from '../services/firebase';
 import { User } from '../types';
 
 interface AuthProps {
@@ -29,6 +29,22 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
   // QUICK DEMO: Populates Firestore with a complete user environment
   const handleQuickDemo = async () => {
     setIsLoading(true);
+    
+    // Check if we are running without valid keys (Preview Mode)
+    if (!hasValidFirebaseConfig()) {
+        await new Promise(r => setTimeout(r, 1500)); // Simulate loading
+        // Mock success for preview
+        const mockUser: User = {
+            id: 'demo-user-preview',
+            email: 'demo.founder@fundhub.test',
+            businessName: 'NeoTech Industries (Demo)',
+            isVerified: true,
+            subscriptionPlan: 'pro',
+            billingCycle: 'yearly'
+        };
+        onAuthSuccess(mockUser);
+        return;
+    }
     
     try {
       // 1. Authenticate as a Demo User
@@ -112,6 +128,20 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
     setIsLoading(true);
     setError(null);
 
+    // Mock Login for Preview if no keys
+    if (!hasValidFirebaseConfig()) {
+        await new Promise(r => setTimeout(r, 1000));
+        const mockUser: User = {
+            id: 'demo-user-preview',
+            email: formData.email || 'user@fundhub.test',
+            businessName: 'My Business (Preview)',
+            isVerified: true,
+            subscriptionPlan: 'free'
+        };
+        onAuthSuccess(mockUser);
+        return;
+    }
+
     try {
       await signInWithEmailAndPassword(auth, formData.email, formData.password);
     } catch (err: any) {
@@ -140,6 +170,15 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       setError('Password must be at least 8 characters.');
       setIsLoading(false);
       return;
+    }
+
+    // Mock Signup for Preview if no keys
+    if (!hasValidFirebaseConfig()) {
+        await new Promise(r => setTimeout(r, 1000));
+        setPendingUserEmail(formData.email);
+        setAuthState('verification_pending');
+        setIsLoading(false);
+        return;
     }
 
     try {
@@ -175,6 +214,19 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
   };
 
   const proceedToDashboard = () => {
+      // Handle preview mode bypass
+      if (!hasValidFirebaseConfig()) {
+        const u: User = {
+            id: 'demo-user-preview',
+            email: formData.email || 'demo@fundhub.test',
+            businessName: formData.businessName || 'My Business',
+            isVerified: true,
+            subscriptionPlan: 'free'
+        };
+        onAuthSuccess(u);
+        return;
+      }
+
       if (auth.currentUser) {
           const u: User = {
               id: auth.currentUser.uid,

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Camera, Upload, X, Loader2, CheckCircle2, AlertTriangle, FileText, ChevronRight, Sparkles, Copy, ScanLine } from 'lucide-react';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { User } from '../types';
 
 interface FormDigitizerProps {
@@ -41,29 +41,7 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
 
   const analyzeForm = async (base64Image: string) => {
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
-      if (!apiKey) throw new Error("API Key missing");
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: SchemaType.ARRAY,
-            items: {
-              type: SchemaType.OBJECT,
-              properties: {
-                section: { type: SchemaType.STRING },
-                label: { type: SchemaType.STRING },
-                value: { type: SchemaType.STRING },
-                status: { type: SchemaType.STRING, enum: ['filled', 'missing', 'uncertain'] }
-              }
-            }
-          }
-        }
-      });
-
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const profileData = localStorage.getItem(`fundhub_profile_${user?.id}`);
       const docsData = localStorage.getItem('fundhub_documents');
       
@@ -86,15 +64,43 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
         
         OUTPUT FORMAT:
         Return a strict JSON array of objects.
+        Schema:
+        [
+          {
+            "section": "Header/Part A/Part B",
+            "label": "Field Name on Form",
+            "value": "The value to write",
+            "status": "filled" | "missing" | "uncertain"
+          }
+        ]
       `;
 
-      const result = await model.generateContent([
-        { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-        { text: prompt }
-      ]);
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: {
+          parts: [
+            { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
+            { text: prompt }
+          ]
+        },
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                section: { type: Type.STRING },
+                label: { type: Type.STRING },
+                value: { type: Type.STRING },
+                status: { type: Type.STRING, enum: ['filled', 'missing', 'uncertain'] }
+              }
+            }
+          }
+        }
+      });
 
-      const response = await result.response;
-      const fields = JSON.parse(response.text() || '[]');
+      const fields = JSON.parse(response.text || '[]');
       setFormFields(fields);
       setStep('results');
 

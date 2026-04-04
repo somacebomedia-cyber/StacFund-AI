@@ -1,13 +1,13 @@
 
 import React from 'react';
-import { ArrowRight, Search, Target, DollarSign, Users, Clock, Tag } from 'lucide-react';
+import { ArrowRight, Search, Target, DollarSign, Users, Clock } from 'lucide-react';
 
 interface LandingProps {
   onGetStarted: () => void;
-  onGoToPricing: () => void;
+  onLogin: () => void;
 }
 
-const Landing: React.FC<LandingProps> = ({ onGetStarted, onGoToPricing }) => {
+const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin }) => {
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#050510]">
       {/* Background Orbs */}
@@ -26,7 +26,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onGoToPricing }) => {
         </div>
         <div className="flex items-center gap-4">
           <button 
-            onClick={onGetStarted}
+            onClick={onLogin}
             className="text-gray-400 hover:text-white font-bold transition-all px-4"
           >
             Log In
@@ -78,14 +78,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onGoToPricing }) => {
           </button>
         </div>
 
-        <button 
-          onClick={onGoToPricing}
-          className="w-full sm:w-auto bg-white/5 hover:bg-white/10 px-6 py-3 rounded-full border border-white/10 font-bold transition-all"
-        >
-          View Pricing
-        </button>
-
-        <div className="max-w-2xl mx-auto relative group mt-16">
+        <div className="max-w-2xl mx-auto relative group">
           <input 
             type="text" 
             placeholder="Search funding opportunities..." 

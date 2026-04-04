@@ -8,11 +8,6 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
-        allowedHosts: true,
-        hmr: {
-           clientPort: 443, 
-           protocol: 'wss'
-        }
       },
       plugins: [react()],
       define: {
@@ -20,11 +15,8 @@ export default defineConfig(({ mode }) => {
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
       },
       resolve: {
-        dedupe: ['firebase', 'react', 'react-dom'],
         alias: {
           '@': path.resolve(__dirname, '.'),
-          'react': path.resolve(__dirname, 'node_modules/react'),
-          'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
         }
       }
     };

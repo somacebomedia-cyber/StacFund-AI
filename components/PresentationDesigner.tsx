@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Palette, Wand2, Loader2, Printer, Type as TypeIcon, PieChart, CheckCircle } from 'lucide-react';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Palette, Wand2, Loader2, Printer, Type as TypeIcon, PieChart } from 'lucide-react';
+import { GoogleGenAI, Type } from '@google/genai';
 import { User, AppDocument } from '../types';
 
 interface PresentationDesignerProps {
@@ -128,18 +128,8 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
   const [loadingMessage, setLoadingMessage] = useState('');
 
   useEffect(() => {
-    // For MVP, if no documents found, mock one for demo
-    const mockDoc: AppDocument = {
-      id: 'demo-doc',
-      userId: user?.id || 'demo',
-      name: 'Business Growth Plan 2025',
-      type: 'text/plain',
-      size: 1024,
-      uploadDate: new Date().toISOString(),
-      category: 'Business Plan'
-    };
-    
-    setDocuments([mockDoc]);
+    const allDocs: AppDocument[] = JSON.parse(localStorage.getItem('fundhub_documents') || '[]');
+    setDocuments(allDocs.filter(d => d.userId === user?.id && d.type === 'text/plain'));
   }, [user]);
 
   const generatePresentation = async (doc: AppDocument) => {
@@ -147,46 +137,11 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
     setLoadingMessage('Designing presentation structure...');
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
-      // Fallback if no key just to show UI
-      if (!apiKey) {
-         // Mock generation for UI demo
-         setTimeout(() => {
-             const mockSlides: Slide[] = [
-                 { id: '1', type: 'cover', title: 'Growth Strategy 2025', points: ['Scaling Operations'], visualPrompt: 'Growth' },
-                 { id: '2', type: 'content', title: 'Market Analysis', points: ['Target Audience: SMEs', 'Market Size: $5B'], visualPrompt: 'Chart' },
-                 { id: '3', type: 'data', title: 'Financial Projections', points: ['Revenue: $1.2M', 'Growth: 150%'], visualPrompt: 'Graph' }
-             ];
-             setSlides(mockSlides);
-             setStep('editor');
-         }, 2000);
-         return;
-      }
-
-      const ai = new GoogleGenerativeAI(apiKey);
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
-      const model = ai.getGenerativeModel({
-        model: 'gemini-2.0-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: SchemaType.ARRAY,
-            items: {
-              type: SchemaType.OBJECT,
-              properties: {
-                type: { type: SchemaType.STRING, enum: ['cover', 'content', 'data', 'quote'] },
-                title: { type: SchemaType.STRING },
-                points: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-                visualPrompt: { type: SchemaType.STRING }
-              }
-            }
-          }
-        }
-      });
-
       const prompt = `
         Create a 5-7 slide presentation structure for a business document titled "${doc.name}".
-        Business Name: ${user?.businessName || 'My Business'}
+        Business Name: ${user?.businessName}
         
         OUTPUT FORMAT: JSON Array of Slide objects.
         Slide Types: 'cover', 'content', 'data', 'quote'.
@@ -196,9 +151,27 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
         For 'cover', describe a heroic business illustration.
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const generatedSlides = JSON.parse(response.text() || '[]');
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                type: { type: Type.STRING, enum: ['cover', 'content', 'data', 'quote'] },
+                title: { type: Type.STRING },
+                points: { type: Type.ARRAY, items: { type: Type.STRING } },
+                visualPrompt: { type: Type.STRING }
+              }
+            }
+          }
+        }
+      });
+
+      const generatedSlides = JSON.parse(response.text || '[]');
       const slidesWithIds = generatedSlides.map((s: any, i: number) => ({ ...s, id: i.toString(), isGeneratingImage: false }));
       setSlides(slidesWithIds);
       setStep('editor');
@@ -222,33 +195,31 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
     setSlides(prev => prev.map((s, i) => i === index ? { ...s, isGeneratingImage: true } : s));
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
-      const ai = new GoogleGenerativeAI(apiKey);
-      const model = ai.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       let stylePrompt = `Style: High quality, professional, vector art, flat design, ${theme.name} color palette (${theme.accent} accent).`;
       if (slide.type === 'data') stylePrompt += " Create a clean, modern infographic chart visualization on a dark background.";
       if (slide.type === 'cover') stylePrompt += " Heroic, cinematic composition, minimalist.";
       
-      const prompt = `
-        Generate an SVG image code for: ${slide.visualPrompt || slide.title}. ${stylePrompt}
-        Do not include markdown fences. Return ONLY the <svg>...</svg> code.
-        The SVG should be at least 800x600.
-      `;
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [{ text: `${slide.visualPrompt || slide.title}. ${stylePrompt}` }]
+        }
+      });
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      let svgText = response.text();
-      
-      // Cleanup svg text if it has markdown
-      svgText = svgText.replace(/```xml/g, '').replace(/```svg/g, '').replace(/```/g, '').trim();
+      let imageUrl = null;
+      if (response.candidates?.[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData) {
+            imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            break;
+          }
+        }
+      }
 
-      if (svgText.startsWith('<svg')) {
-          const base64Svg = btoa(unescape(encodeURIComponent(svgText)));
-          const imageUrl = `data:image/svg+xml;base64,${base64Svg}`;
-          setSlides(prev => prev.map((s, i) => i === index ? { ...s, imageData: imageUrl, isGeneratingImage: false } : s));
-      } else {
-          setSlides(prev => prev.map((s, i) => i === index ? { ...s, isGeneratingImage: false } : s));
+      if (imageUrl) {
+        setSlides(prev => prev.map((s, i) => i === index ? { ...s, imageData: imageUrl, isGeneratingImage: false } : s));
       }
     } catch (e) {
       console.error("Image gen failed", e);
@@ -343,7 +314,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
                 ))
               ) : (
                 <div className="col-span-2 p-8 rounded-2xl border border-dashed border-white/20 text-gray-500">
-                  No generated text documents found. Go to Profile &gt; Documents and generate a Business Plan first.
+                  No generated text documents found. Go to Profile > Documents and generate a Business Plan first.
                 </div>
               )}
             </div>
