@@ -9,7 +9,7 @@ export const MOCK_FUNDING: FundingOpportunity[] = [
     type: FundingType.GRANT,
     description: 'Non-repayable grant for small businesses looking to expand operations, hire staff, or invest in technology. Perfect for businesses with 1-20 employees.',
     range: '$10K - $50K',
-    deadline: 'June 30, 2025',
+    deadline: 'June 30, 2026',
     tags: ['Technology', 'Retail'],
     isNew: true
   },
@@ -31,7 +31,7 @@ export const MOCK_FUNDING: FundingOpportunity[] = [
     type: FundingType.LOAN,
     description: 'Low-interest loans specifically for women-owned businesses. Flexible repayment terms up to 5 years with competitive interest rates starting at 6%.',
     range: '$5K - $100K',
-    deadline: 'March 31, 2025',
+    deadline: 'March 31, 2026',
     tags: ['All Industries'],
     isNew: true
   },
@@ -42,18 +42,18 @@ export const MOCK_FUNDING: FundingOpportunity[] = [
     type: FundingType.GRANT,
     description: 'Grant funding for businesses developing sustainable and environmentally-friendly solutions. Priority given to renewable energy projects.',
     range: '$25K - $150K',
-    deadline: 'May 15, 2025',
+    deadline: 'May 15, 2026',
     tags: ['Clean Energy', 'Sustainability'],
     isNew: true
   },
   {
     id: '5',
-    title: 'Startup Pitch Competition 2025',
+    title: 'Startup Pitch Competition 2026',
     provider: 'Global Startup League',
     type: FundingType.COMPETITION,
     description: 'Win up to $500K in funding through our international pitch competition. Top 10 finalists get mentorship and exposure to global investors.',
     range: 'Up to $500K',
-    deadline: 'April 30, 2025',
+    deadline: 'April 30, 2026',
     tags: ['Technology', 'Healthcare'],
     isNew: true
   }

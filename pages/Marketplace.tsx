@@ -3,25 +3,28 @@ import React, { useState, useEffect } from 'react';
 import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { MOCK_FUNDING } from '../constants';
 import { FundingType, User, Application, ApplicationStatus, FundingOpportunity } from '../types';
 import FundingCard from '../components/FundingCard';
+import ApplicationWorkflow from '../components/ApplicationWorkflow';
 
 interface MarketplaceProps {
   user: User | null;
   activeOpportunityId?: string | null;
+  resumeOpportunityId?: string | null;
   onGoToDashboard: () => void;
   onSetActiveOpportunity: (id: string | null) => void;
   onUpgrade: () => void;
 }
 
-const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, onGoToDashboard, onSetActiveOpportunity, onUpgrade }) => {
+const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, resumeOpportunityId, onGoToDashboard, onSetActiveOpportunity, onUpgrade }) => {
   const [filter, setFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info'}>({ show: false, message: '', type: 'success' });
   const [isScanning, setIsScanning] = useState(false);
   const [selectedOpp, setSelectedOpp] = useState<FundingOpportunity | null>(null);
+  const [workflowOpp, setWorkflowOpp] = useState<FundingOpportunity | null>(null);
   const [newOppAlert, setNewOppAlert] = useState<{show: boolean, count: number}>({ show: false, count: 0 });
   
   // The Encyclopedia State
@@ -50,7 +53,14 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, on
       const opp = allOps.find((o: FundingOpportunity) => o.id === activeOpportunityId);
       if (opp) setSelectedOpp(opp);
     }
-  }, [activeOpportunityId]);
+    
+    // Sync resume ID prop
+    if (resumeOpportunityId) {
+      const allOps = storedOps ? JSON.parse(storedOps) : MOCK_FUNDING;
+      const opp = allOps.find((o: FundingOpportunity) => o.id === resumeOpportunityId);
+      if (opp) setWorkflowOpp(opp);
+    }
+  }, [activeOpportunityId, resumeOpportunityId]);
 
   // Monitor for new opportunities to alert
   useEffect(() => {
@@ -79,8 +89,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, on
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const searchResponse = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Find 10-12 distinct, currently active business funding opportunities, grants, enterprise development programs, or loan schemes available in South Africa for 2025/2026.
+        model: 'gemini-3.1-pro-preview',
+        contents: `Find 10-12 distinct, currently active business funding opportunities, grants, enterprise development programs, or loan schemes available in South Africa for 2026/2027.
         Prioritize reliable sources like government agencies (NYDA, SEFA, IDC), major banks (Standard Bank, FNB, Nedbank), and established private foundations (Tony Elumelu, Allan Gray).
         Ensure the opportunities are specifically for SMEs or startups.
         Include details on the funding amount range (e.g. R50k - R5m), the application deadline, the provider name, and specific eligibility tags.`,
@@ -94,7 +104,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, on
       if (!rawText) throw new Error("No results found from web scan.");
 
       const structureResponse = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-preview',
         contents: `You are a data extractor. Analyze the following text about funding opportunities and extract them into a strict JSON array.
         
         TEXT SOURCE:
@@ -185,28 +195,47 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, on
     // Check if already applied via Firestore
     const appsRef = collection(db, 'users', user.id, 'applications');
     const q = query(appsRef, where("opportunityId", "==", opportunityId));
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      alert('You have already started an application for this opportunity.');
+    
+    let querySnapshot;
+    try {
+      querySnapshot = await getDocs(q);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, `users/${user.id}/applications`);
       return;
     }
 
-    onSetActiveOpportunity(opportunityId);
+    if (!querySnapshot.empty) {
+      // If it exists, just open the workflow
+      setWorkflowOpp(opportunity);
+      return;
+    }
 
+    // Save application to Firestore as DRAFT
     const newApplication = {
       opportunityId: opportunity.id,
       opportunityTitle: opportunity.title,
       provider: opportunity.provider,
-      status: ApplicationStatus.SUBMITTED,
+      status: ApplicationStatus.DRAFT,
       date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
       type: opportunity.type
     };
     
-    // Save to Firestore
-    await addDoc(appsRef, newApplication);
-    
-    setShowToast({ show: true, message: 'Application Started Successfully!', type: 'success' });
+    try {
+      await addDoc(appsRef, newApplication);
+      
+      // Also save to local storage for offline support
+      const applications = JSON.parse(localStorage.getItem('fundhub_applications') || '[]');
+      localStorage.setItem('fundhub_applications', JSON.stringify([...applications, { ...newApplication, id: Math.random().toString(36).substr(2, 9), userId: user.id }]));
+      
+      setWorkflowOpp(opportunity);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `users/${user.id}/applications`);
+    }
+  };
+
+  const handleWorkflowComplete = () => {
+    setWorkflowOpp(null);
+    setShowToast({ show: true, message: 'Application Pack Downloaded & Submitted!', type: 'success' });
     setTimeout(() => {
       setShowToast({ ...showToast, show: false });
       onGoToDashboard();
@@ -500,6 +529,15 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, on
             </div>
           </div>
         </div>
+      )}
+      {/* Application Workflow Modal */}
+      {workflowOpp && user && (
+        <ApplicationWorkflow
+          opportunity={workflowOpp}
+          user={user}
+          onClose={() => setWorkflowOpp(null)}
+          onComplete={handleWorkflowComplete}
+        />
       )}
     </div>
   );

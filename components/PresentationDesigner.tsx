@@ -314,7 +314,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
                 ))
               ) : (
                 <div className="col-span-2 p-8 rounded-2xl border border-dashed border-white/20 text-gray-500">
-                  No generated text documents found. Go to Profile > Documents and generate a Business Plan first.
+                  No generated text documents found. Go to Profile &gt; Documents and generate a Business Plan first.
                 </div>
               )}
             </div>

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import StatCard from '../components/StatCard';
 import { MOCK_ACHIEVEMENTS, MOCK_FUNDING } from '../constants';
 import { User, Application, ApplicationStatus, FundingType, AppDocument, FundingOpportunity, ReadinessInfo } from '../types';
@@ -12,7 +12,7 @@ import PresentationDesigner from '../components/PresentationDesigner';
 
 interface DashboardProps {
   onCompleteProfile: () => void;
-  onBrowseFunding: () => void;
+  onBrowseFunding: (oppId?: string, resume?: boolean) => void;
   onUpgrade: () => void;
   user: User | null;
 }
@@ -63,7 +63,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 calculateReadiness(JSON.stringify(userDoc.data().profile), docSnapshot.size);
             }
         } catch (e) {
-            console.error("Error fetching dashboard data", e);
+            handleFirestoreError(e, OperationType.GET, `users/${user.id}`);
         }
     };
 
@@ -155,6 +155,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
 
   const getStatusStyle = (status: ApplicationStatus) => {
     switch (status) {
+      case ApplicationStatus.DRAFT: return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
       case ApplicationStatus.SUBMITTED: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       case ApplicationStatus.UNDER_REVIEW: return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       case ApplicationStatus.APPROVED: return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
@@ -165,8 +166,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
 
   const getProgress = (status: ApplicationStatus) => {
     switch (status) {
-      case ApplicationStatus.SUBMITTED: return 25;
-      case ApplicationStatus.UNDER_REVIEW: return 50;
+      case ApplicationStatus.DRAFT: return 25;
+      case ApplicationStatus.SUBMITTED: return 50;
+      case ApplicationStatus.UNDER_REVIEW: return 75;
       case ApplicationStatus.APPROVED: return 100;
       case ApplicationStatus.REJECTED: return 100;
       default: return 0;
@@ -175,6 +177,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
 
   const getProgressBarColor = (status: ApplicationStatus) => {
     switch (status) {
+      case ApplicationStatus.DRAFT: return 'bg-purple-500';
       case ApplicationStatus.SUBMITTED: return 'bg-blue-500';
       case ApplicationStatus.UNDER_REVIEW: return 'bg-amber-500';
       case ApplicationStatus.APPROVED: return 'bg-emerald-500';
@@ -240,12 +243,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
             <StatCard label="Documents" value={docCount} icon={<Upload size={24} />} colorClass="text-blue-400" />
           </div>
 
-          <div className="glass-panel p-1 rounded-2xl flex overflow-x-auto">
+          <div className="glass-panel p-1.5 rounded-2xl flex overflow-x-auto hide-scrollbar gap-1">
             {['overview', 'applications', 'opportunities', 'tools'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
-                className={`flex-1 min-w-[100px] py-3 rounded-xl font-bold capitalize transition-all ${
+                className={`flex-none min-w-[110px] md:flex-1 py-3 px-4 rounded-xl font-bold capitalize transition-all text-sm ${
                   activeTab === tab ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
                 }`}
               >
@@ -288,7 +291,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                           </div>
                           <div><h4 className="font-bold group-hover:text-purple-400 transition-colors">{app.opportunityTitle}</h4><p className="text-xs text-gray-500">{app.provider} • {app.date}</p></div>
                         </div>
-                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${getStatusStyle(app.status)}`}>{app.status.replace('_', ' ')}</div>
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${getStatusStyle(app.status)}`}>{app.status === ApplicationStatus.DRAFT ? 'IN PROGRESS' : app.status.replace('_', ' ')}</div>
                       </div>
                     ))
                   ) : (
@@ -316,7 +319,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                       const colorClass = getProgressBarColor(app.status);
                       
                       return (
-                        <div key={app.id} className="glass-panel p-6 rounded-3xl group hover:border-white/20 transition-all relative overflow-hidden">
+                        <div 
+                          key={app.id} 
+                          className={`glass-panel p-6 rounded-3xl group hover:border-white/20 transition-all relative overflow-hidden ${app.status === ApplicationStatus.DRAFT ? 'cursor-pointer' : ''}`}
+                          onClick={() => {
+                            if (app.status === ApplicationStatus.DRAFT) {
+                              onBrowseFunding(app.opportunityId, true);
+                            }
+                          }}
+                        >
                           {app.status === ApplicationStatus.REJECTED && (
                             <div className="absolute top-0 right-0 p-2 bg-red-500/20 rounded-bl-xl text-red-400 border-l border-b border-red-500/20">
                               <XCircle size={14} />
@@ -341,7 +352,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                                   {app.status === ApplicationStatus.REJECTED ? 'Application Terminated' : 'Application Progress'}
                                 </span>
                                 <span className={`text-xs font-black px-2 py-0.5 rounded-md ${app.status === ApplicationStatus.REJECTED ? 'bg-red-500/10 text-red-400' : 'text-white'}`}>
-                                  {app.status.replace('_', ' ')}
+                                  {app.status === ApplicationStatus.DRAFT ? 'IN PROGRESS' : app.status.replace('_', ' ')}
                                 </span>
                               </div>
                               <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">

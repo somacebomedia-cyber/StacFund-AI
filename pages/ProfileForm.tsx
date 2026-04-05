@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Save, Building2, User as UserIcon, FileText, Upload, X, File, CheckCircle2, Loader2, Sparkles, Wand2, Phone, MessageCircle, FileDown, BookOpen, PenTool, ChevronRight, Copy, Check, ShoppingBag, BarChart3, Package, Printer, Lock } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { AppDocument, User } from '../types';
 
 interface ProfileFormProps {
@@ -43,20 +43,24 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     const fetchProfileData = async () => {
         if (!user) return;
         
-        // Fetch Profile
-        const userDocRef = doc(db, 'users', user.id);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists() && userDoc.data().profile) {
-            setBusinessInfo(userDoc.data().profile);
-        } else {
-            setBusinessInfo(prev => ({ ...prev, name: user.businessName || '' }));
-        }
+        try {
+          // Fetch Profile
+          const userDocRef = doc(db, 'users', user.id);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists() && userDoc.data().profile) {
+              setBusinessInfo(userDoc.data().profile);
+          } else {
+              setBusinessInfo(prev => ({ ...prev, name: user.businessName || '' }));
+          }
 
-        // Fetch Documents
-        const docsRef = collection(db, 'users', user.id, 'documents');
-        const docsSnap = await getDocs(docsRef);
-        const fetchedDocs = docsSnap.docs.map(d => ({ id: d.id, ...d.data() } as AppDocument));
-        setDocuments(fetchedDocs);
+          // Fetch Documents
+          const docsRef = collection(db, 'users', user.id, 'documents');
+          const docsSnap = await getDocs(docsRef);
+          const fetchedDocs = docsSnap.docs.map(d => ({ id: d.id, ...d.data() } as AppDocument));
+          setDocuments(fetchedDocs);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `users/${user.id}`);
+        }
     };
 
     fetchProfileData();
@@ -88,7 +92,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
         
         // Save update to Firestore immediately
         const userDocRef = doc(db, 'users', user.id);
-        await setDoc(userDocRef, { profile: updatedInfo }, { merge: true });
+        try {
+          await setDoc(userDocRef, { profile: updatedInfo }, { merge: true });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
+          return;
+        }
         
         alert(`AI Scan Successful: Information extracted from ${docName} and saved to your profile!`);
       }
@@ -188,11 +197,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     };
     
     const docsRef = collection(db, 'users', user.id, 'documents');
-    const ref = await addDoc(docsRef, newDoc);
-    
-    setDocuments(prev => [...prev, { id: ref.id, ...newDoc } as AppDocument]);
-    setGeneratedProposal(null);
-    alert('Document saved to your Vault!');
+    try {
+      const ref = await addDoc(docsRef, newDoc);
+      setDocuments(prev => [...prev, { id: ref.id, ...newDoc } as AppDocument]);
+      setGeneratedProposal(null);
+      alert('Document saved to your Vault!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `users/${user.id}/documents`);
+    }
   };
 
   const handleSaveBusiness = async () => {
@@ -200,10 +212,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     setIsSaving(true);
     
     const userDocRef = doc(db, 'users', user.id);
-    await setDoc(userDocRef, { profile: businessInfo }, { merge: true });
-    
-    setIsSaving(false);
-    alert('Business information updated successfully!');
+    try {
+      await setDoc(userDocRef, { profile: businessInfo }, { merge: true });
+      alert('Business information updated successfully!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleFileUpload = async (files: FileList | null) => {
@@ -213,26 +229,34 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     
     // In a real app we'd upload to Firebase Storage here.
     // For this prototype, we save metadata to Firestore.
-    const promises = Array.from(files).map(async (file) => {
-        const newDoc = {
-            name: file.name,
-            type: file.type || 'application/octet-stream',
-            size: file.size,
-            uploadDate: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-            category: 'General'
-        };
-        const ref = await addDoc(docsRef, newDoc);
-        return { id: ref.id, ...newDoc } as AppDocument;
-    });
+    try {
+      const promises = Array.from(files).map(async (file) => {
+          const newDoc = {
+              name: file.name,
+              type: file.type || 'application/octet-stream',
+              size: file.size,
+              uploadDate: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+              category: 'General'
+          };
+          const ref = await addDoc(docsRef, newDoc);
+          return { id: ref.id, ...newDoc } as AppDocument;
+      });
 
-    const newDocs = await Promise.all(promises);
-    setDocuments(prev => [...prev, ...newDocs]);
+      const newDocs = await Promise.all(promises);
+      setDocuments(prev => [...prev, ...newDocs]);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `users/${user.id}/documents`);
+    }
   };
 
   const removeDocument = async (id: string) => {
     if (!user) return;
-    await deleteDoc(doc(db, 'users', user.id, 'documents', id));
-    setDocuments(prev => prev.filter(doc => doc.id !== id));
+    try {
+      await deleteDoc(doc(db, 'users', user.id, 'documents', id));
+      setDocuments(prev => prev.filter(doc => doc.id !== id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${user.id}/documents/${id}`);
+    }
   };
 
   const formatFileSize = (bytes: number) => {

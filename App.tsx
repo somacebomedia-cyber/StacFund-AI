@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [activeOpportunityId, setActiveOpportunityId] = useState<string | null>(null);
+  const [resumeOpportunityId, setResumeOpportunityId] = useState<string | null>(null);
   const [profileVersion, setProfileVersion] = useState(0); 
   const [showPricing, setShowPricing] = useState(false);
   const [configError, setConfigError] = useState(false);
@@ -60,9 +61,7 @@ const App: React.FC = () => {
               billingCycle: userData.billingCycle
             });
             // Only redirect to dashboard if we were on landing or auth
-            if (currentPage === 'landing' || currentPage === 'auth') {
-              setCurrentPage('dashboard');
-            }
+            setCurrentPage(prev => (prev === 'landing' || prev === 'auth') ? 'dashboard' : prev);
           } else {
             // Fallback if doc doesn't exist yet (rare race condition)
             setCurrentUser({
@@ -72,6 +71,7 @@ const App: React.FC = () => {
               isVerified: firebaseUser.emailVerified,
               subscriptionPlan: 'free'
             });
+            setCurrentPage(prev => (prev === 'landing' || prev === 'auth') ? 'dashboard' : prev);
           }
         } catch (e) {
           console.error("Error fetching user profile:", e);
@@ -79,7 +79,7 @@ const App: React.FC = () => {
       } else {
         // User is signed out
         setCurrentUser(null);
-        setCurrentPage('landing');
+        setCurrentPage(prev => (prev !== 'landing' && prev !== 'auth') ? 'landing' : prev);
       }
       setIsInitializing(false);
     }, (error) => {
@@ -89,7 +89,7 @@ const App: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, [currentPage]);
+  }, []);
 
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
@@ -143,7 +143,14 @@ const App: React.FC = () => {
           <Dashboard 
             key={`dash-${profileVersion}-${currentUser?.subscriptionPlan}`}
             onCompleteProfile={() => setCurrentPage('profile')} 
-            onBrowseFunding={() => setCurrentPage('marketplace')}
+            onBrowseFunding={(oppId?: string, resume?: boolean) => {
+              if (resume && oppId) {
+                setResumeOpportunityId(oppId);
+              } else if (oppId) {
+                setActiveOpportunityId(oppId);
+              }
+              setCurrentPage('marketplace');
+            }}
             onUpgrade={triggerPricing}
             user={currentUser}
           />
@@ -153,7 +160,12 @@ const App: React.FC = () => {
           <Marketplace 
             user={currentUser} 
             activeOpportunityId={activeOpportunityId}
-            onGoToDashboard={() => setCurrentPage('dashboard')} 
+            resumeOpportunityId={resumeOpportunityId}
+            onGoToDashboard={() => {
+              setResumeOpportunityId(null);
+              setActiveOpportunityId(null);
+              setCurrentPage('dashboard');
+            }} 
             onSetActiveOpportunity={setActiveOpportunityId}
             onUpgrade={triggerPricing}
           />
@@ -314,6 +326,9 @@ const App: React.FC = () => {
         onNavigate={(page) => setCurrentPage(page as any)}
         onProfileUpdate={handleProfileUpdate}
       />
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
 
       {/* Simple Footer for Non-Landing Pages */}
       <footer className="py-12 border-t border-white/5 text-center text-gray-600 text-xs">

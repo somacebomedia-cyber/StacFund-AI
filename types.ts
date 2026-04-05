@@ -7,6 +7,7 @@ export enum FundingType {
 }
 
 export enum ApplicationStatus {
+  DRAFT = 'DRAFT',
   SUBMITTED = 'SUBMITTED',
   UNDER_REVIEW = 'UNDER_REVIEW',
   APPROVED = 'APPROVED',
