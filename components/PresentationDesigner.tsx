@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Palette, Wand2, Loader2, Printer, Type as TypeIcon, PieChart } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { User, AppDocument } from '../types';
 
 interface PresentationDesignerProps {
@@ -113,7 +115,7 @@ const SlideRenderer = ({ slide, theme, index, total }: { slide: Slide, theme: ty
 
       {/* Footer */}
       <div className="absolute bottom-6 left-8 right-8 flex justify-between items-center opacity-40 mix-blend-plus-lighter">
-          <p className="text-sm font-black uppercase tracking-widest text-white">FundHub Generated</p>
+          <p className="text-sm font-black uppercase tracking-widest text-white">StacFund Generated</p>
           <p className="text-sm font-black uppercase tracking-widest text-white">{index + 1} / {total}</p>
       </div>
   </div>
@@ -128,8 +130,18 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
   const [loadingMessage, setLoadingMessage] = useState('');
 
   useEffect(() => {
-    const allDocs: AppDocument[] = JSON.parse(localStorage.getItem('fundhub_documents') || '[]');
-    setDocuments(allDocs.filter(d => d.userId === user?.id && d.type === 'text/plain'));
+    const fetchDocs = async () => {
+      if (!user) return;
+      try {
+        const docsRef = collection(db, 'users', user.id, 'documents');
+        const docSnapshot = await getDocs(docsRef);
+        const fetchedDocs = docSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppDocument));
+        setDocuments(fetchedDocs.filter(d => d.type === 'text/plain' || d.content));
+      } catch (error) {
+        console.error('Error fetching documents:', error);
+      }
+    };
+    fetchDocs();
   }, [user]);
 
   const generatePresentation = async (doc: AppDocument) => {
@@ -137,7 +149,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
     setLoadingMessage('Designing presentation structure...');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
         Create a 5-7 slide presentation structure for a business document titled "${doc.name}".
@@ -195,7 +207,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
     setSlides(prev => prev.map((s, i) => i === index ? { ...s, isGeneratingImage: true } : s));
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       let stylePrompt = `Style: High quality, professional, vector art, flat design, ${theme.name} color palette (${theme.accent} accent).`;
       if (slide.type === 'data') stylePrompt += " Create a clean, modern infographic chart visualization on a dark background.";

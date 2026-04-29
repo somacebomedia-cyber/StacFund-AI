@@ -357,7 +357,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
             <Target className="text-white" size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tighter text-white">FundHub</h1>
+            <h1 className="text-2xl font-black tracking-tighter text-white">StacFund</h1>
             <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] -mt-1 font-bold">Power Your Business</p>
           </div>
         </div>
@@ -456,7 +456,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
                 <Loader2 size={20} className="animate-spin" />
               ) : (
                 <>
-                  {authState === 'login' ? 'Log In' : 'Join FundHub'} <ArrowRight size={18} />
+                  {authState === 'login' ? 'Log In' : 'Join StacFund'} <ArrowRight size={18} />
                 </>
               )}
             </button>
@@ -500,7 +500,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
 
           <div className="mt-8 text-center">
             <p className="text-sm text-gray-500 font-medium">
-              {authState === 'login' ? "New to FundHub?" : "Already have an account?"}
+              {authState === 'login' ? "New to StacFund?" : "Already have an account?"}
               <button 
                 onClick={() => {
                   setAuthState(authState === 'login' ? 'signup' : 'login');

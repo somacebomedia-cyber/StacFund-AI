@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
 import { FundingOpportunity, FundingType, RoadmapStep } from '../types';
-import { Heart, ChevronRight, ChevronDown, CheckCircle2, Share2, Copy, MessageCircle, X, ArrowUpRight, Info } from 'lucide-react';
+import { Heart, ChevronRight, ChevronDown, CheckCircle2, Share2, Copy, MessageCircle, X, ArrowUpRight, Info, Download } from 'lucide-react';
 
 interface FundingCardProps {
   opportunity: FundingOpportunity;
   onViewDetails: (id: string) => void;
   onStartApplication: (id: string) => void;
+  onDownloadForm: (id: string) => void;
 }
 
-const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, onStartApplication }) => {
+const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, onStartApplication, onDownloadForm }) => {
   const [showRoadmap, setShowRoadmap] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -62,7 +63,7 @@ const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, o
   };
 
   const handleWhatsAppShare = () => {
-    const text = `Check out this funding opportunity: ${opportunity.title} by ${opportunity.provider}. Range: ${opportunity.range}. Apply now on FundHub!`;
+    const text = `Check out this funding opportunity: ${opportunity.title} by ${opportunity.provider}. Range: ${opportunity.range}. Apply now on StacFund!`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -141,10 +142,17 @@ const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, o
           Start Application <ChevronRight size={18} />
         </button>
         <button 
+          onClick={() => onDownloadForm(opportunity.id)}
+          className="px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black transition-all border border-white/10 flex items-center justify-center gap-2"
+          title="Download Official Form"
+        >
+          <Download size={18} /> <span className="hidden lg:inline">Form</span>
+        </button>
+        <button 
           onClick={() => onViewDetails(opportunity.id)}
           className="px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black transition-all border border-white/10 flex items-center justify-center gap-2"
         >
-          View Opportunity <ArrowUpRight size={18} />
+          Details <ArrowUpRight size={18} />
         </button>
         <button 
           onClick={() => setShowRoadmap(!showRoadmap)}

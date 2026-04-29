@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
-import { X, CheckCircle2, Zap, Rocket, CreditCard, Loader2, ShieldCheck, Lock, ChevronLeft, Calendar } from 'lucide-react';
+import { X, CheckCircle2, Zap, Rocket, Loader2, CreditCard, Calendar, Lock, ChevronLeft, ShieldCheck, AlertCircle } from 'lucide-react';
 import { User } from '../types';
+import { usePaystackPayment } from 'react-paystack';
 
 interface PricingModalProps {
   user: User | null;
@@ -10,35 +11,90 @@ interface PricingModalProps {
 }
 
 const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade }) => {
-  const [view, setView] = useState<'plans' | 'checkout'>('plans');
   const [selectedPlan, setSelectedPlan] = useState<'pro' | 'business' | null>(null);
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('yearly');
   
   // Checkout State
-  const [cardNumber, setCardNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const getAmount = (plan: 'pro' | 'business') => {
+    const amountStr = plan === 'pro' ? (billing === 'monthly' ? '149' : '999') : (billing === 'monthly' ? '699' : '6999');
+    return parseInt(amountStr.replace(',', ''), 10) * 100;
+  };
+
+  const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
+
+  // Pro Config
+  const proConfig = {
+      reference: 'pro_' + new Date().getTime().toString(),
+      email: user?.email || 'user@example.com',
+      amount: getAmount('pro'),
+      publicKey: publicKey || "pk_test_fallback",
+      currency: "ZAR",
+  };
+  const initializeProPayment = usePaystackPayment(proConfig);
+
+  // Business Config
+  const businessConfig = {
+      reference: 'bus_' + new Date().getTime().toString(),
+      email: user?.email || 'user@example.com',
+      amount: getAmount('business'),
+      publicKey: publicKey || "pk_test_fallback",
+      currency: "ZAR",
+  };
+  const initializeBusinessPayment = usePaystackPayment(businessConfig);
+
+
+  const handleSuccess = async (referenceInfo: any, plan: 'pro' | 'business') => {
+    console.log("Payment Successful:", referenceInfo);
+    setIsProcessing(true);
+    
+    try {
+      // Verify the transaction securely on the backend
+      const response = await fetch('/api/paystack/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          reference: referenceInfo.reference,
+          userId: user?.id,
+          plan: plan,
+          cycle: billing
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.status === true && data.data.status === 'success') {
+        onUpgrade(plan, billing);
+      } else {
+        alert("Payment verification failed. Please contact support.");
+        console.error("Verification failed:", data);
+      }
+    } catch (error) {
+      console.error("Error verifying payment:", error);
+      alert("Error verifying payment. If you were charged, please contact support.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleClose = () => {
+    console.log("Payment dialog closed.");
+  };
 
   const startCheckout = (plan: 'pro' | 'business') => {
     setSelectedPlan(plan);
-    setView('checkout');
-  };
-
-  const handlePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsProcessing(true);
-    
-    // SIMULATED PAYMENT GATEWAY DELAY
-    // In production, this would be `paystack.open()` or `stripe.confirmCardPayment()`
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    
-    if (selectedPlan) {
-        onUpgrade(selectedPlan, billing);
+    if (!publicKey) {
+      alert("DEMO MODE: Paystack API key not found. Simulating a successful upgrade to " + plan + ".");
+      onUpgrade(plan, billing);
+      return;
     }
-    setIsProcessing(false);
-  };
-
-  const formatCard = (value: string) => {
-    return value.replace(/\W/gi, '').replace(/(.{4})/g, '$1 ').trim().substring(0, 19);
+    
+    if (plan === 'pro') {
+      initializeProPayment({ onSuccess: (ref) => handleSuccess(ref, 'pro'), onClose: handleClose });
+    } else {
+      initializeBusinessPayment({ onSuccess: (ref) => handleSuccess(ref, 'business'), onClose: handleClose });
+    }
   };
 
   return (
@@ -52,16 +108,22 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
           <X size={24} />
         </button>
 
-        {view === 'plans' ? (
           <>
             {/* Header Section */}
             <div className="text-center pt-10 pb-6 px-6 bg-gradient-to-b from-purple-900/20 to-transparent">
               <h2 className="text-3xl md:text-4xl font-black mb-3">Choose Your Growth Engine</h2>
-              <p className="text-gray-400 text-sm max-w-xl mx-auto">
-                Secure recurring funding support. Payments processed securely via Paystack.
+              <p className="text-gray-400 text-sm max-w-xl mx-auto mb-4">
+                Secure recurring funding support. Payments powered by <span className="text-emerald-400 font-bold">Paystack</span>.
               </p>
+
+              {!publicKey && (
+                <div className="mx-auto max-w-md bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl flex gap-3 text-amber-200 text-sm mb-4">
+                  <AlertCircle size={20} className="shrink-0 text-amber-400" />
+                  <p className="text-left py-0.5">Paystack API key not found. Add <code className="bg-black/50 px-1 py-0.5 rounded text-amber-300">VITE_PAYSTACK_PUBLIC_KEY</code> in settings to enable live checkout.</p>
+                </div>
+              )}
               
-              <div className="flex justify-center mt-8">
+              <div className="flex justify-center mt-4">
                 <div className="bg-white/5 p-1 rounded-xl flex border border-white/10">
                   <button 
                     onClick={() => setBilling('monthly')}
@@ -134,7 +196,7 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
                   </div>
 
                   <div className="space-y-3 mb-8 flex-1">
-                    {['Unlimited Live Web Scans', 'AI Business Plan Generator', 'Offline Form Auto-Fill', 'Financial Projections'].map((feat, i) => (
+                    {['Unlimited Live Web Scans', 'AI Business Plan Generator', 'Offline Form Auto-Fill', 'Financial Projections', 'AI Logo Generator/Designer'].map((feat, i) => (
                       <div key={i} className="flex items-center gap-3">
                         <div className="bg-purple-500/20 p-0.5 rounded-full">
                             <CheckCircle2 size={14} className="text-purple-400" />
@@ -146,9 +208,10 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
                   
                   <button 
                     onClick={() => startCheckout('pro')}
-                    className="w-full py-4 rounded-xl bg-white text-black font-black flex items-center justify-center gap-2 hover:bg-gray-200 transition-all shadow-lg"
+                    disabled={isProcessing}
+                    className="w-full py-4 rounded-xl bg-white text-black font-black flex items-center justify-center gap-2 hover:bg-gray-200 transition-all shadow-lg disabled:opacity-50"
                   >
-                    Get Founder Pro
+                    {isProcessing && selectedPlan === 'pro' ? <Loader2 className="animate-spin" size={20} /> : 'Get Founder Pro'}
                   </button>
                 </div>
 
@@ -161,14 +224,14 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
                   <div className="mb-6">
                     <div className="flex items-end gap-1">
                       <p className="text-4xl font-black text-white">
-                        {billing === 'monthly' ? 'R349' : 'R3,499'}
+                        {billing === 'monthly' ? 'R699' : 'R6,999'}
                       </p>
                       <span className="text-sm text-gray-400 font-medium mb-1">/{billing === 'monthly' ? 'mo' : 'yr'}</span>
                     </div>
                   </div>
 
                   <div className="space-y-3 mb-8 flex-1">
-                    {['Everything in Founder', 'Priority 24/7 Support', 'Advanced AI Agents'].map((feat, i) => (
+                    {['Everything in Founder', 'Free AI-Generated Website', 'Premium Hosting Included', 'Basic Website Maintenance', 'Priority 24/7 Support'].map((feat, i) => (
                       <div key={i} className="flex items-center gap-3">
                         <CheckCircle2 size={16} className="text-amber-500" />
                         <span className="text-sm font-medium text-gray-300">{feat}</span>
@@ -178,103 +241,16 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
                   
                   <button 
                     onClick={() => startCheckout('business')}
-                    className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-amber-500/20"
+                    disabled={isProcessing}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
                   >
-                    Join Empire
+                    {isProcessing && selectedPlan === 'business' ? <Loader2 className="animate-spin" size={20} /> : 'Join Empire'}
                   </button>
                 </div>
 
               </div>
             </div>
           </>
-        ) : (
-          <div className="flex flex-col md:flex-row h-full">
-            {/* Checkout Left Summary */}
-            <div className="w-full md:w-1/3 bg-[#0a0a1a] p-8 border-r border-white/10 flex flex-col justify-between">
-              <div>
-                <button onClick={() => setView('plans')} className="text-gray-500 hover:text-white flex items-center gap-2 mb-8 font-bold text-xs uppercase tracking-widest">
-                   <ChevronLeft size={14} /> Back to plans
-                </button>
-                <h3 className="text-2xl font-black mb-1">Order Summary</h3>
-                <p className="text-gray-500 text-sm mb-6">Review your subscription details</p>
-                
-                <div className="bg-white/5 p-6 rounded-2xl border border-white/10 mb-6">
-                   <div className="flex justify-between items-center mb-4">
-                     <span className="font-bold text-lg capitalize">{selectedPlan === 'pro' ? 'Founder Pro' : 'Empire Business'}</span>
-                     <span className="text-xs font-bold bg-purple-500/20 text-purple-400 px-2 py-1 rounded uppercase">{billing}</span>
-                   </div>
-                   <div className="flex justify-between items-center text-sm text-gray-400 border-t border-white/10 pt-4">
-                     <span>Total due today</span>
-                     <span className="text-xl font-black text-white">
-                       {selectedPlan === 'pro' ? (billing === 'monthly' ? 'R149' : 'R999') : (billing === 'monthly' ? 'R349' : 'R3,499')}
-                     </span>
-                   </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <ShieldCheck size={14} className="text-emerald-500" />
-                Secure 256-bit SSL Encrypted Payment
-              </div>
-            </div>
-
-            {/* Checkout Right Form */}
-            <div className="flex-1 p-8 md:p-12 overflow-y-auto">
-               <h3 className="text-2xl font-black mb-6">Payment Details</h3>
-               <form onSubmit={handlePayment} className="max-w-md space-y-6">
-                 
-                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Cardholder Name</label>
-                   <input type="text" required placeholder="John Doe" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" />
-                 </div>
-
-                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Card Number</label>
-                   <div className="relative">
-                      <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                      <input 
-                        type="text" 
-                        required 
-                        placeholder="0000 0000 0000 0000" 
-                        value={cardNumber}
-                        onChange={(e) => setCardNumber(formatCard(e.target.value))}
-                        maxLength={19}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 font-mono" 
-                      />
-                   </div>
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Expiry</label>
-                      <div className="relative">
-                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                        <input type="text" required placeholder="MM/YY" maxLength={5} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">CVC</label>
-                      <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                        <input type="text" required placeholder="123" maxLength={3} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" />
-                      </div>
-                    </div>
-                 </div>
-
-                 <button 
-                   type="submit"
-                   disabled={isProcessing}
-                   className="w-full py-5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black flex items-center justify-center gap-2 transition-all shadow-xl shadow-purple-500/20 mt-8"
-                 >
-                   {isProcessing ? <Loader2 size={20} className="animate-spin" /> : `Pay R${selectedPlan === 'pro' ? (billing === 'monthly' ? '149' : '999') : (billing === 'monthly' ? '349' : '3,499')}`}
-                 </button>
-
-                 <p className="text-center text-xs text-gray-500">
-                   By clicking Pay, you agree to our Terms of Service. You will be billed immediately.
-                 </p>
-               </form>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -52,6 +52,7 @@ export interface AppDocument {
   size: number;
   uploadDate: string;
   category: string;
+  content?: string;
 }
 
 export interface Achievement {

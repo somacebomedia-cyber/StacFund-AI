@@ -1,7 +1,7 @@
 {
-  "name": "FundHub",
-  "short_name": "FundHub",
-  "description": "Power Your Business with FundHub",
+  "name": "StacFund",
+  "short_name": "StacFund",
+  "description": "Power Your Business with StacFund",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#050510",

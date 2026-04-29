@@ -3,7 +3,7 @@ import { X, CheckCircle2, FileText, Download, Loader2, ArrowRight, ArrowLeft, Fi
 import { FundingOpportunity, User, ApplicationStatus, AppDocument } from '../types';
 import { GoogleGenAI } from '@google/genai';
 import { db } from '../services/firebase';
-import { addDoc, collection, updateDoc, query, where, getDocs, doc } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../services/firebase';
 
 interface ApplicationWorkflowProps {
@@ -20,6 +20,8 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   const [businessPlan, setBusinessPlan] = useState('');
   const [userDocs, setUserDocs] = useState<AppDocument[]>([]);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [includeAppForm, setIncludeAppForm] = useState(true);
+  const [includeBusinessPlan, setIncludeBusinessPlan] = useState(true);
   
   const [formData, setFormData] = useState({
     businessName: user.businessName || '',
@@ -33,44 +35,66 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
 
   useEffect(() => {
     // Pre-fill from profile if available
-    const profileData = localStorage.getItem(`fundhub_profile_${user.id}`);
-    if (profileData) {
-      const parsed = JSON.parse(profileData);
-      setFormData(prev => ({
-        ...prev,
-        registrationNumber: parsed.registration || '',
-        businessName: parsed.name || prev.businessName
-      }));
-    }
+    const fetchProfile = async () => {
+      try {
+        const userDocRef = doc(db, 'users', user.id);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists() && userDoc.data().profile) {
+          const parsed = userDoc.data().profile;
+          setFormData(prev => ({
+            ...prev,
+            registrationNumber: parsed.registration || '',
+            businessName: parsed.name || prev.businessName
+          }));
+        }
+      } catch (e) {
+        console.error('Error fetching profile data', e);
+      }
+    };
+    fetchProfile();
 
     // Load user documents for compliance step
-    const allDocs: AppDocument[] = JSON.parse(localStorage.getItem('fundhub_documents') || '[]');
-    setUserDocs(allDocs.filter(doc => doc.userId === user.id));
+    const fetchDocs = async () => {
+      try {
+        const docsRef = collection(db, 'users', user.id, 'documents');
+        const docSnapshot = await getDocs(docsRef);
+        const fetchedDocs = docSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppDocument));
+        setUserDocs(fetchedDocs);
+      } catch (error) {
+        console.error('Error fetching documents:', error);
+      }
+    };
+    fetchDocs();
   }, [user.id]);
 
-  const handleAutoFill = () => {
+  const handleAutoFill = async () => {
     setIsAutoFilling(true);
-    const profileData = localStorage.getItem(`fundhub_profile_${user.id}`);
-    let parsed: any = {};
-    if (profileData) {
-      parsed = JSON.parse(profileData);
+    try {
+      const userDocRef = doc(db, 'users', user.id);
+      const userDoc = await getDoc(userDocRef);
+      let parsed: any = {};
+      if (userDoc.exists() && userDoc.data().profile) {
+        parsed = userDoc.data().profile;
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        businessName: parsed.name || user.businessName || prev.businessName,
+        registrationNumber: parsed.registration || prev.registrationNumber,
+        contactEmail: user.email || prev.contactEmail,
+        contactPhone: user.whatsapp || prev.contactPhone,
+      }));
+    } catch (error) {
+      console.error('Error auto-filling from profile', error);
     }
     
-    setFormData(prev => ({
-      ...prev,
-      businessName: parsed.name || user.businessName || prev.businessName,
-      registrationNumber: parsed.registration || prev.registrationNumber,
-      contactEmail: user.email || prev.contactEmail,
-      contactPhone: user.whatsapp || prev.contactPhone,
-    }));
-    
-    setTimeout(() => setIsAutoFilling(false), 2000);
+    setTimeout(() => setIsAutoFilling(false), 1000);
   };
 
   const generateBusinessPlan = async () => {
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `Generate a comprehensive, professional 1-page business plan/proposal for ${formData.businessName} applying for ${opportunity.title} (${opportunity.provider}). 
       Funding requested: ${formData.fundingRequested}. 
       Purpose: ${formData.purpose}.
@@ -324,14 +348,39 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
               
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-left max-w-sm mx-auto space-y-4">
                 <h4 className="font-bold text-sm uppercase tracking-widest text-gray-500 mb-4">Pack Contents (.ZIP)</h4>
-                <div className="flex items-center gap-3 text-sm"><FileText size={16} className="text-purple-400"/> 1_Application_Form.pdf</div>
-                <div className="flex items-center gap-3 text-sm"><FileText size={16} className="text-purple-400"/> 2_Business_Plan.pdf</div>
-                <div className="flex items-center gap-3 text-sm"><ShieldCheck size={16} className="text-purple-400"/> 3_Compliance_Docs/ ({selectedDocs.length} files)</div>
+                
+                <label className="flex items-center gap-3 text-sm cursor-pointer hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={includeAppForm} 
+                    onChange={(e) => setIncludeAppForm(e.target.checked)} 
+                    className="w-4 h-4 rounded border-gray-600 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-900 bg-gray-800" 
+                  />
+                  <FileText size={16} className={includeAppForm ? "text-purple-400" : "text-gray-600"}/> 
+                  <span className={includeAppForm ? "text-white" : "text-gray-500 line-through"}>1_Application_Form.pdf</span>
+                </label>
+
+                <label className="flex items-center gap-3 text-sm cursor-pointer hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={includeBusinessPlan} 
+                    onChange={(e) => setIncludeBusinessPlan(e.target.checked)} 
+                    className="w-4 h-4 rounded border-gray-600 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-900 bg-gray-800" 
+                  />
+                  <FileText size={16} className={includeBusinessPlan ? "text-purple-400" : "text-gray-600"}/> 
+                  <span className={includeBusinessPlan ? "text-white" : "text-gray-500 line-through"}>2_Business_Plan.pdf</span>
+                </label>
+
+                <div className="flex items-center gap-3 text-sm p-2 -mx-2">
+                  <ShieldCheck size={16} className="text-purple-400"/> 
+                  <span className="text-white">3_Compliance_Docs/ ({selectedDocs.length} files)</span>
+                  <button onClick={() => setStep(3)} className="ml-auto text-xs text-purple-400 hover:text-purple-300 underline">Edit</button>
+                </div>
               </div>
 
               <button 
                 onClick={handleDownloadPack}
-                disabled={isLoading}
+                disabled={isLoading || (!includeAppForm && !includeBusinessPlan && selectedDocs.length === 0)}
                 className="bg-emerald-500 hover:bg-emerald-400 text-black font-black py-4 px-8 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-xl shadow-emerald-500/20 mx-auto disabled:opacity-50"
               >
                 {isLoading ? <Loader2 className="animate-spin" size={24} /> : <Download size={24} />}

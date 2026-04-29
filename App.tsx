@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [activeOpportunityId, setActiveOpportunityId] = useState<string | null>(null);
   const [resumeOpportunityId, setResumeOpportunityId] = useState<string | null>(null);
+  const [fallbackOpportunity, setFallbackOpportunity] = useState<any | null>(null);
   const [profileVersion, setProfileVersion] = useState(0); 
   const [showPricing, setShowPricing] = useState(false);
   const [configError, setConfigError] = useState(false);
@@ -106,18 +107,58 @@ const App: React.FC = () => {
     setProfileVersion(v => v + 1);
   };
 
-  const handleUpgrade = (plan: 'pro' | 'business', cycle: 'monthly' | 'yearly') => {
+  const handleUpgrade = async (plan: 'pro' | 'business', cycle: 'monthly' | 'yearly') => {
     if (!currentUser) return;
-    // In a real app, you'd verify payment on backend, then update Firestore.
-    // For now, we update local state + Firestore optimistically.
+    
     const updatedUser: User = {
       ...currentUser,
       subscriptionPlan: plan,
       billingCycle: cycle
     };
-    setCurrentUser(updatedUser);
-    setShowPricing(false);
-    alert(`Welcome to FundHub ${plan === 'business' ? 'Empire' : 'Founder Pro'}! You are on the ${cycle} plan.`);
+    
+    try {
+      if (hasValidFirebaseConfig()) {
+        const { doc, updateDoc } = await import('firebase/firestore');
+        const userDocRef = doc(db, 'users', currentUser.id);
+        await updateDoc(userDocRef, {
+          subscriptionPlan: plan,
+          billingCycle: cycle
+        });
+      }
+      
+      setCurrentUser(updatedUser);
+      setShowPricing(false);
+      alert(`Welcome to StacFund ${plan === 'business' ? 'Empire' : 'Founder Pro'}! You are on the ${cycle} plan.`);
+    } catch (error) {
+      console.error("Error updating subscription in Firestore:", error);
+      // Still update UI for demo purposes
+      setCurrentUser(updatedUser);
+      setShowPricing(false);
+      alert(`DEMO MODE: Upgrade to ${plan} simulated!`);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!currentUser) return;
+    try {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const userDocRef = doc(db, 'users', currentUser.id);
+      await updateDoc(userDocRef, {
+        subscriptionPlan: 'free',
+        billingCycle: null
+      });
+      
+      const updatedUser: User = {
+        ...currentUser,
+        subscriptionPlan: 'free',
+        billingCycle: undefined
+      };
+      setCurrentUser(updatedUser);
+      alert('Your subscription has been canceled successfully.');
+    } catch (error) {
+      console.error("Error canceling subscription:", error);
+      alert("There was an error canceling your subscription. Please try again.");
+    }
   };
 
   const triggerPricing = () => setShowPricing(true);
@@ -129,6 +170,7 @@ const App: React.FC = () => {
           <Landing 
             onGetStarted={() => setCurrentPage('auth')} 
             onLogin={() => setCurrentPage('auth')} 
+            onSearchFunding={() => setCurrentPage('marketplace')}
           />
         );
       case 'auth':
@@ -143,11 +185,20 @@ const App: React.FC = () => {
           <Dashboard 
             key={`dash-${profileVersion}-${currentUser?.subscriptionPlan}`}
             onCompleteProfile={() => setCurrentPage('profile')} 
-            onBrowseFunding={(oppId?: string, resume?: boolean) => {
-              if (resume && oppId) {
-                setResumeOpportunityId(oppId);
-              } else if (oppId) {
-                setActiveOpportunityId(oppId);
+            onBrowseFunding={(oppId?: string | React.MouseEvent, resume?: boolean, fallback?: any) => {
+              const id = typeof oppId === 'string' ? oppId : null;
+              if (resume && id) {
+                setResumeOpportunityId(id);
+                setActiveOpportunityId(null);
+                if (fallback) setFallbackOpportunity(fallback);
+              } else if (id) {
+                setActiveOpportunityId(id);
+                setResumeOpportunityId(null);
+                setFallbackOpportunity(null);
+              } else {
+                setActiveOpportunityId(null);
+                setResumeOpportunityId(null);
+                setFallbackOpportunity(null);
               }
               setCurrentPage('marketplace');
             }}
@@ -161,13 +212,20 @@ const App: React.FC = () => {
             user={currentUser} 
             activeOpportunityId={activeOpportunityId}
             resumeOpportunityId={resumeOpportunityId}
+            fallbackOpportunity={fallbackOpportunity}
             onGoToDashboard={() => {
               setResumeOpportunityId(null);
               setActiveOpportunityId(null);
+              setFallbackOpportunity(null);
               setCurrentPage('dashboard');
             }} 
             onSetActiveOpportunity={setActiveOpportunityId}
+            onClearResumeOpportunity={() => {
+              setResumeOpportunityId(null);
+              setFallbackOpportunity(null);
+            }}
             onUpgrade={triggerPricing}
+            onLogin={() => setCurrentPage('auth')}
           />
         );
       case 'profile':
@@ -177,6 +235,7 @@ const App: React.FC = () => {
             onBack={() => setCurrentPage('dashboard')} 
             user={currentUser}
             onUpgrade={triggerPricing}
+            onCancelSubscription={handleCancelSubscription}
           />
         );
       default:
@@ -243,26 +302,28 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div 
             className="flex items-center gap-3 cursor-pointer" 
-            onClick={() => setCurrentPage('dashboard')}
+            onClick={() => setCurrentPage(currentUser ? 'dashboard' : 'landing')}
           >
             <div className="w-8 h-8 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
               <Target className="text-white" size={18} />
             </div>
             <div>
-              <h1 className="text-lg font-black tracking-tighter">FundHub</h1>
+              <h1 className="text-lg font-black tracking-tighter">StacFund</h1>
               <p className="text-[8px] text-gray-500 uppercase tracking-[0.2em] -mt-1 font-bold">Power Your Business</p>
             </div>
           </div>
 
           <nav className="hidden md:flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/5">
-            <button 
-              onClick={() => setCurrentPage('dashboard')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
-                currentPage === 'dashboard' ? 'bg-white/10 text-white shadow-inner shadow-white/5' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <LayoutDashboard size={16} /> Dashboard
-            </button>
+            {currentUser && (
+              <button 
+                onClick={() => setCurrentPage('dashboard')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                  currentPage === 'dashboard' ? 'bg-white/10 text-white shadow-inner shadow-white/5' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <LayoutDashboard size={16} /> Dashboard
+              </button>
+            )}
             <button 
               onClick={() => setCurrentPage('marketplace')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
@@ -274,42 +335,53 @@ const App: React.FC = () => {
           </nav>
 
           <div className="flex items-center gap-4">
-            {currentUser?.subscriptionPlan === 'free' ? (
+            {!currentUser ? (
               <button 
-                onClick={() => setShowPricing(true)}
-                className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black text-xs uppercase tracking-wider hover:scale-105 transition-transform"
+                onClick={() => setCurrentPage('auth')}
+                className="flex items-center gap-2 px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-sm transition-all"
               >
-                <Crown size={14} /> Upgrade
+                Sign In
               </button>
             ) : (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                 <Crown size={14} className={currentUser?.subscriptionPlan === 'business' ? 'text-amber-400' : 'text-purple-400'} />
-                 <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
-                   {currentUser?.subscriptionPlan === 'business' ? 'Empire' : 'Founder Pro'}
-                 </span>
-              </div>
-            )}
+              <>
+                {currentUser.subscriptionPlan === 'free' ? (
+                  <button 
+                    onClick={() => setShowPricing(true)}
+                    className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black text-xs uppercase tracking-wider hover:scale-105 transition-transform"
+                  >
+                    <Crown size={14} /> Upgrade
+                  </button>
+                ) : (
+                  <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                     <Crown size={14} className={currentUser.subscriptionPlan === 'business' ? 'text-amber-400' : 'text-purple-400'} />
+                     <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
+                       {currentUser.subscriptionPlan === 'business' ? 'Empire' : 'Founder Pro'}
+                     </span>
+                  </div>
+                )}
 
-            <button className="relative p-2 rounded-full hover:bg-white/5 transition-colors text-gray-400">
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setCurrentPage('profile')}
-                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 font-bold text-sm transition-all"
-              >
-                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500"></div>
-                <span className="hidden sm:inline truncate max-w-[120px]">{currentUser?.businessName || 'My Account'}</span>
-              </button>
-              <button 
-                onClick={handleLogout}
-                title="Log Out"
-                className="p-2 rounded-full hover:bg-red-500/10 transition-colors text-gray-500 hover:text-red-400"
-              >
-                <LogOut size={20} />
-              </button>
-            </div>
+                <button className="relative p-2 rounded-full hover:bg-white/5 transition-colors text-gray-400">
+                  <Bell size={20} />
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setCurrentPage('profile')}
+                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 font-bold text-sm transition-all"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500"></div>
+                    <span className="hidden sm:inline truncate max-w-[120px]">{currentUser.businessName || 'My Account'}</span>
+                  </button>
+                  <button 
+                    onClick={handleLogout}
+                    title="Log Out"
+                    className="p-2 rounded-full hover:bg-red-500/10 transition-colors text-gray-500 hover:text-red-400"
+                  >
+                    <LogOut size={20} />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -322,7 +394,6 @@ const App: React.FC = () => {
       {/* AI Assistant */}
       <AIAssistant 
         user={currentUser} 
-        activeOpportunityId={activeOpportunityId} 
         onNavigate={(page) => setCurrentPage(page as any)}
         onProfileUpdate={handleProfileUpdate}
       />
@@ -332,7 +403,7 @@ const App: React.FC = () => {
 
       {/* Simple Footer for Non-Landing Pages */}
       <footer className="py-12 border-t border-white/5 text-center text-gray-600 text-xs">
-         <p>© 2025 FundHub. Empowering entrepreneurs with gamified funding solutions.</p>
+         <p>© 2025 StacFund. Empowering entrepreneurs with gamified funding solutions.</p>
       </footer>
     </div>
   );

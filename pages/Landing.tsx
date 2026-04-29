@@ -1,13 +1,14 @@
 
 import React from 'react';
-import { ArrowRight, Search, Target, DollarSign, Users, Clock } from 'lucide-react';
+import { ArrowRight, Search, Target, Banknote, Users, Clock } from 'lucide-react';
 
 interface LandingProps {
   onGetStarted: () => void;
   onLogin: () => void;
+  onSearchFunding: () => void;
 }
 
-const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin }) => {
+const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFunding }) => {
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#050510]">
       {/* Background Orbs */}
@@ -20,7 +21,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin }) => {
             <Target className="text-white" size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tighter">FundHub</h1>
+            <h1 className="text-2xl font-black tracking-tighter">StacFund</h1>
             <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] -mt-1 font-bold">Power Your Business</p>
           </div>
         </div>
@@ -56,9 +57,9 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin }) => {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-20">
           {[
-            { label: 'Funding Options', val: '8', icon: <Target className="text-indigo-400" /> },
-            { label: 'Available Grants', val: '$50M+', icon: <DollarSign className="text-emerald-400" /> },
-            { label: 'SA Entrepreneurs', val: '800+', icon: <Users className="text-purple-400" /> },
+            { label: 'Funding Options', val: '120+', icon: <Target className="text-indigo-400" /> },
+            { label: 'Available Grants', val: 'R500M+', icon: <Banknote className="text-emerald-400" /> },
+            { label: 'SA Entrepreneurs', val: '15,000+', icon: <Users className="text-purple-400" /> },
             { label: 'Application Time', val: '15 mins', icon: <Clock className="text-blue-400" /> }
           ].map((stat, i) => (
             <div key={i} className="glass-panel p-8 rounded-3xl">
@@ -76,6 +77,12 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin }) => {
           >
             Start Your Application Now <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
           </button>
+          <button 
+            onClick={onSearchFunding}
+            className="w-full sm:w-auto bg-white/5 hover:bg-white/10 text-white font-black py-5 px-10 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/10 text-lg group"
+          >
+            <Search size={22} className="text-purple-400 group-hover:scale-110 transition-transform" /> Search for Funding
+          </button>
         </div>
 
         <div className="max-w-2xl mx-auto relative group">
@@ -83,15 +90,23 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin }) => {
             type="text" 
             placeholder="Search funding opportunities..." 
             className="w-full bg-white/5 border border-white/10 rounded-full py-6 px-10 text-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-gray-600"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                onSearchFunding();
+              }
+            }}
           />
-          <button className="absolute right-4 top-1/2 -translate-y-1/2 bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full transition-all group-focus-within:scale-110">
+          <button 
+            onClick={onSearchFunding}
+            className="absolute right-4 top-1/2 -translate-y-1/2 bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full transition-all group-focus-within:scale-110"
+          >
             <ArrowRight size={24} />
           </button>
         </div>
       </main>
 
       <footer className="relative z-10 py-10 border-t border-white/5 text-center text-gray-500 text-sm">
-        © 2025 FundHub. Empowering businesses worldwide.
+        © 2025 StacFund. Empowering businesses worldwide.
       </footer>
     </div>
   );

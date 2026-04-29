@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Save, Building2, User as UserIcon, FileText, Upload, X, File, CheckCircle2, Loader2, Sparkles, Wand2, Phone, MessageCircle, FileDown, BookOpen, PenTool, ChevronRight, Copy, Check, ShoppingBag, BarChart3, Package, Printer, Lock } from 'lucide-react';
+import { ArrowLeft, Save, Building2, User as UserIcon, FileText, Upload, X, File, CheckCircle2, Loader2, Sparkles, Wand2, Phone, MessageCircle, FileDown, BookOpen, PenTool, ChevronRight, Copy, Check, ShoppingBag, BarChart3, Package, Printer, Lock, Crown, CreditCard } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
@@ -10,11 +10,12 @@ interface ProfileFormProps {
   onBack: () => void;
   user: User | null;
   onUpgrade: () => void;
+  onCancelSubscription?: () => void;
 }
 
-type TabType = 'business' | 'owner' | 'documents';
+type TabType = 'business' | 'owner' | 'documents' | 'subscription';
 
-const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) => {
+const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCancelSubscription }) => {
   const [activeTab, setActiveTab] = useState<TabType>('business');
   const [documents, setDocuments] = useState<AppDocument[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -36,8 +37,21 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     employees: '',
     revenue: '',
     years: '',
-    whatsapp: ''
+    whatsapp: '',
+    financialData: '',
+    b2bConnection: '',
+    logoUrl: ''
   });
+
+  const [ownerInfo, setOwnerInfo] = useState({
+    name: '',
+    idNumber: '',
+    race: '',
+    gender: '',
+    age: ''
+  });
+
+  const [viewingDocument, setViewingDocument] = useState<AppDocument | null>(null);
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -47,8 +61,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
           // Fetch Profile
           const userDocRef = doc(db, 'users', user.id);
           const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists() && userDoc.data().profile) {
-              setBusinessInfo(userDoc.data().profile);
+          if (userDoc.exists()) {
+              const data = userDoc.data();
+              if (data.profile) setBusinessInfo(prev => ({ ...prev, ...data.profile }));
+              if (data.ownerInfo) setOwnerInfo(prev => ({ ...prev, ...data.ownerInfo }));
           } else {
               setBusinessInfo(prev => ({ ...prev, name: user.businessName || '' }));
           }
@@ -70,7 +86,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     if (!user) return;
     setIsScanning(docId);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `Based on the document name "${docName}", suggest a realistic registration number, a relevant business industry, and a business description for a South African company. 
       Return a JSON object with "registration", "industry", and "description".`;
       
@@ -132,7 +148,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     ).map(doc => doc.name).join(', ');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `Write a comprehensive and professional ${type === 'proposal' ? 'Funding Proposal' : 'Detailed Business Plan'} for a South African business.
       
       BUSINESS IDENTITY:
@@ -193,7 +209,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
       type: 'text/plain',
       size: generatedProposal.text.length,
       uploadDate: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-      category: 'AI Generated'
+      category: 'AI Generated',
+      content: generatedProposal.text
     };
     
     const docsRef = collection(db, 'users', user.id, 'documents');
@@ -213,8 +230,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     
     const userDocRef = doc(db, 'users', user.id);
     try {
-      await setDoc(userDocRef, { profile: businessInfo }, { merge: true });
-      alert('Business information updated successfully!');
+      await setDoc(userDocRef, { profile: businessInfo, ownerInfo: ownerInfo }, { merge: true });
+      alert('Profile information updated successfully!');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     } finally {
@@ -232,6 +249,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
     try {
       const promises = Array.from(files).map(async (file) => {
           const newDoc = {
+              userId: user.id,
               name: file.name,
               type: file.type || 'application/octet-stream',
               size: file.size,
@@ -244,7 +262,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
 
       const newDocs = await Promise.all(promises);
       setDocuments(prev => [...prev, ...newDocs]);
+      alert(`${newDocs.length} file(s) uploaded successfully!`);
     } catch (error) {
+      alert("There was a problem uploading your documents. Please try again.");
+      console.error(error);
       handleFirestoreError(error, OperationType.CREATE, `users/${user.id}/documents`);
     }
   };
@@ -286,19 +307,54 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
       </div>
 
       <div className="flex gap-4 mb-8 overflow-x-auto pb-2 custom-scrollbar">
-        {['business', 'owner', 'documents'].map((id) => (
+        {[
+          { id: 'business', label: 'Business Info' },
+          { id: 'owner', label: 'Owner Info' },
+          { id: 'documents', label: 'Documents Area' },
+          { id: 'subscription', label: 'Subscription' }
+        ].map((tab) => (
           <button
-            key={id}
-            onClick={() => setActiveTab(id as TabType)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold border transition-all capitalize ${activeTab === id ? 'bg-purple-600/10 border-purple-500 text-purple-400' : 'bg-white/5 border-white/5 text-gray-500 hover:text-gray-300'}`}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as TabType)}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold border transition-all capitalize ${activeTab === tab.id ? 'bg-purple-600/10 border-purple-500 text-purple-400' : 'bg-white/5 border-white/5 text-gray-500 hover:text-gray-300'}`}
           >
-            {id} Info
+            {tab.label}
           </button>
         ))}
       </div>
 
       <div className="glass-panel rounded-3xl p-8">
-        {activeTab === 'business' && (
+        {viewingDocument ? (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2">
+                <FileText size={20} className="text-purple-400" />
+                <h3 className="text-lg font-black">{viewingDocument.name}</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    if (viewingDocument.content) {
+                      navigator.clipboard.writeText(viewingDocument.content);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }
+                  }}
+                  title="Copy to clipboard"
+                  className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all border border-white/5"
+                >
+                  {copied ? <Check size={18} className="text-emerald-400" /> : <Copy size={18} />}
+                </button>
+                <button onClick={() => setViewingDocument(null)} className="p-2.5 rounded-xl hover:bg-white/5 text-gray-500"><X size={20} /></button>
+              </div>
+            </div>
+            <div className="max-h-[600px] overflow-y-auto custom-scrollbar bg-black/40 p-8 rounded-2xl border border-white/5 mb-6 shadow-inner">
+              <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed font-serif prose prose-invert max-w-none">
+                {viewingDocument.content}
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'business' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -328,6 +384,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
                   <input type="tel" value={businessInfo.whatsapp} onChange={(e) => setBusinessInfo({...businessInfo, whatsapp: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" placeholder="+27 71 234 5678" />
                 </div>
               </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Employee Count</label>
+                <input type="number" value={businessInfo.employees} onChange={(e) => setBusinessInfo({...businessInfo, employees: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" placeholder="e.g. 5" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Years of Operation</label>
+                <input type="number" value={businessInfo.years} onChange={(e) => setBusinessInfo({...businessInfo, years: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" placeholder="e.g. 2" />
+              </div>
             </div>
             
             <div className="space-y-2">
@@ -341,6 +405,21 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Business Vision & Description</label>
               <textarea rows={4} value={businessInfo.description} onChange={(e) => setBusinessInfo({...businessInfo, description: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none" placeholder="Briefly describe your business goals and current operations..." />
             </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">What Are Your Prices & Monthly Income?</label>
+              <textarea rows={3} value={businessInfo.financialData} onChange={(e) => setBusinessInfo({...businessInfo, financialData: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none" placeholder="What do you charge for your products or services? Roughly how much does the business make per month, and what are your main costs?" />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Who Are Your Clients & Why Choose You?</label>
+              <textarea rows={3} value={businessInfo.b2bConnection} onChange={(e) => setBusinessInfo({...businessInfo, b2bConnection: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none" placeholder="Who buys from you? Are they individuals or other businesses? Why do they buy from you instead of your competitors?" />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Company Logo URL (Optional)</label>
+              <input type="url" value={businessInfo.logoUrl} onChange={(e) => setBusinessInfo({...businessInfo, logoUrl: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" placeholder="https://example.com/logo.png" />
+            </div>
             <button onClick={handleSaveBusiness} disabled={isSaving} className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-xl shadow-purple-500/20">
               {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} Save Information
             </button>
@@ -349,11 +428,43 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
 
         {activeTab === 'owner' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-             <div className="glass-panel p-10 rounded-3xl text-center opacity-50 flex flex-col items-center gap-4 border-dashed border-2">
-                <UserIcon size={48} className="text-gray-600" />
-                <h4 className="font-bold">Owner Information</h4>
-                <p className="text-sm text-gray-500 max-w-sm">This section is coming soon. We will use it to verify BEE status and age for youth-specific grants like NYDA.</p>
-             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Full Name</label>
+                <input type="text" value={ownerInfo.name} onChange={(e) => setOwnerInfo({...ownerInfo, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" placeholder="e.g. John Doe" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">ID Number</label>
+                <input type="text" value={ownerInfo.idNumber} onChange={(e) => setOwnerInfo({...ownerInfo, idNumber: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" placeholder="e.g. 9001015009087" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Race / BEE Status</label>
+                <select value={ownerInfo.race} onChange={(e) => setOwnerInfo({...ownerInfo, race: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 appearance-none">
+                  <option value="" className="bg-gray-900">Select Race</option>
+                  <option value="African" className="bg-gray-900">African</option>
+                  <option value="Coloured" className="bg-gray-900">Coloured</option>
+                  <option value="Indian" className="bg-gray-900">Indian</option>
+                  <option value="White" className="bg-gray-900">White</option>
+                  <option value="Other" className="bg-gray-900">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Gender</label>
+                <select value={ownerInfo.gender} onChange={(e) => setOwnerInfo({...ownerInfo, gender: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 appearance-none">
+                  <option value="" className="bg-gray-900">Select Gender</option>
+                  <option value="Male" className="bg-gray-900">Male</option>
+                  <option value="Female" className="bg-gray-900">Female</option>
+                  <option value="Other" className="bg-gray-900">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Age</label>
+                <input type="number" value={ownerInfo.age} onChange={(e) => setOwnerInfo({...ownerInfo, age: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50" placeholder="e.g. 30" />
+              </div>
+            </div>
+            <button onClick={handleSaveBusiness} disabled={isSaving} className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-xl shadow-purple-500/20">
+              {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} Save Information
+            </button>
           </div>
         )}
 
@@ -521,6 +632,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {doc.content && (
+                            <button 
+                              onClick={() => setViewingDocument(doc)}
+                              title="View Document"
+                              className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-sm bg-white/5 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/30 border border-transparent"
+                            >
+                              <BookOpen size={12} /> View
+                            </button>
+                          )}
                           <button 
                             onClick={() => handleAIAnalyze(doc.id, doc.name)}
                             disabled={isScanning !== null}
@@ -544,6 +664,73 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade }) =>
                 </div>
               </>
             )}
+          </div>
+        )}
+        {activeTab === 'subscription' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold mb-1">Subscription Management</h3>
+                <p className="text-gray-500 text-sm">View and manage your current billing plan</p>
+              </div>
+              <div className="px-4 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold flex items-center gap-2">
+                <Crown size={18} />
+                <span className="capitalize">{user?.subscriptionPlan || 'free'}</span> Plan
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="glass-panel p-6 rounded-2xl border-purple-500/30">
+                <h4 className="font-bold text-lg mb-4 text-purple-400 flex items-center gap-2">
+                  <CreditCard size={20} /> Current Plan
+                </h4>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                    <span className="text-gray-400">Status</span>
+                    <span className="font-bold text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 size={14} /> Active
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                    <span className="text-gray-400">Plan</span>
+                    <span className="font-bold capitalize">{user?.subscriptionPlan || 'free'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Billing Cycle</span>
+                    <span className="font-bold capitalize">{user?.billingCycle || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <button 
+                  onClick={onUpgrade}
+                  className="w-full relative group overflow-hidden bg-white/5 hover:bg-white/10 text-white font-black py-6 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all border border-purple-500/20 hover:border-purple-500/50"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <Crown size={24} className="text-amber-400 mb-1" />
+                  <span className="text-lg">Upgrade Plan</span>
+                  <span className="text-xs font-normal text-gray-400">Unlock premium features and AI limits</span>
+                </button>
+
+                {(user?.subscriptionPlan !== 'free') && (
+                  <button 
+                    onClick={() => {
+                      if (confirm('Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your billing cycle.')) {
+                        if (onCancelSubscription) {
+                          onCancelSubscription();
+                        } else {
+                          alert('In a real app, this would trigger a cancellation flow. For now, please contact support.');
+                        }
+                      }
+                    }}
+                    className="w-full bg-white/5 hover:bg-red-500/10 text-red-400 hover:text-red-300 font-bold py-4 rounded-2xl flex items-center justify-center transition-all border border-white/5 hover:border-red-500/20"
+                  >
+                    Cancel Subscription
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock } from 'lucide-react';
+import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
@@ -9,10 +9,13 @@ import { MOCK_ACHIEVEMENTS, MOCK_FUNDING } from '../constants';
 import { User, Application, ApplicationStatus, FundingType, AppDocument, FundingOpportunity, ReadinessInfo } from '../types';
 import FormDigitizer from '../components/FormDigitizer';
 import PresentationDesigner from '../components/PresentationDesigner';
+import AILogoGenerator from '../components/AILogoGenerator';
+import AdvertGenerator from '../components/AdvertGenerator';
+import BusinessRegistration from '../components/BusinessRegistration';
 
 interface DashboardProps {
   onCompleteProfile: () => void;
-  onBrowseFunding: (oppId?: string, resume?: boolean) => void;
+  onBrowseFunding: (oppId?: string, resume?: boolean, fallback?: any) => void;
   onUpgrade: () => void;
   user: User | null;
 }
@@ -37,8 +40,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   
   const [showFormDigitizer, setShowFormDigitizer] = useState(false);
   const [showPresentationDesigner, setShowPresentationDesigner] = useState(false);
+  const [showLogoGenerator, setShowLogoGenerator] = useState(false);
+  const [showAdvertGenerator, setShowAdvertGenerator] = useState(false);
+  const [showBusinessRegistration, setShowBusinessRegistration] = useState(false);
+  const [initialAdvertPrompt, setInitialAdvertPrompt] = useState('');
   
   // Real Data Fetching
+  useEffect(() => {
+    const handleOpenAiTool = (event: any) => {
+      const { tool, prompt } = event.detail;
+      if (tool === 'logo') {
+        setShowLogoGenerator(true);
+      } else if (tool === 'advert') {
+        if (prompt) setInitialAdvertPrompt(prompt);
+        setShowAdvertGenerator(true);
+      } else if (tool === 'register') {
+        setShowBusinessRegistration(true);
+      }
+    };
+    window.addEventListener('open_ai_tool', handleOpenAiTool);
+    return () => window.removeEventListener('open_ai_tool', handleOpenAiTool);
+  }, []);
+
   useEffect(() => {
     const fetchDashboardData = async () => {
         if (!user) return;
@@ -60,7 +83,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
             const userDoc = await getDoc(userDocRef);
             if (userDoc.exists() && userDoc.data().profile) {
                 setHasProfile(true);
-                calculateReadiness(JSON.stringify(userDoc.data().profile), docSnapshot.size);
+                const combinedProfile = {
+                  ...userDoc.data().profile,
+                  ownerInfo: userDoc.data().ownerInfo || {}
+                };
+                calculateReadiness(JSON.stringify(combinedProfile), docSnapshot.size);
             }
         } catch (e) {
             handleFirestoreError(e, OperationType.GET, `users/${user.id}`);
@@ -85,7 +112,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     if (isOffline) return;
     setIsLoadingReadiness(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `Analyze this business profile and document count (${docs} docs uploaded). 
       Profile: ${profileStr}. 
       Return a JSON object with "score" (0-100) representing funding readiness and "tips" (array of 3 short strings) to improve it.`;
@@ -111,9 +138,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     try {
       // Re-fetch profile to ensure freshness
       const userDoc = await getDoc(doc(db, 'users', user.id));
-      const profileData = userDoc.exists() ? JSON.stringify(userDoc.data().profile) : '';
+      const profileData = userDoc.exists() ? JSON.stringify({
+        ...userDoc.data().profile,
+        ownerInfo: userDoc.data().ownerInfo || {}
+      }) : '';
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
         You are a business funding expert. Analyze:
@@ -143,7 +173,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     }
   }, [activeTab]);
 
-  const handleToolClick = (tool: 'digitizer' | 'presentation') => {
+  const handleToolClick = (tool: 'digitizer' | 'presentation' | 'logo' | 'register') => {
     if (user?.subscriptionPlan === 'free') {
       onUpgrade();
       return;
@@ -151,6 +181,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     
     if (tool === 'digitizer') setShowFormDigitizer(true);
     if (tool === 'presentation') setShowPresentationDesigner(true);
+    if (tool === 'logo') setShowLogoGenerator(true);
+    if (tool === 'register') setShowBusinessRegistration(true);
   };
 
   const getStatusStyle = (status: ApplicationStatus) => {
@@ -196,6 +228,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       {showPresentationDesigner && (
         <PresentationDesigner user={user} onClose={() => setShowPresentationDesigner(false)} />
       )}
+      {showLogoGenerator && (
+        <AILogoGenerator user={user} onClose={() => setShowLogoGenerator(false)} />
+      )}
+      {showAdvertGenerator && (
+        <AdvertGenerator user={user} onClose={() => setShowAdvertGenerator(false)} initialPrompt={initialAdvertPrompt} />
+      )}
+      {showBusinessRegistration && (
+        <BusinessRegistration user={user} onClose={() => setShowBusinessRegistration(false)} />
+      )}
 
       {isOffline && (
         <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-between animate-in slide-in-from-top duration-500">
@@ -212,26 +253,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           {/* Welcome Card */}
           <div className="glass-panel rounded-3xl p-8 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 blur-[60px] group-hover:bg-purple-600/20 transition-all"></div>
-            <div className="flex justify-between items-start mb-6">
+            <div className="flex justify-between items-start">
               <div>
                 <h2 className="text-3xl font-black mb-1">Welcome back{user ? `, ${user.email.split('@')[0]}` : ''}! 👋</h2>
                 <p className="text-gray-400 font-medium">{user?.businessName || 'New Entrepreneur'}</p>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 text-amber-400 font-bold text-xl">
-                  <Trophy size={20} /> Level 1
-                </div>
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Beginner Founder</p>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
-                <span className="text-purple-400">Progress to Level 2</span>
-                <span className="text-gray-500">450 XP to go</span>
-              </div>
-              <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 w-[15%] rounded-full shadow-[0_0_15px_rgba(168,85,247,0.5)]"></div>
               </div>
             </div>
           </div>
@@ -267,9 +292,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <button onClick={onCompleteProfile} className="glass-panel p-6 rounded-2xl flex items-center gap-4 hover:bg-purple-600/10 border-l-4 border-l-purple-500 transition-all text-left group">
                     <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform"><Plus size={24} /></div>
-                    <div><h4 className="font-bold">Complete Profile</h4><p className="text-xs text-purple-400/80 font-bold tracking-wider">+100 XP</p></div>
+                    <div><h4 className="font-bold">Complete Profile</h4><p className="text-xs text-purple-400/80 font-bold tracking-wider">Unlock Auto-Fill</p></div>
                   </button>
-                  <button onClick={onBrowseFunding} className="glass-panel p-6 rounded-2xl flex items-center gap-4 hover:bg-emerald-600/10 border-l-4 border-l-emerald-500 transition-all text-left group">
+                  <button onClick={() => onBrowseFunding()} className="glass-panel p-6 rounded-2xl flex items-center gap-4 hover:bg-emerald-600/10 border-l-4 border-l-emerald-500 transition-all text-left group">
                     <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform"><Search size={24} /></div>
                     <div><h4 className="font-bold">Browse Funding</h4><p className="text-xs text-emerald-400/80 font-bold tracking-wider">Find perfect match</p></div>
                   </button>
@@ -282,7 +307,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                   </div>
                   {applications.length > 0 ? (
                     applications.slice(0, 3).map(app => (
-                      <div key={app.id} className="glass-panel p-5 rounded-2xl flex items-center justify-between group hover:border-white/20 transition-all">
+                      <div 
+                        key={app.id} 
+                        className={`glass-panel p-5 rounded-2xl flex items-center justify-between group hover:border-white/20 transition-all ${app.status === ApplicationStatus.DRAFT ? 'cursor-pointer' : ''}`}
+                        onClick={() => {
+                          if (app.status === ApplicationStatus.DRAFT) {
+                            onBrowseFunding(app.opportunityId || app.id, true, {
+                              title: app.opportunityTitle || 'Unknown Opportunity',
+                              provider: app.provider || 'Unknown Provider',
+                              type: app.type || FundingType.GRANT
+                            });
+                          }
+                        }}
+                      >
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-xl">
                             {app.type === FundingType.GRANT ? '💰' : 
@@ -324,7 +361,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                           className={`glass-panel p-6 rounded-3xl group hover:border-white/20 transition-all relative overflow-hidden ${app.status === ApplicationStatus.DRAFT ? 'cursor-pointer' : ''}`}
                           onClick={() => {
                             if (app.status === ApplicationStatus.DRAFT) {
-                              onBrowseFunding(app.opportunityId, true);
+                              onBrowseFunding(app.opportunityId || app.id, true, {
+                                title: app.opportunityTitle || 'Unknown Opportunity',
+                                provider: app.provider || 'Unknown Provider',
+                                type: app.type || FundingType.GRANT
+                              });
                             }
                           }}
                         >
@@ -351,6 +392,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                                 <span className={`text-[10px] font-black uppercase tracking-widest ${app.status === ApplicationStatus.REJECTED ? 'text-red-400' : 'text-gray-500'}`}>
                                   {app.status === ApplicationStatus.REJECTED ? 'Application Terminated' : 'Application Progress'}
                                 </span>
+                                <span className="text-xs font-bold text-gray-400">{progress}%</span>
                                 <span className={`text-xs font-black px-2 py-0.5 rounded-md ${app.status === ApplicationStatus.REJECTED ? 'bg-red-500/10 text-red-400' : 'text-white'}`}>
                                   {app.status === ApplicationStatus.DRAFT ? 'IN PROGRESS' : app.status.replace('_', ' ')}
                                 </span>
@@ -385,7 +427,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     <div className="glass-panel p-20 rounded-3xl text-center opacity-50 flex flex-col items-center gap-4">
                       <FileText size={48} className="text-gray-600" />
                       <p className="text-gray-500 font-bold">You haven't applied for any funding yet.</p>
-                      <button onClick={onBrowseFunding} className="text-purple-400 hover:underline font-black uppercase text-xs tracking-widest">Browse Opportunities</button>
+                      <button onClick={() => onBrowseFunding()} className="text-purple-400 hover:underline font-black uppercase text-xs tracking-widest">Browse Opportunities</button>
                     </div>
                   )}
                 </div>
@@ -445,7 +487,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                                   </div>
                                 </div>
                                 <div className="flex items-center">
-                                   <button onClick={onBrowseFunding} className="w-full md:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-white font-black rounded-2xl transition-all shadow-lg shadow-cyan-500/20">View Opportunity</button>
+                                   <button onClick={() => onBrowseFunding(opp.id)} className="w-full md:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-white font-black rounded-2xl transition-all shadow-lg shadow-cyan-500/20">View Opportunity</button>
                                 </div>
                              </div>
                           </div>
@@ -516,6 +558,56 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     </p>
                     <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
                        <Sparkles size={14} className="text-amber-400" /> Generative AI Images
+                    </div>
+                  </div>
+
+                  {/* AI Logo Generator Card */}
+                  <div 
+                    onClick={() => handleToolClick('logo')}
+                    className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-pink-500/50 hover:bg-pink-500/5 transition-all cursor-pointer group relative overflow-hidden"
+                  >
+                    {!isPaid && (
+                       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
+                         <div className="bg-black border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
+                            <Lock size={12} /> Pro Feature
+                         </div>
+                       </div>
+                    )}
+                    <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-pink-500/20 rounded-full blur-[50px] group-hover:bg-pink-500/30 transition-all"></div>
+                    <div className="w-16 h-16 rounded-2xl bg-pink-500/10 text-pink-400 flex items-center justify-center mb-6 shadow-lg shadow-pink-500/10">
+                      <Wand2 size={32} />
+                    </div>
+                    <h4 className="text-xl font-black mb-2 group-hover:text-pink-400 transition-colors">AI Logo Generator</h4>
+                    <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                      Generate professional, high-quality logos for your business instantly using advanced AI image generation.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                       <Sparkles size={14} className="text-pink-400" /> Custom Branding
+                    </div>
+                  </div>
+
+                  {/* Business Registration Card */}
+                  <div 
+                    onClick={() => handleToolClick('register')}
+                    className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-orange-500/50 hover:bg-orange-500/5 transition-all cursor-pointer group relative overflow-hidden"
+                  >
+                    {!isPaid && (
+                       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
+                         <div className="bg-black border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
+                            <Lock size={12} /> Pro Feature
+                         </div>
+                       </div>
+                    )}
+                    <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-orange-500/20 rounded-full blur-[50px] group-hover:bg-orange-500/30 transition-all"></div>
+                    <div className="w-16 h-16 rounded-2xl bg-orange-500/10 text-orange-400 flex items-center justify-center mb-6 shadow-lg shadow-orange-500/10">
+                      <Building size={32} />
+                    </div>
+                    <h4 className="text-xl font-black mb-2 group-hover:text-orange-400 transition-colors">CIPC Business Registration</h4>
+                    <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                      Register your company with CIPC directly through our platform. Fast, secure, and hassle-free.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                       <Building size={14} className="text-orange-400" /> Official Integration
                     </div>
                   </div>
                 </div>

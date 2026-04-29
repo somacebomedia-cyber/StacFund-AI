@@ -13,12 +13,15 @@ interface MarketplaceProps {
   user: User | null;
   activeOpportunityId?: string | null;
   resumeOpportunityId?: string | null;
+  fallbackOpportunity?: any | null;
   onGoToDashboard: () => void;
   onSetActiveOpportunity: (id: string | null) => void;
+  onClearResumeOpportunity: () => void;
   onUpgrade: () => void;
+  onLogin: () => void;
 }
 
-const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, resumeOpportunityId, onGoToDashboard, onSetActiveOpportunity, onUpgrade }) => {
+const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, resumeOpportunityId, fallbackOpportunity, onGoToDashboard, onSetActiveOpportunity, onClearResumeOpportunity, onUpgrade, onLogin }) => {
   const [filter, setFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info'}>({ show: false, message: '', type: 'success' });
@@ -47,20 +50,44 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
       setLastUpdated(storedTime);
     }
 
+    const handleFilterUpdate = (event: any) => {
+      const { search, category } = event.detail;
+      if (search !== undefined) setSearchQuery(search);
+      if (category !== undefined) setFilter(category);
+    };
+
+    window.addEventListener('update_marketplace_filter', handleFilterUpdate);
+
     // Sync active ID prop
-    if (activeOpportunityId) {
+    if (activeOpportunityId && typeof activeOpportunityId === 'string') {
       const allOps = storedOps ? JSON.parse(storedOps) : MOCK_FUNDING;
       const opp = allOps.find((o: FundingOpportunity) => o.id === activeOpportunityId);
       if (opp) setSelectedOpp(opp);
     }
     
     // Sync resume ID prop
-    if (resumeOpportunityId) {
+    if (resumeOpportunityId && typeof resumeOpportunityId === 'string') {
       const allOps = storedOps ? JSON.parse(storedOps) : MOCK_FUNDING;
-      const opp = allOps.find((o: FundingOpportunity) => o.id === resumeOpportunityId);
+      let opp = allOps.find((o: FundingOpportunity) => o.id === resumeOpportunityId);
+      
+      if (!opp && fallbackOpportunity) {
+        opp = {
+          id: resumeOpportunityId,
+          title: fallbackOpportunity.title || 'Unknown Opportunity',
+          provider: fallbackOpportunity.provider || 'Unknown Provider',
+          type: fallbackOpportunity.type || FundingType.GRANT,
+          description: 'Opportunity details are currently unavailable. You can still continue your application.',
+          range: 'Varies',
+          deadline: 'Unknown',
+          tags: []
+        };
+      }
+      
       if (opp) setWorkflowOpp(opp);
     }
-  }, [activeOpportunityId, resumeOpportunityId]);
+
+    return () => window.removeEventListener('update_marketplace_filter', handleFilterUpdate);
+  }, [activeOpportunityId, resumeOpportunityId, fallbackOpportunity]);
 
   // Monitor for new opportunities to alert
   useEffect(() => {
@@ -71,22 +98,30 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
   }, [opportunities]);
 
   const filteredFunding = opportunities.filter(item => {
-    const matchesFilter = filter === 'All' || item.type.toLowerCase() === filter.toLowerCase();
+    const matchesFilter = filter.toLowerCase() === 'all' || 
+                          (filter === 'GRANT' && item.type === 'GRANT') ||
+                          (filter === 'LOAN' && item.type === 'LOAN') ||
+                          (filter === 'EQUITY' && item.type === 'EQUITY') ||
+                          (filter === 'COMPETITION' && item.type === 'COMPETITION');
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          item.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                          (item.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesFilter && matchesSearch;
   });
 
   const performLiveScan = async () => {
-    if (user?.subscriptionPlan === 'free') {
+    if (!user) {
+      onLogin();
+      return;
+    }
+    if (user.subscriptionPlan === 'free') {
       onUpgrade();
       return;
     }
 
     setIsScanning(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const searchResponse = await ai.models.generateContent({
         model: 'gemini-3.1-pro-preview',
@@ -186,7 +221,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
 
   const handleStartApplication = async (opportunityId: string) => {
     if (!user) {
-      alert("Please log in to apply.");
+      onLogin();
       return;
     }
     const opportunity = opportunities.find(o => o.id === opportunityId);
@@ -250,6 +285,24 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
     }
   };
 
+  const handleDownloadForm = (id: string) => {
+    if (!user) {
+      onLogin();
+      return;
+    }
+    if (user.subscriptionPlan === 'free') {
+      onUpgrade();
+      return;
+    }
+    
+    const opp = opportunities.find(o => o.id === id);
+    if (opp) {
+      setShowToast({ show: true, message: `Downloading official application form for ${opp.title}...`, type: 'success' });
+      setTimeout(() => setShowToast(prev => ({ ...prev, show: false })), 3000);
+      // In a real app, this would trigger a file download or open a PDF URL
+    }
+  };
+
   const closeDetails = () => {
     setSelectedOpp(null);
     onSetActiveOpportunity(null);
@@ -260,7 +313,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
     setNewOppAlert(prev => ({ ...prev, show: false }));
   };
 
-  const isPaid = user?.subscriptionPlan !== 'free';
+  const isPaid = user && user.subscriptionPlan !== 'free';
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12 relative">
@@ -384,7 +437,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
               </div>
               <div>
                  <h3 className="text-lg font-black text-white mb-1">Standard Bank Enterprise Loan</h3>
-                 <p className="text-sm text-gray-400">Exclusive low-interest revolving credit for FundHub Pro users.</p>
+                 <p className="text-sm text-gray-400">Exclusive low-interest revolving credit for StacFund Pro users.</p>
               </div>
            </div>
            
@@ -434,6 +487,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
                 opportunity={item} 
                 onViewDetails={handleViewDetails}
                 onStartApplication={handleStartApplication}
+                onDownloadForm={handleDownloadForm}
               />
             ))
           ) : (
@@ -535,7 +589,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
         <ApplicationWorkflow
           opportunity={workflowOpp}
           user={user}
-          onClose={() => setWorkflowOpp(null)}
+          onClose={() => {
+            setWorkflowOpp(null);
+            onClearResumeOpportunity();
+          }}
           onComplete={handleWorkflowComplete}
         />
       )}

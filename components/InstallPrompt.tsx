@@ -65,7 +65,7 @@ const InstallPrompt: React.FC = () => {
              <Download size={24} className="text-white" />
           </div>
           <div>
-            <h4 className="font-bold text-white mb-1">Install FundHub App</h4>
+            <h4 className="font-bold text-white mb-1">Install StacFund App</h4>
             <p className="text-xs text-gray-400 mb-3">
               Add to home screen for quick access, offline mode, and better performance.
             </p>

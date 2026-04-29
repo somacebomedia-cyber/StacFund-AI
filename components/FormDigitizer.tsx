@@ -41,7 +41,7 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
 
   const analyzeForm = async (base64Image: string) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const profileData = localStorage.getItem(`fundhub_profile_${user?.id}`);
       const docsData = localStorage.getItem('fundhub_documents');
       

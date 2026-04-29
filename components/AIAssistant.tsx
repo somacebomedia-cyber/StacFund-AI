@@ -2,6 +2,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Sparkles, Loader2, Bot, Minimize2, ArrowUpRight, Mic, MicOff, RotateCcw, Zap } from 'lucide-react';
 import { GoogleGenAI, GenerateContentResponse, Type, FunctionDeclaration } from '@google/genai';
+import { collection, getDocs, updateDoc, doc, query } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { User, Application } from '../types';
 import { MOCK_FUNDING } from '../constants';
 
@@ -12,12 +14,11 @@ interface Message {
 
 interface AIAssistantProps {
   user: User | null;
-  activeOpportunityId?: string | null;
   onNavigate?: (page: string) => void;
   onProfileUpdate?: () => void;
 }
 
-const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, onNavigate, onProfileUpdate }) => {
+const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUpdate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -59,6 +60,68 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, on
           },
           required: ['page']
         }
+      },
+      {
+        name: 'filter_marketplace',
+        description: 'Apply search and category filters to the funding marketplace, and navigate the user there.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            search: { type: Type.STRING, description: 'The search query or keyword to filter by (e.g., "preschool", "tech", "under R50k"). Leave empty if not applicable.' },
+            category: { type: Type.STRING, enum: ['All', 'GRANT', 'LOAN', 'EQUITY', 'COMPETITION'], description: 'The category to filter by. Defaults to "All".' }
+          }
+        }
+      },
+      {
+        name: 'generate_logo',
+        description: 'Open the AI Logo Generator tool to create a logo for the business.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {}
+        }
+      },
+      {
+        name: 'register_business',
+        description: 'Open the Business Registration wizard to let the user register a new company (e.g. CIPC).',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {}
+        }
+      },
+      {
+        name: 'create_video_advert',
+        description: 'Generate a product or business video advert using the latest Veo model. Takes a prompt.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            prompt: { type: Type.STRING, description: 'The prompt to use for creating the video advert.' }
+          },
+          required: ['prompt']
+        }
+      },
+      {
+        name: 'read_document',
+        description: 'Read a user\'s document by its title keyword from their library.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            titleKeyword: { type: Type.STRING, description: 'A keyword from the title of the document to search for.' }
+          },
+          required: ['titleKeyword']
+        }
+      },
+      {
+        name: 'edit_document',
+        description: 'Edit or append to an existing document by its ID.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            docId: { type: Type.STRING, description: 'The ID of the document to edit.' },
+            newContent: { type: Type.STRING, description: 'The modified or new content to append or replace.' },
+            action: { type: Type.STRING, enum: ['append', 'replace'], description: 'Whether to append to the existing content or replace it entirely.'}
+          },
+          required: ['docId', 'newContent', 'action']
+        }
       }
     ]
   };
@@ -71,7 +134,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, on
         setMessages(JSON.parse(savedHistory));
       } else {
         setMessages([
-          { role: 'model', text: `Hi ${user.businessName || 'there'}! I'm your FundHub AI Assistant. I'm agentic now—I can update your profile or navigate the app for you! Try saying "Save my WhatsApp number" or "Show me the marketplace".` }
+          { role: 'model', text: `Hi ${user.businessName || 'there'}! I'm your StacFund AI Assistant. I'm agentic now—I can update your profile or navigate the app for you! Try saying "Save my WhatsApp number" or "Show me the marketplace".` }
         ]);
       }
     }
@@ -146,7 +209,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, on
     setIsTyping(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const profileData = user ? localStorage.getItem(`fundhub_profile_${user.id}`) : null;
       const parsedProfile = profileData ? JSON.parse(profileData) : null;
       
@@ -154,21 +217,29 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, on
         model: 'gemini-3-flash-preview',
         config: {
           tools: [tools],
-          systemInstruction: `You are the FundHub AI Assistant. You are AGENTIC. 
+          systemInstruction: `You are the StacFund AI Assistant. You are AGENTIC. 
           
           CAPABILITIES:
-          - You can update user profile fields using 'update_business_profile'.
-          - You can navigate the app using 'navigate_to_page'.
+          - Update user profile fields using 'update_business_profile'.
+          - Navigate the app using 'navigate_to_page'.
+          - Search and filter funding using 'filter_marketplace'.
+          - Read/edit user documents using 'read_document' and 'edit_document'.
+          - Open Logo generator using 'generate_logo'.
+          - Generate Video Adverts using 'create_video_advert'.
+          - Register a business with CIPC using 'register_business'.
           
           CONTEXT:
           - Business: ${user?.businessName || 'N/A'}
           - WhatsApp: ${parsedProfile?.whatsapp || 'Not saved yet'}
           
           BEHAVIOR:
-          1. If a user gives you information (like a WhatsApp number or industry), call 'update_business_profile' immediately.
-          2. If a user wants to see their applications or marketplace, use 'navigate_to_page'.
-          3. Always confirm to the user what action you have taken.
-          4. Keep responses brief and proactive.`,
+          1. Actively use 'read_document' if the user asks about their business plan, pitch deck, or what documents they have. Read the document to answer their question!
+          2. Use 'edit_document' if they ask you to modify, add to, or rewrite a section of a document.
+          3. For adverts, call 'create_video_advert' and generate a highly detailed, cinematic prompt for Veo 2.
+          4. For logos, call 'generate_logo' and direct the user to the popup.
+          5. For business registration (CIPC), call 'register_business'.
+          6. ALWAYS ACT on the user's behalf if a tool exists for it. DO NOT just give instructions.
+          7. Keep conversational responses brief. Let the tools do the work!`,
         },
       });
 
@@ -192,6 +263,67 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, activeOpportunityId, on
           else if (fc.name === 'navigate_to_page') {
             if (onNavigate) onNavigate(fc.args.page as string);
             result = `Navigated user to ${fc.args.page}`;
+          }
+          else if (fc.name === 'filter_marketplace') {
+            if (onNavigate) onNavigate('marketplace');
+            window.dispatchEvent(new CustomEvent('update_marketplace_filter', { 
+              detail: { search: fc.args.search || '', category: fc.args.category || 'All' } 
+            }));
+            result = `Filtered marketplace for: ${fc.args.search || 'anything'} ${fc.args.category ? `in category ${fc.args.category}` : ''}`;
+          }
+          else if (fc.name === 'generate_logo') {
+            if (onNavigate) onNavigate('dashboard');
+            window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'logo' } }));
+            result = `Navigated to dashboard and opened Logo Generator popup.`;
+          }
+          else if (fc.name === 'register_business') {
+            if (onNavigate) onNavigate('dashboard');
+            window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'register' } }));
+            result = `Navigated to dashboard and opened Business Registration popup.`;
+          }
+          else if (fc.name === 'create_video_advert') {
+            if (onNavigate) onNavigate('dashboard');
+            window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'advert', prompt: fc.args.prompt } }));
+            result = `Started generating a Video Advert for the user context with prompt: ${fc.args.prompt}`;
+          }
+          else if (fc.name === 'read_document') {
+             if (user) {
+               try {
+                 const docsRef = collection(db, 'users', user.id, 'documents');
+                 const docSnap = await getDocs(docsRef);
+                 const foundDoc = docSnap.docs.map(doc => ({id: doc.id, ...doc.data()})).find((d: any) => d.title.toLowerCase().includes(String(fc.args.titleKeyword).toLowerCase()));
+                 if (foundDoc) {
+                   result = `Found document "${(foundDoc as any).title}" (ID: ${(foundDoc as any).id}). Content: ${(foundDoc as any).content || 'No text content available'}`;
+                 } else {
+                   result = `No document found containing keyword "${fc.args.titleKeyword}". Available documents: ${docSnap.docs.map(d=>d.data().title).join(', ')}`;
+                 }
+               } catch (e) {
+                 result = `Failed to read documents from database: ${e}`;
+               }
+             } else {
+               result = `User not logged in.`;
+             }
+          }
+          else if (fc.name === 'edit_document') {
+             if (user) {
+               try {
+                 const dRef = doc(db, 'users', user.id, 'documents', String(fc.args.docId));
+                 const allDocs = await getDocs(collection(db, 'users', user.id, 'documents'));
+                 const existingDoc = allDocs.docs.find(d => d.id === fc.args.docId);
+                 if (existingDoc) {
+                   const oldContent = existingDoc.data().content || '';
+                   const updatedContent = fc.args.action === 'append' ? oldContent + '\n\n' + fc.args.newContent : fc.args.newContent;
+                   await updateDoc(dRef, { content: updatedContent, updatedAt: new Date().toISOString() });
+                   result = `Successfully updated document ${fc.args.docId} (${fc.args.action}ed).`;
+                 } else {
+                   result = `Document with ID ${fc.args.docId} not found.`;
+                 }
+               } catch(e) {
+                 result = `Failed to update document: ${e}`;
+               }
+             } else {
+               result = `User not logged in.`;
+             }
           }
 
           functionResponses.push({
