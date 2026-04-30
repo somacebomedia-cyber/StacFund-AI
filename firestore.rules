@@ -1,24 +1,70 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    match /users/{userId} {
-      allow read, write: if isOwner(userId);
-      match /{document=**} {
-        allow read, write: if isOwner(userId);
-      }
-    }
-    
-    // Default deny
+    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definitions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validations
+    function isValidUser(data) {
+      return data.businessName is string && data.businessName.size() <= 100
+        && data.subscriptionPlan in ['free', 'pro', 'business'];
+    }
+
+    function isValidApplication(data) {
+      return data.opportunityId is string && data.opportunityId.size() <= 128
+        && data.status in ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'];
+    }
+
+    // User Profile
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming())
+        && incoming().subscriptionPlan == existing().subscriptionPlan; // Subscriptions updated via backend only if security set up
+      
+      // Allow specific update from backend/admin for subscription changes
+      // In this app, we have a backend verification, so we might need to allow subscription updates 
+      // if the request comes from a trusted source, but typically we'd use a server account.
+      // Firebase Admin SDK bypasses these rules anyway.
+
+      // Subcollections
+      match /applications/{appId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidApplication(incoming());
+        allow update: if isOwner(userId) && isValidApplication(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /documents/{docId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create, update: if isOwner(userId) && incoming().name is string;
+        allow delete: if isOwner(userId);
+      }
     }
   }
 }

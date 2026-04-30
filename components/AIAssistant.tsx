@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Sparkles, Loader2, Bot, Minimize2, ArrowUpRight, Mic, MicOff, RotateCcw, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { MessageSquare, X, Send, Sparkles, Loader2, Bot, Minimize2, ArrowUpRight, Mic, MicOff, RotateCcw, Zap, Command, CreditCard, Shield } from 'lucide-react';
 import { GoogleGenAI, GenerateContentResponse, Type, FunctionDeclaration } from '@google/genai';
 import { collection, getDocs, updateDoc, doc, query } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -361,112 +362,194 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
   ];
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
-      {isOpen && (
-        <div className="mb-4 w-[90vw] sm:w-[400px] h-[500px] sm:h-[600px] glass-panel rounded-3xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
-          <div className="p-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                <Bot className="text-white" size={20} />
-              </div>
-              <div>
-                <h3 className="font-black text-sm">Agentic Assistant</h3>
-                <div className="flex items-center gap-1">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isActing ? 'bg-cyan-500 animate-ping' : isListening ? 'bg-red-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`}></span>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                    {isActing ? 'Executing Task...' : isListening ? 'Listening...' : 'Active Agent'}
-                  </span>
+    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end pointer-events-none">
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20, rotateX: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20, rotateX: 10 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            className="mb-6 w-[90vw] sm:w-[420px] h-[600px] sm:h-[700px] glass-panel rounded-[32px] border border-white/20 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden pointer-events-auto origin-bottom-right"
+            style={{ 
+              perspective: '1000px',
+              boxShadow: '0 0 0 1px rgba(255,255,255,0.1), 0 20px 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05)'
+            }}
+          >
+            {/* Premium Header */}
+            <div className="p-5 border-b border-white/5 bg-white/5 backdrop-blur-3xl flex justify-between items-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 via-blue-600/10 to-transparent pointer-none" />
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 flex items-center justify-center shadow-[0_8px_16px_rgba(139,92,246,0.3)]">
+                    <Bot className="text-white" size={24} />
+                  </div>
+                  <motion.div 
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#050510] rounded-full" 
+                  />
+                </div>
+                <div>
+                  <h3 className="font-black text-base tracking-tight flex items-center gap-2">
+                    StacAI <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border border-purple-500/30 font-mono">Agent v2.4</span>
+                  </h3>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.15em]">
+                      {isActing ? 'Synchronizing Data...' : isListening ? 'Processing Voice...' : 'Ready for Commands'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={clearChat} title="Clear Chat History" className="p-2 hover:bg-white/10 rounded-full text-gray-500 hover:text-white transition-colors">
-                <RotateCcw size={16} />
-              </button>
-              <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-gray-400 transition-colors">
-                <Minimize2 size={18} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm whitespace-pre-wrap ${
-                  msg.role === 'user' 
-                    ? 'bg-purple-600 text-white rounded-tr-none shadow-lg' 
-                    : 'bg-white/5 border border-white/10 text-gray-200 rounded-tl-none'
-                }`}>
-                  {msg.text}
-                </div>
-              </div>
-            ))}
-            {(isTyping || isActing) && (
-              <div className="flex justify-start">
-                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl rounded-tl-none flex items-center gap-2">
-                  <Loader2 size={16} className="animate-spin text-purple-400" />
-                  {isActing && <span className="text-[10px] font-black uppercase text-cyan-400 tracking-widest">Running Tool...</span>}
-                </div>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          <div className="p-4 border-t border-white/5 bg-black/20">
-            <div className="flex flex-wrap gap-2 mb-4">
-              {suggestions.map((s, i) => (
-                <button 
-                  key={i}
-                  onClick={() => handleSendMessage(undefined, s)}
-                  className="text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-full text-gray-400 hover:text-white transition-all whitespace-nowrap flex items-center gap-1"
-                >
-                  <Zap size={10} className="text-cyan-400" /> {s}
+              <div className="flex items-center gap-1 relative z-10">
+                <button onClick={clearChat} title="Reset Protocol" className="p-2.5 hover:bg-white/10 rounded-xl text-gray-500 hover:text-white transition-all">
+                  <RotateCcw size={18} />
                 </button>
+                <button onClick={() => setIsOpen(false)} className="p-2.5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-all">
+                  <Minimize2 size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Chat Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/20">
+              {messages.map((msg, i) => (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  key={i} 
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[88%] p-4 rounded-3xl text-[13px] leading-relaxed relative ${
+                    msg.role === 'user' 
+                      ? 'bg-gradient-to-br from-purple-600 to-indigo-700 text-white rounded-tr-none shadow-[0_10px_30px_-5px_rgba(139,92,246,0.3)]' 
+                      : 'bg-white/[0.03] border border-white/10 text-gray-200 rounded-tl-none backdrop-blur-md'
+                  }`}>
+                    {msg.text}
+                    {msg.role === 'model' && (
+                      <div className="absolute -left-2 top-0 w-2 h-2 text-white/10">
+                        <svg width="8" height="8" viewBox="0 0 8 8"><path d="M8 0 C8 0 0 0 0 8 L0 0 Z" fill="currentColor"/></svg>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
               ))}
+              {(isTyping || isActing) && (
+                <div className="flex justify-start">
+                  <div className="bg-white/[0.03] border border-white/10 p-4 rounded-3xl rounded-tl-none flex items-center gap-3 backdrop-blur-md">
+                    <div className="flex gap-1">
+                      <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 1, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                      <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 1, repeat: Infinity, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                      <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 1, repeat: Infinity, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    </div>
+                    {isActing && <span className="text-[10px] font-black uppercase text-cyan-400 tracking-[0.2em] animate-pulse">Neural Task In-Progress</span>}
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
             </div>
-            
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={toggleListening}
-                className={`p-3 rounded-xl transition-all shadow-lg ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}
-              >
-                {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-              </button>
-              <form onSubmit={handleSendMessage} className="relative flex-1">
-                <input 
-                  type="text"
-                  placeholder={isActing ? "Performing task..." : isListening ? "Listening..." : "Tell me what to do..."}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
-                />
-                <button 
-                  type="submit"
-                  disabled={!input.trim() || isTyping || isActing}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg transition-all shadow-lg"
-                >
-                  <Send size={16} />
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
-      <button 
+            {/* Input Area */}
+            <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-3xl">
+              <div className="flex flex-wrap gap-2 mb-6 no-scrollbar overflow-x-auto pb-2">
+                {suggestions.map((s, i) => (
+                  <motion.button 
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    key={i}
+                    onClick={() => handleSendMessage(undefined, s)}
+                    className="text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-2xl text-gray-400 hover:text-white transition-all whitespace-nowrap flex items-center gap-2 group"
+                  >
+                    <Command size={12} className="text-purple-400 group-hover:rotate-12 transition-transform" /> {s}
+                  </motion.button>
+                ))}
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <motion.button 
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={toggleListening}
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-xl ${
+                    isListening 
+                      ? 'bg-red-500 text-white animate-pulse' 
+                      : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/10'
+                  }`}
+                >
+                  {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                </motion.button>
+                <form onSubmit={handleSendMessage} className="relative flex-1 group">
+                  <input 
+                    type="text"
+                    placeholder={isActing ? "Performing task..." : isListening ? "Listening..." : "How can I assist your business today?"}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-gray-600"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                    <motion.button 
+                      whileHover={{ scale: 1.1, x: 2 }}
+                      whileTap={{ scale: 0.9 }}
+                      type="submit"
+                      disabled={!input.trim() || isTyping || isActing}
+                      className="p-2.5 bg-gradient-to-tr from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-30 disabled:grayscale text-white rounded-xl transition-all shadow-lg"
+                    >
+                      <Send size={18} />
+                    </motion.button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.button 
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ 
+          scale: 1, 
+          opacity: 1,
+          y: isOpen ? 0 : [0, -8, 0],
+        }}
+        transition={{ 
+          y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+          scale: { type: "spring", damping: 12, stiffness: 200 }
+        }}
+        whileHover={{ scale: 1.1, rotate: 5 }}
+        whileTap={{ scale: 0.9 }}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 group ${
-          isOpen ? 'bg-white text-black' : 'bg-gradient-to-tr from-purple-600 to-indigo-600 text-white'
+        className={`w-16 h-16 rounded-[24px] flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-all duration-500 pointer-events-auto relative overflow-hidden backdrop-blur-xl ${
+          isOpen 
+            ? 'bg-white text-black border-2 border-black/5' 
+            : 'bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 text-white border border-white/20'
         }`}
+        style={{
+          boxShadow: isOpen 
+            ? '0 10px 30px rgba(255,255,255,0.2)' 
+            : '0 20px 40px rgba(139,92,246,0.4), inset 0 0 15px rgba(255,255,255,0.2)'
+        }}
       >
-        {isOpen ? <X size={24} /> : (
+        {isOpen ? <X size={28} strokeWidth={2.5} /> : (
           <div className="relative">
-            <Bot size={24} />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-cyan-400 border-2 border-[#050510] rounded-full animate-pulse"></div>
-            <Sparkles size={12} className="absolute -bottom-2 -left-2 text-amber-400 animate-pulse" />
+            <Bot size={32} strokeWidth={2} />
+            <motion.div 
+              animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-400 border-2 border-[#050510] rounded-full shadow-[0_0_10px_#22d3ee]" 
+            />
+            <Sparkles size={16} className="absolute -bottom-3 -left-3 text-amber-400 animate-pulse" />
           </div>
         )}
-      </button>
+        
+        {/* Hover Shine Effect */}
+        {!isOpen && (
+          <motion.div 
+            animate={{ left: ['-100%', '200%'] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+            className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
+          />
+        )}
+      </motion.button>
     </div>
   );
 };

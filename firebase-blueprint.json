@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and business profile",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string" },
+        "subscriptionPlan": { "type": "string", "enum": ["free", "pro", "business"] },
+        "billingCycle": { "type": "string", "enum": ["monthly", "yearly", null] },
+        "profile": { "type": "object" },
+        "ownerInfo": { "type": "object" }
+      },
+      "required": ["businessName", "subscriptionPlan"]
+    },
+    "Application": {
+      "title": "Funding Application",
+      "description": "An application for a specific funding opportunity",
+      "type": "object",
+      "properties": {
+        "opportunityId": { "type": "string" },
+        "opportunityTitle": { "type": "string" },
+        "provider": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] },
+        "type": { "type": "string" },
+        "date": { "type": "string" },
+        "data": { "type": "object" }
+      },
+      "required": ["opportunityId", "status"]
+    },
+    "AppDocument": {
+      "title": "Business Document",
+      "description": "A document uploaded by the user",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "size": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Primary user document"
+    },
+    "/users/{userId}/applications/{appId}": {
+      "schema": "Application",
+      "description": "User's individual funding applications"
+    },
+    "/users/{userId}/documents/{docId}": {
+      "schema": "AppDocument",
+      "description": "User's uploaded business documents"
+    }
+  }
+}

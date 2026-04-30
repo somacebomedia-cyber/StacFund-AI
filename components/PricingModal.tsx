@@ -18,7 +18,10 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
   const [isProcessing, setIsProcessing] = useState(false);
 
   const getAmount = (plan: 'pro' | 'business') => {
-    const amountStr = plan === 'pro' ? (billing === 'monthly' ? '149' : '999') : (billing === 'monthly' ? '699' : '6999');
+    if (plan === 'pro') {
+      return 799 * 100; // Yearly only R799
+    }
+    const amountStr = billing === 'monthly' ? '699' : '6999';
     return parseInt(amountStr.replace(',', ''), 10) * 100;
   };
 
@@ -49,6 +52,9 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
     console.log("Payment Successful:", referenceInfo);
     setIsProcessing(true);
     
+    // Force Founder Pro to yearly if monthly is selected
+    const actualBilling = plan === 'pro' ? 'yearly' : billing;
+
     try {
       // Verify the transaction securely on the backend
       const response = await fetch('/api/paystack/verify', {
@@ -58,7 +64,7 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
           reference: referenceInfo.reference,
           userId: user?.id,
           plan: plan,
-          cycle: billing
+          cycle: actualBilling
         }),
       });
       
@@ -135,7 +141,7 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
                     onClick={() => setBilling('yearly')}
                     className={`px-6 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${billing === 'yearly' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
                   >
-                    Yearly <span className="bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 rounded-md uppercase tracking-wider">Save 45%</span>
+                    Yearly <span className="bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 rounded-md uppercase tracking-wider">Save up to 55%</span>
                   </button>
                 </div>
               </div>
@@ -189,9 +195,17 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
                   <div className="mb-6">
                     <div className="flex items-end gap-1">
                       <p className="text-5xl font-black text-white tracking-tight">
-                        {billing === 'monthly' ? 'R149' : 'R999'}
+                        R799
                       </p>
-                      <span className="text-sm text-gray-400 font-bold mb-1.5">/{billing === 'monthly' ? 'mo' : 'yr'}</span>
+                      <span className="text-sm text-gray-400 font-bold mb-1.5">/yr</span>
+                    </div>
+                    {billing === 'monthly' && (
+                      <div className="mt-1">
+                        <span className="text-[10px] text-purple-400 font-black uppercase tracking-widest bg-purple-500/10 px-2 py-0.5 rounded">Yearly Only</span>
+                      </div>
+                    )}
+                    <div className="mt-2 text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center gap-1">
+                      <ShieldCheck size={12} /> Save R1,000 Today
                     </div>
                   </div>
 
@@ -231,7 +245,7 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
                   </div>
 
                   <div className="space-y-3 mb-8 flex-1">
-                    {['Everything in Founder', 'Free AI-Generated Website', 'Premium Hosting Included', 'Basic Website Maintenance', 'Priority 24/7 Support'].map((feat, i) => (
+                    {['Everything in Founder', 'AI Business Plan & Logo Gen', 'Unlimited Funding Scans', 'Financial Projections', 'Priority 24/7 Support'].map((feat, i) => (
                       <div key={i} className="flex items-center gap-3">
                         <CheckCircle2 size={16} className="text-amber-500" />
                         <span className="text-sm font-medium text-gray-300">{feat}</span>
