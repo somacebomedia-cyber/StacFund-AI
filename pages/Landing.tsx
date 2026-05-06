@@ -97,7 +97,7 @@ const ExtensiveFeatures = () => {
           Everything You Need to <br/>
           <span className="gradient-text">Secure Capital</span>
         </h2>
-        <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto">
+        <p className="text-gray-200 text-lg md:text-xl font-medium max-w-2xl mx-auto drop-shadow-md">
           We’ve built a comprehensive suite of tools designed to remove every barrier between your business and the funding it deserves.
         </p>
       </div>
@@ -292,10 +292,10 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.6 }}
-            className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed mb-14"
+            className="text-gray-200 text-lg md:text-xl font-medium max-w-2xl mx-auto leading-relaxed mb-14 drop-shadow-md"
           >
             Get your business ready before the window opens. We track NYDA, SEFA, and CDSP grants so you can prepare your documents and apply stress-free. <br />
-            <span className="text-purple-300 font-semibold">Stumbling onto funding is a distribution failure—we fix that.</span>
+            <span className="text-purple-300 font-bold">Stumbling onto funding is a distribution failure—we fix that.</span>
           </motion.p>
         </div>
 
@@ -349,7 +349,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
               3 Steps. <span className="gradient-text">0 Friction.</span>
             </h2>
-            <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
+            <p className="text-gray-200 text-lg font-medium max-w-2xl mx-auto leading-relaxed drop-shadow-md">
               Built for the last-minute legends and busy solopreneurs. <br className="hidden md:block"/>
               We destroyed the paperwork, the stress, and the endless searching.
             </p>
