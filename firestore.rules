@@ -8,7 +8,7 @@ service cloud.firestore {
 
     // Phase 3: Primitive Definitions
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
     }
     
     function isOwner(userId) {
@@ -16,7 +16,7 @@ service cloud.firestore {
     }
     
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     function incoming() {
@@ -29,7 +29,8 @@ service cloud.firestore {
 
     // Entity Validations
     function isValidUser(data) {
-      return data.businessName is string && data.businessName.size() <= 100
+      return data.businessName is string 
+        && data.businessName.size() <= 100
         && data.subscriptionPlan in ['free', 'pro', 'business'];
     }
 
@@ -38,32 +39,62 @@ service cloud.firestore {
         && data.status in ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'];
     }
 
+    function isValidUserBusinessProfile(data, userId) {
+      return data.user_id == userId && data.business_status is string && data.business_status.size() <= 100;
+    }
+    
+    function isValidDocument(data) {
+      return data.name is string && data.name.size() <= 200
+        && data.type is string && data.type.size() <= 50;
+    }
+
+    match /user_business_profiles/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserBusinessProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserBusinessProfile(incoming(), userId)
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+            'business_status', 'entity_type', 'industry', 'location', 
+            'revenue_band', 'staff_count', 'has_bank_account', 
+            'has_sars_tax', 'has_cipc_registration', 'age', 'documents_ready'
+        ]);
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+
+    match /funding_opportunities/{opportunityId} {
+      // Must not use blanket reads! Checks `resource.data.opportunity_id` to strictly tie condition to the read collection type.
+      allow list: if isSignedIn() && existing().opportunity_id != null;
+      allow get: if isSignedIn() && isValidId(opportunityId);
+      allow write: if false; // Admin only via backend
+    }
+
     // User Profile
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && isValidUser(incoming())
-        && incoming().subscriptionPlan == existing().subscriptionPlan; // Subscriptions updated via backend only if security set up
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['businessName'])
+        && incoming().subscriptionPlan == existing().subscriptionPlan; // Client cannot update subscription plan
       
-      // Allow specific update from backend/admin for subscription changes
-      // In this app, we have a backend verification, so we might need to allow subscription updates 
-      // if the request comes from a trusted source, but typically we'd use a server account.
-      // Firebase Admin SDK bypasses these rules anyway.
 
       // Subcollections
       match /applications/{appId} {
-        allow list: if isOwner(userId);
-        allow get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidApplication(incoming());
-        allow update: if isOwner(userId) && isValidApplication(incoming());
-        allow delete: if isOwner(userId);
+        // Enforce boundary by checking the list query actually checks the opportunityId is a string
+        allow list: if isOwner(userId) && existing().opportunityId is string;
+        allow get: if isOwner(userId) && isValidId(appId);
+        allow create: if isOwner(userId) && isValidId(appId) && isValidApplication(incoming());
+        allow update: if isOwner(userId) && isValidId(appId) && isValidApplication(incoming())
+          && incoming().diff(existing()).affectedKeys().hasOnly(['opportunityTitle', 'status', 'data', 'provider', 'date', 'type']);
+        allow delete: if isOwner(userId) && isValidId(appId);
       }
 
       match /documents/{docId} {
-        allow list: if isOwner(userId);
-        allow get: if isOwner(userId);
-        allow create, update: if isOwner(userId) && incoming().name is string;
-        allow delete: if isOwner(userId);
+        // Must tie the list to document type data to avoid blanket fetching bypassing structure
+        allow list: if isOwner(userId) && existing().name is string;
+        allow get: if isOwner(userId) && isValidId(docId);
+        allow create: if isOwner(userId) && isValidId(docId) && isValidDocument(incoming());
+        allow update: if isOwner(userId) && isValidId(docId) && isValidDocument(incoming())
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type', 'size', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(docId);
       }
     }
   }

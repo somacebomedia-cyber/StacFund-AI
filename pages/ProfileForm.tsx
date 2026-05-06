@@ -141,10 +141,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     
     // Extract document context to help the AI realize what we have
     const financialDocs = documents.filter(doc => 
-      doc.name.toLowerCase().includes('bank') || 
-      doc.name.toLowerCase().includes('statement') || 
-      doc.name.toLowerCase().includes('quote') || 
-      doc.name.toLowerCase().includes('quotation')
+      doc.name?.toLowerCase().includes('bank') || 
+      doc.name?.toLowerCase().includes('statement') || 
+      doc.name?.toLowerCase().includes('quote') || 
+      doc.name?.toLowerCase().includes('quotation')
     ).map(doc => doc.name).join(', ');
 
     try {

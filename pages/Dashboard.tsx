@@ -6,7 +6,7 @@ import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firesto
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import StatCard from '../components/StatCard';
 import { MOCK_ACHIEVEMENTS, MOCK_FUNDING } from '../constants';
-import { User, Application, ApplicationStatus, FundingType, AppDocument, FundingOpportunity, ReadinessInfo } from '../types';
+import { User, Application, ApplicationStatus, FundingType, AppDocument, FundingOpportunityDb, ReadinessInfo } from '../types';
 import FormDigitizer from '../components/FormDigitizer';
 import PresentationDesigner from '../components/PresentationDesigner';
 import AILogoGenerator from '../components/AILogoGenerator';
@@ -464,17 +464,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                   ) : aiMatches.length > 0 ? (
                     <div className="grid grid-cols-1 gap-6">
                       {aiMatches.map((match: any) => {
-                        const opp = MOCK_FUNDING.find(o => o.id === match.id);
+                        const opp = MOCK_FUNDING.find(o => o.opportunity_id === match.id);
                         if (!opp) return null;
                         return (
-                          <div key={opp.id} className="glass-panel p-8 rounded-3xl relative overflow-hidden group hover:border-cyan-500/30 transition-all">
+                          <div key={opp.opportunity_id} className="glass-panel p-8 rounded-3xl relative overflow-hidden group hover:border-cyan-500/30 transition-all">
                              <div className="absolute top-0 right-0 px-4 py-2 bg-cyan-500 text-white font-black text-[10px] uppercase tracking-widest rounded-bl-2xl">
                                {match.score}% AI Match
                              </div>
                              <div className="flex flex-col md:flex-row gap-6">
                                 <div className="flex-1">
-                                  <h4 className="text-xl font-black mb-1 group-hover:text-cyan-400 transition-colors">{opp.title}</h4>
-                                  <p className="text-gray-400 text-sm mb-4">{opp.provider}</p>
+                                  <h4 className="text-xl font-black mb-1 group-hover:text-cyan-400 transition-colors">{opp.programme_name}</h4>
+                                  <p className="text-gray-400 text-sm mb-4">{opp.issuer_name}</p>
                                   <div className="p-4 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl mb-6">
                                     <p className="text-xs text-cyan-400 leading-relaxed font-medium">
                                       <Sparkles size={12} className="inline mr-2 mb-1" />
@@ -482,12 +482,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                                     </p>
                                   </div>
                                   <div className="flex gap-4">
-                                    <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-lg border border-white/5">{opp.range}</span>
-                                    <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-lg border border-white/5">{opp.type}</span>
+                                    <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-lg border border-white/5">R{opp.amount_min.toLocaleString()} - R{opp.amount_max.toLocaleString()}</span>
+                                    <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-lg border border-white/5">{opp.funding_type}</span>
                                   </div>
                                 </div>
                                 <div className="flex items-center">
-                                   <button onClick={() => onBrowseFunding(opp.id)} className="w-full md:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-white font-black rounded-2xl transition-all shadow-lg shadow-cyan-500/20">View Opportunity</button>
+                                   <button onClick={() => onBrowseFunding(opp.opportunity_id)} className="w-full md:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-white font-black rounded-2xl transition-all shadow-lg shadow-cyan-500/20">View Opportunity</button>
                                 </div>
                              </div>
                           </div>

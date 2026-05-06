@@ -16,6 +16,14 @@ import { User } from './types';
 
 type Page = 'landing' | 'dashboard' | 'marketplace' | 'profile' | 'auth';
 
+const StacFundLogo = ({ size = 40 }: { size?: number }) => (
+  <img 
+    src="https://plain-apac-prod-public.komododecks.com/202605/01/E345pPd1uITno0rNTXrP/image.png" 
+    alt="StacFund Logo" 
+    style={{ width: size, height: size, objectFit: 'contain' }}
+  />
+);
+
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('landing');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -116,26 +124,11 @@ const App: React.FC = () => {
       billingCycle: cycle
     };
     
-    try {
-      if (hasValidFirebaseConfig()) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const userDocRef = doc(db, 'users', currentUser.id);
-        await updateDoc(userDocRef, {
-          subscriptionPlan: plan,
-          billingCycle: cycle
-        });
-      }
-      
-      setCurrentUser(updatedUser);
-      setShowPricing(false);
-      alert(`Welcome to StacFund ${plan === 'business' ? 'Empire' : 'Founder Pro'}! You are on the ${cycle} plan.`);
-    } catch (error) {
-      console.error("Error updating subscription in Firestore:", error);
-      // Still update UI for demo purposes
-      setCurrentUser(updatedUser);
-      setShowPricing(false);
-      alert(`DEMO MODE: Upgrade to ${plan} simulated!`);
-    }
+    // The backend /api/paystack/verify route handles updating Firestore securely.
+    // We just need to update the local application state.
+    setCurrentUser(updatedUser);
+    setShowPricing(false);
+    alert(`Welcome to StacFund ${plan === 'business' ? 'Empire' : 'Founder Pro'}! You are on the ${cycle} plan.`);
   };
 
   const handleCancelSubscription = async () => {
@@ -245,7 +238,7 @@ const App: React.FC = () => {
 
   if (configError) {
     return (
-      <div className="min-h-screen bg-[#050510] flex items-center justify-center p-6 text-center">
+      <div className="min-h-screen flex items-center justify-center p-6 text-center">
         <div className="max-w-md bg-white/5 border border-red-500/50 p-8 rounded-3xl">
           <AlertTriangle size={48} className="mx-auto text-red-500 mb-4" />
           <h2 className="text-2xl font-bold text-white mb-2">Firebase Config Missing</h2>
@@ -266,7 +259,7 @@ const App: React.FC = () => {
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-[#050510] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center">
           <div className="w-12 h-12 bg-purple-600 rounded-xl mb-4"></div>
           <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Connecting to Cloud...</p>
@@ -286,26 +279,29 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#050510] text-white">
-      <InstallPrompt />
-      
-      {showPricing && (
-        <PricingModal 
-          user={currentUser} 
-          onClose={() => setShowPricing(false)} 
-          onUpgrade={handleUpgrade}
-        />
-      )}
+    <div className="min-h-screen text-white relative"
+      style={{ backgroundImage: "url('https://plain-apac-prod-public.komododecks.com/202605/06/BqmNPYSSoslO0BZswqUD/image.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510', backgroundAttachment: 'fixed' }}
+    >
+      <div className="relative z-10 hidden-scrollbar overflow-y-auto h-screen pb-safe">
+        <InstallPrompt />
+        
+        {showPricing && (
+          <PricingModal 
+            user={currentUser} 
+            onClose={() => setShowPricing(false)} 
+            onUpgrade={handleUpgrade}
+          />
+        )}
 
-      {/* Global Navigation Header */}
+        {/* Global Navigation Header */}
       <header className="sticky top-0 z-50 bg-[#050510]/80 backdrop-blur-md border-b border-white/5 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div 
             className="flex items-center gap-3 cursor-pointer" 
             onClick={() => setCurrentPage(currentUser ? 'dashboard' : 'landing')}
           >
-            <div className="w-8 h-8 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <Target className="text-white" size={18} />
+            <div className="w-10 h-10 flex items-center justify-center">
+              <StacFundLogo size={32} />
             </div>
             <div>
               <h1 className="text-lg font-black tracking-tighter">StacFund</h1>
@@ -405,6 +401,7 @@ const App: React.FC = () => {
       <footer className="py-12 border-t border-white/5 text-center text-gray-600 text-xs">
          <p>© 2025 StacFund. Empowering entrepreneurs with gamified funding solutions.</p>
       </footer>
+      </div>
     </div>
   );
 };

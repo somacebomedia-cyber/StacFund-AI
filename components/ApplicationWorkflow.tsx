@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, FileText, Download, Loader2, ArrowRight, ArrowLeft, FileSignature, Briefcase, ShieldCheck, FileCheck, Upload, Wand2, Sparkles, Building, Hash, Phone, Banknote, HelpCircle, Check } from 'lucide-react';
-import { FundingOpportunity, User, ApplicationStatus, AppDocument } from '../types';
+import { FundingOpportunityDb, User, ApplicationStatus, AppDocument } from '../types';
 import { GoogleGenAI } from '@google/genai';
 import { db } from '../services/firebase';
 import { addDoc, collection, updateDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../services/firebase';
 
 interface ApplicationWorkflowProps {
-  opportunity: FundingOpportunity;
+  opportunity: FundingOpportunityDb;
   user: User;
   onClose: () => void;
   onComplete: () => void;
@@ -107,7 +107,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
     setIsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `Generate a comprehensive, professional 1-page business plan/proposal for ${formData.businessName} applying for ${opportunity.title} (${opportunity.provider}). 
+      const prompt = `Generate a comprehensive, professional 1-page business plan/proposal for ${formData.businessName} applying for ${opportunity.programme_name} (${opportunity.issuer_name}). 
       Funding requested: ${formData.fundingRequested}. 
       Purpose: ${formData.purpose}.
       Make it structured with Executive Summary, Market Opportunity, Use of Funds, and Team. Format it beautifully using Markdown.`;
@@ -138,7 +138,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     const appsRef = collection(db, 'users', user.id, 'applications');
-    const q = query(appsRef, where("opportunityId", "==", opportunity.id));
+    const q = query(appsRef, where("opportunityId", "==", opportunity.opportunity_id));
     
     try {
       const querySnapshot = await getDocs(q);
@@ -151,33 +151,33 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
         });
       } else {
         const newApplication = {
-          opportunityId: opportunity.id,
-          opportunityTitle: opportunity.title,
-          provider: opportunity.provider,
+          opportunityId: opportunity.opportunity_id,
+          opportunityTitle: opportunity.programme_name,
+          provider: opportunity.issuer_name,
           status: ApplicationStatus.SUBMITTED,
           date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-          type: opportunity.type
+          type: opportunity.funding_type
         };
         await addDoc(appsRef, newApplication);
       }
       
-      const applications = JSON.parse(localStorage.getItem('fundhub_applications') || '[]');
-      const existingIndex = applications.findIndex((a: any) => a.opportunityId === opportunity.id && a.userId === user.id);
+      const applications = JSON.parse(localStorage.getItem('stacfund_applications') || '[]');
+      const existingIndex = applications.findIndex((a: any) => a.opportunityId === opportunity.opportunity_id && a.userId === user.id);
       
       if (existingIndex >= 0) {
         applications[existingIndex].status = ApplicationStatus.SUBMITTED;
         applications[existingIndex].date = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-        localStorage.setItem('fundhub_applications', JSON.stringify(applications));
+        localStorage.setItem('stacfund_applications', JSON.stringify(applications));
       } else {
         const newApplication = {
-          opportunityId: opportunity.id,
-          opportunityTitle: opportunity.title,
-          provider: opportunity.provider,
+          opportunityId: opportunity.opportunity_id,
+          opportunityTitle: opportunity.programme_name,
+          provider: opportunity.issuer_name,
           status: ApplicationStatus.SUBMITTED,
           date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-          type: opportunity.type
+          type: opportunity.funding_type
         };
-        localStorage.setItem('fundhub_applications', JSON.stringify([...applications, { ...newApplication, id: Math.random().toString(36).substr(2, 9), userId: user.id }]));
+        localStorage.setItem('stacfund_applications', JSON.stringify([...applications, { ...newApplication, id: Math.random().toString(36).substr(2, 9), userId: user.id }]));
       }
       
       setIsLoading(false);
@@ -201,8 +201,8 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
           </button>
           
           <div className="mb-12">
-            <h2 className="text-xl font-black text-white mb-2 leading-tight">Apply for<br/><span className="text-purple-400">{opportunity.title}</span></h2>
-            <p className="text-xs text-gray-500 uppercase tracking-widest">{opportunity.provider}</p>
+            <h2 className="text-xl font-black text-white mb-2 leading-tight">Apply for<br/><span className="text-purple-400">{opportunity.programme_name}</span></h2>
+            <p className="text-xs text-gray-500 uppercase tracking-widest">{opportunity.issuer_name}</p>
           </div>
 
           <div className="flex-1 relative space-y-12">
@@ -234,7 +234,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
         {/* Mobile Header */}
         <div className="md:hidden p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
           <div>
-            <h2 className="text-base font-black text-white truncate max-w-[200px]">{opportunity.title}</h2>
+            <h2 className="text-base font-black text-white truncate max-w-[200px]">{opportunity.programme_name}</h2>
             <p className="text-[10px] text-gray-400 uppercase tracking-widest">Step {step} of 4</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
@@ -322,7 +322,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
                   
                   <h3 className="text-3xl font-black mb-4">Generate Business Plan</h3>
                   <p className="text-gray-400 max-w-md mx-auto mb-10 text-sm leading-relaxed">
-                    We will use our AI to draft a tailored, professional single-page business plan based on your application form. This will form the core of your proposal to <span className="text-white font-bold">{opportunity.provider}</span>.
+                    We will use our AI to draft a tailored, professional single-page business plan based on your application form. This will form the core of your proposal to <span className="text-white font-bold">{opportunity.issuer_name}</span>.
                   </p>
                   
                   <button 

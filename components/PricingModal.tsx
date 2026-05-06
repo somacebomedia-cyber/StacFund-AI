@@ -25,14 +25,14 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
     return parseInt(amountStr.replace(',', ''), 10) * 100;
   };
 
-  const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
+  const publicKey = (import.meta as any).env?.VITE_PAYSTACK_PUBLIC_KEY || '';
 
   // Pro Config
   const proConfig = {
       reference: 'pro_' + new Date().getTime().toString(),
       email: user?.email || 'user@example.com',
       amount: getAmount('pro'),
-      publicKey: publicKey || "pk_test_fallback",
+      publicKey: publicKey,
       currency: "ZAR",
   };
   const initializeProPayment = usePaystackPayment(proConfig);
@@ -42,7 +42,7 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
       reference: 'bus_' + new Date().getTime().toString(),
       email: user?.email || 'user@example.com',
       amount: getAmount('business'),
-      publicKey: publicKey || "pk_test_fallback",
+      publicKey: publicKey,
       currency: "ZAR",
   };
   const initializeBusinessPayment = usePaystackPayment(businessConfig);
@@ -91,8 +91,7 @@ const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpgrade })
   const startCheckout = (plan: 'pro' | 'business') => {
     setSelectedPlan(plan);
     if (!publicKey) {
-      alert("DEMO MODE: Paystack API key not found. Simulating a successful upgrade to " + plan + ".");
-      onUpgrade(plan, billing);
+      alert("Please configure VITE_PAYSTACK_PUBLIC_KEY in settings to enable live checkout.");
       return;
     }
     

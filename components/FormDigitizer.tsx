@@ -42,8 +42,8 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
   const analyzeForm = async (base64Image: string) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const profileData = localStorage.getItem(`fundhub_profile_${user?.id}`);
-      const docsData = localStorage.getItem('fundhub_documents');
+      const profileData = localStorage.getItem(`stacfund_profile_${user?.id}`);
+      const docsData = localStorage.getItem('stacfund_documents');
       
       // Clean base64 string
       const cleanBase64 = base64Image.split(',')[1];

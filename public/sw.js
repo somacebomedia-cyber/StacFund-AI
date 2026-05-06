@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'fundhub-v25';
+const CACHE_NAME = 'stacfund-v25';
 const ASSETS = [
   '/',
   '/index.html',

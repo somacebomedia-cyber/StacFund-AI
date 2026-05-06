@@ -13,6 +13,58 @@
       },
       "required": ["businessName", "subscriptionPlan"]
     },
+    "UserBusinessProfile": {
+      "title": "User Business Profile",
+      "description": "Details about the user's business for matching",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "business_status": { "type": "string" },
+        "entity_type": { "type": "string" },
+        "industry": { "type": "string" },
+        "location": { "type": "string" },
+        "revenue_band": { "type": "string" },
+        "staff_count": { "type": "number" },
+        "has_bank_account": { "type": "boolean" },
+        "has_sars_tax": { "type": "boolean" },
+        "has_cipc_registration": { "type": "boolean" },
+        "age": { "type": "number" },
+        "documents_ready": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["user_id"]
+    },
+    "FundingOpportunityDb": {
+      "title": "Funding Opportunity",
+      "description": "Information about a funding opportunity",
+      "type": "object",
+      "properties": {
+        "opportunity_id": { "type": "string" },
+        "programme_name": { "type": "string" },
+        "issuer_name": { "type": "string" },
+        "issuer_type": { "type": "string" },
+        "official_status": { "type": "boolean" },
+        "funding_type": { "type": "string" },
+        "target_stage": { "type": "string" },
+        "legal_form_required": { "type": "array", "items": { "type": "string" } },
+        "sector_tags": { "type": "array", "items": { "type": "string" } },
+        "geo_scope": { "type": "string" },
+        "amount_min": { "type": "number" },
+        "amount_max": { "type": "number" },
+        "non_cash_support": { "type": "string" },
+        "eligibility_summary": { "type": "string" },
+        "required_documents": { "type": "array", "items": { "type": "string" } },
+        "application_url": { "type": "string" },
+        "source_url": { "type": "string" },
+        "closing_date": { "type": "string" },
+        "frequency": { "type": "string" },
+        "contact_email": { "type": "string" },
+        "contact_phone": { "type": "string" },
+        "last_verified_at": { "type": "string" },
+        "verification_notes": { "type": "string" },
+        "confidence_score": { "type": "number" }
+      },
+      "required": ["opportunity_id", "programme_name"]
+    },
     "Application": {
       "title": "Funding Application",
       "description": "An application for a specific funding opportunity",
@@ -45,6 +97,14 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "Primary user document"
+    },
+    "/user_business_profiles/{userId}": {
+      "schema": "UserBusinessProfile",
+      "description": "Business profile for funding matching"
+    },
+    "/funding_opportunities/{opportunityId}": {
+      "schema": "FundingOpportunityDb",
+      "description": "Platform funding opportunities"
     },
     "/users/{userId}/applications/{appId}": {
       "schema": "Application",

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion, useScroll, useTransform } from 'motion/react';
-import { ArrowRight, Search, Banknote, Users, Clock, Zap, FolderUp, Radar, Rocket } from 'lucide-react';
+import { ArrowRight, Search, Banknote, Users, Clock, Zap, FolderUp, Radar, Rocket, ShieldCheck, FileText, Target, MessageSquare, Presentation, Brush, Megaphone } from 'lucide-react';
 
 interface LandingProps {
   onGetStarted: () => void;
@@ -8,242 +8,185 @@ interface LandingProps {
   onSearchFunding: () => void;
 }
 
-// ─── Custom Orbital Logo ──────────────────────────────────────────────────────
+// ─── Custom Logo ──────────────────────────────────────────────────────
 const StacFundLogo = ({ size = 40 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-    <defs>
-      <linearGradient id="orbitGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#a855f7" />
-        <stop offset="100%" stopColor="#6366f1" />
-      </linearGradient>
-      <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#c084fc" stopOpacity="0.9" />
-        <stop offset="50%" stopColor="#818cf8" stopOpacity="0.4" />
-        <stop offset="100%" stopColor="#c084fc" stopOpacity="0.9" />
-      </linearGradient>
-      <filter id="glow">
-        <feGaussianBlur stdDeviation="1.5" result="blur" />
-        <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-      </filter>
-    </defs>
-    {/* Outer orbit ring */}
-    <ellipse cx="20" cy="20" rx="18" ry="7" stroke="url(#ringGrad)" strokeWidth="1.2" fill="none" transform="rotate(-30 20 20)" filter="url(#glow)" />
-    {/* Inner orbit ring */}
-    <ellipse cx="20" cy="20" rx="13" ry="5" stroke="url(#ringGrad)" strokeWidth="0.8" fill="none" strokeOpacity="0.5" transform="rotate(60 20 20)" />
-    {/* Core planet */}
-    <circle cx="20" cy="20" r="5" fill="url(#orbitGrad)" filter="url(#glow)" />
-    <circle cx="20" cy="20" r="5" fill="url(#orbitGrad)" />
-    <circle cx="18.5" cy="18.5" r="1.5" fill="white" fillOpacity="0.3" />
-    {/* Orbit dot */}
-    <circle cx="36" cy="17" r="2" fill="#c084fc" filter="url(#glow)" />
-  </svg>
+  <img 
+    src="https://plain-apac-prod-public.komododecks.com/202605/01/E345pPd1uITno0rNTXrP/image.png" 
+    alt="StacFund Logo" 
+    style={{ width: size, height: size, objectFit: 'contain' }}
+  />
 );
 
-// ─── Background: Full Cosmic Scene ────────────────────────────────────────────
-const BackgroundAnimation = () => {
-  const { scrollY } = useScroll();
-  const y1 = useTransform(scrollY, [0, 1000], [0, 200]);
-  const y2 = useTransform(scrollY, [0, 1000], [0, -200]);
-  const rotate = useTransform(scrollY, [0, 1000], [0, 45]);
-
-  // Star field — 90 stars of varying brightness
-  const stars = useMemo(() => Array.from({ length: 90 }).map((_, i) => ({
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * 100}%`,
-    size: Math.random() < 0.15 ? 2 : Math.random() < 0.4 ? 1.5 : 1,
-    opacity: 0.15 + Math.random() * 0.7,
-    delay: Math.random() * 8,
-    duration: 3 + Math.random() * 5,
-    color: Math.random() < 0.2 ? '#c4b5fd' : Math.random() < 0.1 ? '#93c5fd' : '#ffffff',
-  })), []);
-
-  // Constellation nodes — larger, connected
-  const nodes = useMemo(() => Array.from({ length: 20 }).map((_, i) => ({
-    left: `${10 + Math.random() * 80}%`,
-    top: `${5 + Math.random() * 90}%`,
-    delay: Math.random() * 5,
-    duration: 3 + Math.random() * 4,
-    size: 2 + Math.random() * 3,
-    color: i % 3 === 0 ? '#a855f7' : i % 3 === 1 ? '#6366f1' : '#ec4899',
-  })), []);
-
-  // Shooting stars — 4 of them
-  const shootingStars = useMemo(() => Array.from({ length: 4 }).map((_, i) => ({
-    top: `${10 + i * 18}%`,
-    delay: 3 + i * 7,
-    duration: 1.2 + Math.random() * 0.8,
-  })), []);
-
+// ─── Background ───────────────────────────────────────────────────────────────
+const CleanBackground = () => {
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-      {/* ── Deep space base ── */}
-      <div className="absolute inset-0 bg-[#050510]" />
-
-      {/* ── Star field ── */}
-      {stars.map((star, i) => (
-        <motion.div
-          key={`star-${i}`}
-          animate={{ opacity: [star.opacity * 0.4, star.opacity, star.opacity * 0.4] }}
-          transition={{ duration: star.duration, repeat: Infinity, delay: star.delay, ease: 'easeInOut' }}
-          style={{
-            position: 'absolute',
-            left: star.left,
-            top: star.top,
-            width: star.size,
-            height: star.size,
-            borderRadius: '50%',
-            backgroundColor: star.color,
-            boxShadow: star.size >= 1.5 ? `0 0 ${star.size * 3}px ${star.color}` : 'none',
-          }}
-        />
-      ))}
-
-      {/* ── Shooting stars ── */}
-      {shootingStars.map((s, i) => (
-        <motion.div
-          key={`shoot-${i}`}
-          initial={{ left: '-5%', top: s.top, opacity: 0 }}
-          animate={{ left: '105%', opacity: [0, 1, 1, 0] }}
-          transition={{
-            duration: s.duration,
-            repeat: Infinity,
-            delay: s.delay,
-            ease: 'easeIn',
-            repeatDelay: 12 + i * 5,
-          }}
-          style={{
-            position: 'absolute',
-            width: '120px',
-            height: '1px',
-            background: 'linear-gradient(90deg, transparent, rgba(196,181,253,0.9), rgba(255,255,255,1))',
-            borderRadius: '2px',
-            filter: 'blur(0.5px)',
-          }}
-        />
-      ))}
-
-      {/* ── Nebula orbs ── */}
-      {/* Purple — top left */}
-      <motion.div
-        animate={{ scale: [1, 1.15, 1], x: [0, 40, 0], y: [0, 25, 0] }}
-        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute top-[-15%] left-[-10%] w-[65%] h-[65%] rounded-full blur-[130px]"
-        style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.18) 0%, rgba(99,102,241,0.08) 50%, transparent 70%)' }}
-      />
-      {/* Blue — bottom right */}
-      <motion.div
-        animate={{ scale: [1, 1.25, 1], x: [0, -35, 0], y: [0, -50, 0] }}
-        transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute bottom-[-15%] right-[-10%] w-[65%] h-[65%] rounded-full blur-[130px]"
-        style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.14) 0%, rgba(99,102,241,0.07) 50%, transparent 70%)' }}
-      />
-      {/* Magenta — center, depth layer */}
-      <motion.div
-        animate={{ scale: [1, 1.1, 1], x: [0, 20, 0], y: [0, -30, 0] }}
-        transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut', delay: 4 }}
-        className="absolute top-[20%] left-[30%] w-[45%] h-[45%] rounded-full blur-[150px]"
-        style={{ background: 'radial-gradient(circle, rgba(236,72,153,0.07) 0%, rgba(168,85,247,0.04) 50%, transparent 70%)' }}
-      />
-
-      {/* ── Dot grid with scroll parallax ── */}
-      <motion.div
-        style={{ y: y1, rotate }}
-        className="absolute inset-0 opacity-[0.12]"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.12 }}
-        transition={{ duration: 2.5 }}
-      >
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle at 2px 2px, rgba(167,139,250,0.5) 1px, transparent 0)`,
-            backgroundSize: '44px 44px',
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050510] via-transparent to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#050510] via-transparent to-transparent opacity-70" />
-      </motion.div>
-
-      {/* ── Data pulse lines ── */}
-      <div className="absolute inset-0 opacity-[0.06]">
-        {[...Array(7)].map((_, i) => (
-          <motion.div
-            key={`pulse-${i}`}
-            initial={{ left: '-10%', top: `${15 + i * 12}%`, opacity: 0 }}
-            animate={{ left: '110%', opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 9 + i * 2, repeat: Infinity, delay: i * 1.8, ease: 'linear' }}
-            className="absolute h-[1px] w-48"
-            style={{ background: `linear-gradient(90deg, transparent, ${i % 2 === 0 ? '#a855f7' : '#818cf8'}, transparent)`, filter: 'blur(1px)' }}
-          />
-        ))}
-      </div>
-
-      {/* ── Constellation nodes ── */}
-      {nodes.map((node, i) => (
-        <motion.div
-          key={`node-${i}`}
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: [0.1, 0.5, 0.1], scale: [1, 1.6, 1], y: [0, -16, 0] }}
-          transition={{ duration: node.duration, repeat: Infinity, delay: node.delay, ease: 'easeInOut' }}
-          style={{
-            position: 'absolute',
-            left: node.left,
-            top: node.top,
-            width: node.size,
-            height: node.size,
-            borderRadius: '50%',
-            backgroundColor: node.color,
-            boxShadow: `0 0 8px ${node.color}, 0 0 16px ${node.color}40`,
-          }}
-        />
-      ))}
-
-      {/* ── Vignette for depth ── */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, rgba(5,5,16,0.7) 100%)',
-        }}
+      <div 
+        className="absolute inset-0 bg-center bg-cover bg-no-repeat"
+        style={{ backgroundImage: "url('https://plain-apac-prod-public.komododecks.com/202605/06/BqmNPYSSoslO0BZswqUD/image.jpg')" }}
       />
     </div>
   );
 };
 
-// ─── Decorative 3D Orbit Ring (hero accent) ────────────────────────────────────
-const OrbitalRing = () => (
-  <motion.div
-    className="absolute right-[-60px] top-[-40px] opacity-20 pointer-events-none hidden lg:block"
-    animate={{ rotate: 360 }}
-    transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
-  >
-    <svg width="420" height="420" viewBox="0 0 420 420" fill="none">
-      <defs>
-        <linearGradient id="ring1" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#a855f7" stopOpacity="0.8" />
-          <stop offset="50%" stopColor="#6366f1" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#a855f7" stopOpacity="0.8" />
-        </linearGradient>
-        <linearGradient id="ring2" x1="1" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ec4899" stopOpacity="0.6" />
-          <stop offset="50%" stopColor="#a855f7" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="#ec4899" stopOpacity="0.6" />
-        </linearGradient>
-      </defs>
-      <ellipse cx="210" cy="210" rx="200" ry="75" stroke="url(#ring1)" strokeWidth="1.5" fill="none" transform="rotate(-20 210 210)" />
-      <ellipse cx="210" cy="210" rx="160" ry="60" stroke="url(#ring2)" strokeWidth="1" fill="none" transform="rotate(40 210 210)" />
-      <ellipse cx="210" cy="210" rx="120" ry="40" stroke="url(#ring1)" strokeWidth="0.8" fill="none" strokeOpacity="0.4" />
-      {/* Orbiting dot */}
-      <circle cx="408" cy="196" r="4" fill="#c084fc" />
-      <circle cx="408" cy="196" r="8" fill="#c084fc" fillOpacity="0.2" />
-    </svg>
-  </motion.div>
-);
+// ─── Extensive Features Section ────────────────────────────────────────────────────────
+const ExtensiveFeatures = () => {
+  const features = [
+    {
+      title: "Bank-Grade Document Vault",
+      description: "Securely store your CIPC docs, tax clearances, and financials in one encrypted location. Never hunt for a PDF again.",
+      icon: <ShieldCheck size={32} className="text-emerald-400" />,
+      glow: "rgba(16, 185, 129, 0.15)",
+      border: "border-emerald-500/20"
+    },
+    {
+      title: "Precision Grant Matching",
+      description: "Our AI scans NYDA, SEFA, IDC, and private funds daily, matching them precisely against your business profile, stage, and revenue.",
+      icon: <Radar size={32} className="text-blue-400" />,
+      glow: "rgba(59, 130, 246, 0.15)",
+      border: "border-blue-500/20"
+    },
+    {
+       title: "Auto-Generated Motivations",
+       description: "Struggling with 'Why do you need this funding'? Our LLM generates compelling, tailored motivation letters based on your inputs.",
+       icon: <FileText size={32} className="text-purple-400" />,
+       glow: "rgba(168, 85, 247, 0.15)",
+       border: "border-purple-500/20"
+    },
+    {
+       title: "One-Click Form Filling",
+       description: "We map your vault data directly into standard application forms. What used to take hours now takes seconds.",
+       icon: <Target size={32} className="text-pink-400" />,
+       glow: "rgba(236, 72, 153, 0.15)",
+       border: "border-pink-500/20"
+    },
+    {
+      title: "24/7 AI Business Advisor",
+      description: "Get instant answers to funding questions, compliance queries, and strategic advice from our expert AI chatbot.",
+      icon: <MessageSquare size={32} className="text-cyan-400" />,
+      glow: "rgba(34, 211, 238, 0.15)",
+      border: "border-cyan-500/20"
+    },
+    {
+      title: "Pitch Deck Designer",
+      description: "Create stunning, professional pitch decks in minutes. Tell your story visually and convince investors.",
+      icon: <Presentation size={32} className="text-indigo-400" />,
+      glow: "rgba(99, 102, 241, 0.15)",
+      border: "border-indigo-500/20"
+    },
+    {
+      title: "Instant Brand Identity",
+      description: "Generate beautiful, custom logos and brand assets in seconds using our AI-powered logo designer.",
+      icon: <Brush size={32} className="text-orange-400" />,
+      glow: "rgba(249, 115, 22, 0.15)",
+      border: "border-orange-500/20"
+    },
+    {
+      title: "Automated Ad Campaigns",
+      description: "Create highly converting Facebook and Google ad creatives and copy tailored to your target audience.",
+      icon: <Megaphone size={32} className="text-red-400" />,
+      glow: "rgba(248, 113, 113, 0.15)",
+      border: "border-red-500/20"
+    }
+  ];
+
+  return (
+    <div className="relative z-10 max-w-5xl mx-auto py-24 px-6 mt-12 mb-24">
+      <div className="text-center mb-24">
+        <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">
+          Everything You Need to <br/>
+          <span className="gradient-text">Secure Capital</span>
+        </h2>
+        <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto">
+          We’ve built a comprehensive suite of tools designed to remove every barrier between your business and the funding it deserves.
+        </p>
+      </div>
+
+      <div className="relative pb-16">
+        {features.map((feature, i) => {
+          const topOffset = 100 + i * 24; // Stacking offset
+          return (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 80 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+              className="sticky flex flex-col md:flex-row items-center gap-8 md:gap-16 glass-panel rounded-[2.5rem] p-8 md:p-14 mb-[8vh] md:mb-[12vh]"
+              style={{
+                top: `${topOffset}px`,
+                boxShadow: `0 -20px 60px -20px ${feature.glow}, inset 0 1px 0 rgba(255,255,255,0.1)`,
+                backgroundColor: '#0a0816', // Dark background so it hides cards scrolling behind it
+                zIndex: i,
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}
+            >
+              <div className="flex-1">
+                <div 
+                  className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-8 bg-gradient-to-br from-white/5 to-white/0 border ${feature.border}`}
+                  style={{ boxShadow: `inset 0 0 20px ${feature.glow}` }}
+                >
+                  {feature.icon}
+                </div>
+                <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">{feature.title}</h3>
+                <p className="text-gray-400 text-lg leading-relaxed">
+                  {feature.description}
+                </p>
+              </div>
+              <div className="flex-1 w-full bg-[#05040d] rounded-2xl h-64 md:h-80 border border-white/5 relative overflow-hidden flex items-center justify-center p-6">
+                 {/* Visual Background */}
+                 <div className="absolute inset-0 opacity-30" style={{ background: `radial-gradient(circle at center, ${feature.glow}, transparent 70%)` }} />
+                 
+                 {/* Abstract UI representation */}
+                 <div className="relative z-10 w-full h-full border border-white/10 rounded-xl bg-[#0a0816]/80 backdrop-blur-md flex flex-col group overflow-hidden shadow-2xl">
+                   {/* Fake UI Header */}
+                   <div className="h-10 border-b border-white/10 flex items-center px-4 gap-2 bg-white/5">
+                     <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
+                     <div className="w-3 h-3 rounded-full bg-amber-500/50"></div>
+                     <div className="w-3 h-3 rounded-full bg-emerald-500/50"></div>
+                   </div>
+                   {/* Fake Content area */}
+                   <div className="flex-1 p-6 flex flex-col gap-4 relative">
+                      <motion.div 
+                        initial={{ opacity: 0, width: "0%" }}
+                        whileInView={{ opacity: 1, width: "70%" }}
+                        transition={{ delay: 0.3 + (i * 0.1), duration: 0.8 }}
+                        className="h-4 rounded bg-white/10"
+                      />
+                      <motion.div 
+                        initial={{ opacity: 0, width: "0%" }}
+                        whileInView={{ opacity: 1, width: "40%" }}
+                        transition={{ delay: 0.4 + (i * 0.1), duration: 0.8 }}
+                        className="h-4 rounded bg-white/5"
+                      />
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 + (i * 0.1), duration: 0.5 }}
+                        className="w-full h-24 rounded-lg mt-auto bg-gradient-to-r from-white/5 to-white/0 border border-white/5 flex items-center px-4" 
+                      >
+                         <div className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex shrink-0" />
+                         <div className="ml-4 flex flex-col gap-2 w-full">
+                           <div className="h-2 w-1/2 rounded bg-white/10" />
+                           <div className="h-2 w-1/3 rounded bg-white/5" />
+                         </div>
+                      </motion.div>
+                   </div>
+                 </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 // ─── Main Landing ──────────────────────────────────────────────────────────────
 const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFunding }) => {
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#050510] text-white">
-      <BackgroundAnimation />
+    <div className="min-h-screen relative overflow-hidden text-white">
+      <CleanBackground />
 
       {/* ── Live Activity Notification ── */}
       <div className="fixed bottom-8 right-8 z-50 hidden lg:block">
@@ -278,7 +221,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           transition={{ duration: 0.6 }}
           className="flex items-center gap-3"
         >
-          <StacFundLogo size={42} />
+          <StacFundLogo size={56} />
           <div>
             <h1 className="text-xl font-black tracking-tighter leading-none">StacFund</h1>
             <p className="text-[9px] text-purple-400/80 uppercase tracking-[0.22em] font-bold mt-0.5">
@@ -316,7 +259,6 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
 
         {/* Orbital ring decoration (desktop) */}
         <div className="relative">
-          <OrbitalRing />
 
           {/* Badge */}
           <motion.div
@@ -331,7 +273,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
               className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"
             />
             <Search size={12} />
-            Find Funding for Your Side Hustle or Business
+            The Ultimate Preparation System
           </motion.div>
 
           {/* Headline */}
@@ -341,8 +283,8 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             transition={{ delay: 0.4 }}
             className="text-6xl md:text-8xl font-black mb-6 tracking-tight leading-[0.92]"
           >
-            Funding{' '}
-            <span className="gradient-text">Made Easy</span>
+            Never Miss {' '}
+            <span className="gradient-text">Funding Again</span>
           </motion.h1>
 
           {/* Sub-headline */}
@@ -352,9 +294,8 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             transition={{ delay: 0.6 }}
             className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed mb-14"
           >
-            Get your NYDA, SEFA, or provincial grant application ready in minutes.
-            Auto-fill forms, upload your ID and documents, and track your applications —{' '}
-            <span className="text-purple-300 font-semibold">all in one place.</span>
+            Get your business ready before the window opens. We track NYDA, SEFA, and CDSP grants so you can prepare your documents and apply stress-free. <br />
+            <span className="text-purple-300 font-semibold">Stumbling onto funding is a distribution failure—we fix that.</span>
           </motion.p>
         </div>
 
@@ -474,6 +415,9 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             ))}
           </div>
         </motion.div>
+
+        {/* ── Extensive Features ── */}
+        <ExtensiveFeatures />
 
         {/* CTA Buttons */}
         <motion.div

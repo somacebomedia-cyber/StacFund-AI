@@ -130,7 +130,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
   // Load Chat History
   useEffect(() => {
     if (user) {
-      const savedHistory = localStorage.getItem(`fundhub_chat_history_${user.id}`);
+      const savedHistory = localStorage.getItem(`stacfund_chat_history_${user.id}`);
       if (savedHistory) {
         setMessages(JSON.parse(savedHistory));
       } else {
@@ -144,7 +144,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
   // Persist Chat History
   useEffect(() => {
     if (user && messages.length > 0) {
-      localStorage.setItem(`fundhub_chat_history_${user.id}`, JSON.stringify(messages));
+      localStorage.setItem(`stacfund_chat_history_${user.id}`, JSON.stringify(messages));
     }
   }, [messages, user]);
 
@@ -196,7 +196,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
     if (!user) return;
     const initialMessage: Message = { role: 'model', text: `Chat cleared. How else can I help you, ${user.businessName}?` };
     setMessages([initialMessage]);
-    localStorage.removeItem(`fundhub_chat_history_${user.id}`);
+    localStorage.removeItem(`stacfund_chat_history_${user.id}`);
   };
 
   const handleSendMessage = async (e?: React.FormEvent, presetMessage?: string) => {
@@ -211,7 +211,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const profileData = user ? localStorage.getItem(`fundhub_profile_${user.id}`) : null;
+      const profileData = user ? localStorage.getItem(`stacfund_profile_${user.id}`) : null;
       const parsedProfile = profileData ? JSON.parse(profileData) : null;
       
       const sessionChat = ai.chats.create({
@@ -255,9 +255,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
           let result = "Action performed successfully.";
           
           if (fc.name === 'update_business_profile') {
-            const currentProfile = JSON.parse(localStorage.getItem(`fundhub_profile_${user?.id}`) || '{}');
+            const currentProfile = JSON.parse(localStorage.getItem(`stacfund_profile_${user?.id}`) || '{}');
             const updatedProfile = { ...currentProfile, ...fc.args };
-            localStorage.setItem(`fundhub_profile_${user?.id}`, JSON.stringify(updatedProfile));
+            localStorage.setItem(`stacfund_profile_${user?.id}`, JSON.stringify(updatedProfile));
             if (onProfileUpdate) onProfileUpdate();
             result = `Profile updated with: ${Object.keys(fc.args).join(', ')}`;
           } 
@@ -292,11 +292,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                try {
                  const docsRef = collection(db, 'users', user.id, 'documents');
                  const docSnap = await getDocs(docsRef);
-                 const foundDoc = docSnap.docs.map(doc => ({id: doc.id, ...doc.data()})).find((d: any) => d.title.toLowerCase().includes(String(fc.args.titleKeyword).toLowerCase()));
+                 const foundDoc = docSnap.docs.map(doc => ({id: doc.id, ...doc.data()})).find((d: any) => d.name?.toLowerCase().includes(String(fc.args.titleKeyword).toLowerCase()));
                  if (foundDoc) {
-                   result = `Found document "${(foundDoc as any).title}" (ID: ${(foundDoc as any).id}). Content: ${(foundDoc as any).content || 'No text content available'}`;
+                   result = `Found document "${(foundDoc as any).name}" (ID: ${(foundDoc as any).id}). Content: ${(foundDoc as any).content || 'No text content available'}`;
                  } else {
-                   result = `No document found containing keyword "${fc.args.titleKeyword}". Available documents: ${docSnap.docs.map(d=>d.data().title).join(', ')}`;
+                   result = `No document found containing keyword "${fc.args.titleKeyword}". Available documents: ${docSnap.docs.map(d=>d.data().name).join(', ')}`;
                  }
                } catch (e) {
                  result = `Failed to read documents from database: ${e}`;
@@ -392,7 +392,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                 </div>
                 <div>
                   <h3 className="font-black text-base tracking-tight flex items-center gap-2">
-                    StacAI <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border border-purple-500/30 font-mono">Agent v2.4</span>
+                    StacFund AI <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border border-purple-500/30 font-mono">Agent v2.4</span>
                   </h3>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.15em]">
@@ -515,29 +515,34 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
           y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
           scale: { type: "spring", damping: 12, stiffness: 200 }
         }}
-        whileHover={{ scale: 1.1, rotate: 5 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.08, rotate: 3, y: -4 }}
+        whileTap={{ scale: 0.94 }}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-16 h-16 rounded-[24px] flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-all duration-500 pointer-events-auto relative overflow-hidden backdrop-blur-xl ${
+        className={`w-16 h-16 rounded-[24px] flex items-center justify-center transition-all duration-500 pointer-events-auto relative overflow-visible ${
           isOpen 
-            ? 'bg-white text-black border-2 border-black/5' 
-            : 'bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 text-white border border-white/20'
+            ? 'bg-white text-black border border-white/40' 
+            : 'bg-gradient-to-b from-purple-400 via-indigo-500 to-indigo-800 text-white'
         }`}
         style={{
           boxShadow: isOpen 
-            ? '0 10px 30px rgba(255,255,255,0.2)' 
-            : '0 20px 40px rgba(139,92,246,0.4), inset 0 0 15px rgba(255,255,255,0.2)'
+            ? '0 10px 30px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,1), 0 0 0 1px rgba(0,0,0,0.05)' 
+            : '0 20px 40px -5px rgba(139,92,246,0.6), inset 0 2px 4px rgba(255,255,255,0.7), inset 0 -4px 8px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.15)'
         }}
       >
+        {/* Under-Glow */}
+        {!isOpen && (
+          <div className="absolute inset-0 rounded-[24px] bg-purple-500/40 blur-xl -z-10 animate-pulse" />
+        )}
+        
         {isOpen ? <X size={28} strokeWidth={2.5} /> : (
           <div className="relative">
-            <Bot size={32} strokeWidth={2} />
+            <Bot size={30} strokeWidth={2.2} style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))' }} />
             <motion.div 
               animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-400 border-2 border-[#050510] rounded-full shadow-[0_0_10px_#22d3ee]" 
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-cyan-400 border-2 border-indigo-800 rounded-full shadow-[0_0_10px_#22d3ee]" 
             />
-            <Sparkles size={16} className="absolute -bottom-3 -left-3 text-amber-400 animate-pulse" />
+            <Sparkles size={16} className="absolute -bottom-3 -left-3 text-amber-300 animate-pulse drop-shadow-md" />
           </div>
         )}
         

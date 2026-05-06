@@ -15,29 +15,11 @@ interface AuthProps {
 type AuthState = 'login' | 'signup' | 'verification_pending' | 'verified_success';
 
 const StacFundLogo = ({ size = 40 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-    <defs>
-      <linearGradient id="orbitGradAuth" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#a855f7" />
-        <stop offset="100%" stopColor="#6366f1" />
-      </linearGradient>
-      <linearGradient id="ringGradAuth" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#c084fc" stopOpacity="0.9" />
-        <stop offset="50%" stopColor="#818cf8" stopOpacity="0.4" />
-        <stop offset="100%" stopColor="#c084fc" stopOpacity="0.9" />
-      </linearGradient>
-      <filter id="glowAuth">
-        <feGaussianBlur stdDeviation="1.5" result="blur" />
-        <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-      </filter>
-    </defs>
-    <ellipse cx="20" cy="20" rx="18" ry="7" stroke="url(#ringGradAuth)" strokeWidth="1.2" fill="none" transform="rotate(-30 20 20)" filter="url(#glowAuth)" />
-    <ellipse cx="20" cy="20" rx="13" ry="5" stroke="url(#ringGradAuth)" strokeWidth="0.8" fill="none" strokeOpacity="0.5" transform="rotate(60 20 20)" />
-    <circle cx="20" cy="20" r="5" fill="url(#orbitGradAuth)" filter="url(#glowAuth)" />
-    <circle cx="20" cy="20" r="5" fill="url(#orbitGradAuth)" />
-    <circle cx="18.5" cy="18.5" r="1.5" fill="white" fillOpacity="0.3" />
-    <circle cx="36" cy="17" r="2" fill="#c084fc" filter="url(#glowAuth)" />
-  </svg>
+  <img 
+    src="https://plain-apac-prod-public.komododecks.com/202605/01/E345pPd1uITno0rNTXrP/image.png" 
+    alt="StacFund Logo" 
+    style={{ width: size, height: size, objectFit: 'contain' }}
+  />
 );
 
 const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
@@ -69,7 +51,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
         await new Promise(r => setTimeout(r, 1500));
         const mockUser: User = {
             id: 'demo-user-preview',
-            email: 'demo.founder@fundhub.test',
+            email: 'demo.founder@stacfund.test',
             businessName: 'NeoTech Industries (Demo)',
             isVerified: true,
             subscriptionPlan: 'pro',
@@ -80,7 +62,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
     }
     
     try {
-      const demoEmail = `demo.founder.${Math.floor(Math.random() * 10000)}@fundhub.test`;
+      const demoEmail = `demo.founder.${Math.floor(Math.random() * 10000)}@stacfund.test`;
       const demoPass = "demo123456";
       let userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
       const uid = userCredential.user.uid;
@@ -153,7 +135,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
         await new Promise(r => setTimeout(r, 1000));
         const mockUser: User = {
             id: 'demo-user-preview',
-            email: formData.email || 'user@fundhub.test',
+            email: formData.email || 'user@stacfund.test',
             businessName: 'My Business (Preview)',
             isVerified: true,
             subscriptionPlan: 'free'
@@ -271,7 +253,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       if (!hasValidFirebaseConfig()) {
         const u: User = {
             id: 'demo-user-preview',
-            email: formData.email || 'demo@fundhub.test',
+            email: formData.email || 'demo@stacfund.test',
             businessName: formData.businessName || 'My Business',
             isVerified: true,
             subscriptionPlan: 'free'
@@ -294,7 +276,8 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
 
   if (authState === 'verification_pending') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[#050510] relative overflow-hidden text-white">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-space-auth relative overflow-hidden text-white">
+        {/* <div className="absolute inset-0 bg-[#050510]/60 backdrop-blur-[2px]" /> */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(139,92,246,0.15),transparent_50%)]" />
         <motion.div 
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -330,7 +313,8 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
 
   if (authState === 'verified_success') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[#050510] relative overflow-hidden text-white">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-space-auth relative overflow-hidden text-white">
+        {/* <div className="absolute inset-0 bg-[#050510]/60 backdrop-blur-[2px]" /> */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.15),transparent_50%)]" />
         <motion.div 
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -361,54 +345,10 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-[#050510] relative overflow-hidden text-white">
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden text-white" 
+      style={{ backgroundImage: "url('https://plain-apac-prod-public.komododecks.com/202605/06/BqmNPYSSoslO0BZswqUD/image.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510' }}>
       {/* Cinematic Background */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 bg-[#050510]" />
-        
-        {/* Abstract Orbs */}
-        <motion.div
-          animate={{ scale: [1, 1.2, 1], x: [0, 30, 0], y: [0, 40, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] rounded-full blur-[140px] opacity-60"
-          style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)' }}
-        />
-        <motion.div
-          animate={{ scale: [1, 1.1, 1], x: [0, -30, 0], y: [0, -20, 0] }}
-          transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[70%] rounded-full blur-[140px] opacity-60"
-          style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)' }}
-        />
-
-        {/* Stars */}
-        {stars.map((star, i) => (
-          <motion.div
-            key={`star-${i}`}
-            animate={{ opacity: [star.opacity * 0.4, star.opacity, star.opacity * 0.4] }}
-            transition={{ duration: star.duration, repeat: Infinity, delay: star.delay, ease: 'easeInOut' }}
-            style={{
-              position: 'absolute',
-              left: star.left,
-              top: star.top,
-              width: star.size,
-              height: star.size,
-              borderRadius: '50%',
-              backgroundColor: '#fff',
-            }}
-          />
-        ))}
-
-        {/* Orbital Ring purely decorative */}
-        <motion.div
-            className="absolute left-[-150px] bottom-[10%] opacity-20 pointer-events-none hidden md:block"
-            animate={{ rotate: -360 }}
-            transition={{ duration: 80, repeat: Infinity, ease: 'linear' }}
-        >
-            <svg width="400" height="400" viewBox="0 0 400 400" fill="none">
-              <ellipse cx="200" cy="200" rx="180" ry="70" stroke="#a855f7" strokeWidth="1" fill="none" transform="rotate(-30 200 200)" />
-              <ellipse cx="200" cy="200" rx="140" ry="50" stroke="#6366f1" strokeWidth="0.5" fill="none" transform="rotate(40 200 200)" />
-            </svg>
-        </motion.div>
       </div>
 
       <div className="w-full max-w-md relative z-10 flex flex-col items-center">
