@@ -6,7 +6,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, isConfigured, hasValidFirebaseConfig } from './services/firebase';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
-import Marketplace from './pages/Marketplace';
+import FundingExplorer from './pages/FundingExplorer';
 import ProfileForm from './pages/ProfileForm';
 import AuthPage from './pages/Auth';
 import AIAssistant from './components/AIAssistant';
@@ -14,7 +14,7 @@ import PricingModal from './components/PricingModal';
 import InstallPrompt from './components/InstallPrompt';
 import { User } from './types';
 
-type Page = 'landing' | 'dashboard' | 'marketplace' | 'profile' | 'auth';
+type Page = 'landing' | 'dashboard' | 'funding' | 'profile' | 'auth';
 
 const StacFundLogo = ({ size = 40 }: { size?: number }) => (
   <img 
@@ -65,6 +65,7 @@ const App: React.FC = () => {
               id: firebaseUser.uid,
               email: firebaseUser.email || '',
               businessName: userData.businessName || 'My Business',
+              logoUrl: userData.logoUrl,
               isVerified: firebaseUser.emailVerified,
               subscriptionPlan: userData.subscriptionPlan || 'free',
               billingCycle: userData.billingCycle
@@ -163,7 +164,7 @@ const App: React.FC = () => {
           <Landing 
             onGetStarted={() => setCurrentPage('auth')} 
             onLogin={() => setCurrentPage('auth')} 
-            onSearchFunding={() => setCurrentPage('marketplace')}
+            onSearchFunding={() => setCurrentPage('funding')}
           />
         );
       case 'auth':
@@ -193,15 +194,16 @@ const App: React.FC = () => {
                 setResumeOpportunityId(null);
                 setFallbackOpportunity(null);
               }
-              setCurrentPage('marketplace');
+              setCurrentPage('funding');
             }}
+            onAvatarUpdate={(url) => setCurrentUser(prev => prev ? {...prev, logoUrl: url} : prev)}
             onUpgrade={triggerPricing}
             user={currentUser}
           />
         );
-      case 'marketplace':
+      case 'funding':
         return (
-          <Marketplace 
+          <FundingExplorer 
             user={currentUser} 
             activeOpportunityId={activeOpportunityId}
             resumeOpportunityId={resumeOpportunityId}
@@ -321,12 +323,12 @@ const App: React.FC = () => {
               </button>
             )}
             <button 
-              onClick={() => setCurrentPage('marketplace')}
+              onClick={() => setCurrentPage('funding')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
-                currentPage === 'marketplace' ? 'bg-white/10 text-white shadow-inner shadow-white/5' : 'text-gray-400 hover:text-white'
+                currentPage === 'funding' ? 'bg-white/10 text-white shadow-inner shadow-white/5' : 'text-gray-400 hover:text-white'
               }`}
             >
-              <Search size={16} /> Marketplace
+              <Search size={16} /> Funding Explorer
             </button>
           </nav>
 
@@ -365,7 +367,9 @@ const App: React.FC = () => {
                     onClick={() => setCurrentPage('profile')}
                     className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 font-bold text-sm transition-all"
                   >
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500"></div>
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 overflow-hidden flex items-center justify-center">
+                      {currentUser?.logoUrl && <img src={currentUser.logoUrl} className="w-full h-full object-cover" alt="Logo" />}
+                    </div>
                     <span className="hidden sm:inline truncate max-w-[120px]">{currentUser.businessName || 'My Account'}</span>
                   </button>
                   <button 
@@ -398,8 +402,8 @@ const App: React.FC = () => {
       <InstallPrompt />
 
       {/* Simple Footer for Non-Landing Pages */}
-      <footer className="py-12 border-t border-white/5 text-center text-gray-600 text-xs">
-         <p>© 2025 StacFund. Empowering entrepreneurs with gamified funding solutions.</p>
+      <footer className="py-12 border-t border-white/5 text-center text-gray-400 text-sm font-medium">
+         <p>© 2026 StacFund. Level up your business.</p>
       </footer>
       </div>
     </div>

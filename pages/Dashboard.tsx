@@ -2,9 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
+import { motion } from 'motion/react';
 import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import StatCard from '../components/StatCard';
+import ComplianceTracker from '../components/ComplianceTracker';
+import GlassAvatar from '../components/GlassAvatar';
 import { MOCK_ACHIEVEMENTS, MOCK_FUNDING } from '../constants';
 import { User, Application, ApplicationStatus, FundingType, AppDocument, FundingOpportunityDb, ReadinessInfo } from '../types';
 import FormDigitizer from '../components/FormDigitizer';
@@ -16,6 +19,7 @@ import BusinessRegistration from '../components/BusinessRegistration';
 interface DashboardProps {
   onCompleteProfile: () => void;
   onBrowseFunding: (oppId?: string, resume?: boolean, fallback?: any) => void;
+  onAvatarUpdate?: (url: string) => void;
   onUpgrade: () => void;
   user: User | null;
 }
@@ -26,7 +30,7 @@ interface AIMatch {
   score: number;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFunding, onUpgrade, user }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFunding, onAvatarUpdate, onUpgrade, user }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'opportunities' | 'tools'>('overview');
   const [applications, setApplications] = useState<Application[]>([]);
   const [docCount, setDocCount] = useState(0);
@@ -220,6 +224,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
 
   const isPaid = user?.subscriptionPlan !== 'free';
 
+  const complianceItems = [
+    { id: '1', name: 'Certified ID Copy', dueDate: '2026-12-31', isComplete: docCount > 0, notes: 'Must be certified within 3 months.' },
+    { id: '2', name: 'Proof of Address', dueDate: '2026-06-30', isComplete: docCount > 1, notes: 'Bank statement or lease agreement.' },
+    { id: '3', name: 'B-BBEE Sworn Affidavit', dueDate: '2027-02-28', isComplete: docCount > 2, notes: 'Signed by Commissioner of Oaths.' },
+    { id: '4', name: 'SARS Tax Clearance', dueDate: '2026-10-31', isComplete: docCount > 3, notes: 'Active PIN required.' }
+  ];
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-10 relative">
       {showFormDigitizer && (
@@ -253,11 +264,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           {/* Welcome Card */}
           <div className="glass-panel rounded-3xl p-8 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 blur-[60px] group-hover:bg-purple-600/20 transition-all"></div>
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative z-10">
               <div>
                 <h2 className="text-3xl font-black mb-1">Welcome back{user ? `, ${user.email.split('@')[0]}` : ''}! 👋</h2>
                 <p className="text-gray-400 font-medium">{user?.businessName || 'New Entrepreneur'}</p>
               </div>
+              <GlassAvatar 
+                initialLogoUrl={user?.logoUrl} 
+                businessName={user?.businessName || 'User'} 
+                onUpdate={onAvatarUpdate}
+              />
             </div>
           </div>
 
@@ -617,6 +633,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         </div>
 
         <div className="lg:w-80 space-y-8">
+          <ComplianceTracker items={complianceItems} />
+          
           {/* AI Readiness Score Card */}
           <div className="glass-panel rounded-3xl p-6 relative overflow-hidden group">
             <div className="absolute top-[-20%] left-[-20%] w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl"></div>
@@ -632,13 +650,67 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
               </div>
             ) : readiness ? (
               <div className="space-y-6">
-                <div className="flex flex-col items-center">
-                  <div className="relative w-32 h-32 flex items-center justify-center">
-                    <svg className="w-full h-full transform -rotate-90">
-                      <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/5" />
-                      <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={364.4} strokeDashoffset={364.4 - (364.4 * readiness.score) / 100} className="text-cyan-500 transition-all duration-1000" />
-                    </svg>
-                    <span className="absolute text-3xl font-black">{readiness.score}%</span>
+                <div className="flex flex-col items-center relative py-2">
+                  {/* 3D Black Metal Base */}
+                  <div className="relative w-36 h-36 rounded-full bg-gradient-to-br from-[#3a414c] via-[#0a0f16] to-[#000000] shadow-[0_15px_25px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-4px_8px_rgba(0,0,0,1)] p-[4px] flex items-center justify-center">
+                    
+                    {/* Inner lip of the base */}
+                    <div className="w-full h-full rounded-full bg-gradient-to-b from-[#000] to-[#111] shadow-[inset_0_4px_15px_rgba(0,0,0,1)] flex items-center justify-center p-[2px]">
+                      
+                      {/* Clear Glass Dome */}
+                      <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-black/40 shadow-[inset_0_4px_15px_rgba(255,255,255,0.4),inset_0_-8px_20px_rgba(0,0,0,0.8)] border border-white/20">
+                        
+                        {/* 3D Glass Highlights (must sit above liquid) */}
+                        <div className="absolute inset-0 rounded-full z-20 pointer-events-none">
+                          {/* Top curvature bright reflection */}
+                          <div className="absolute top-[2%] left-[15%] w-[70%] h-[40%] bg-gradient-to-b from-white/70 to-transparent rounded-[50%] blur-[1.5px]"></div>
+                          {/* Subtle rim light at the bottom */}
+                          <div className="absolute bottom-[2%] left-[10%] w-[80%] h-[15%] bg-white/30 rounded-[50%] blur-[3px]"></div>
+                        </div>
+
+                        {/* Liquid container */}
+                        <motion.div 
+                          initial={{ y: "100%" }}
+                          animate={{ y: `${100 - readiness.score}%` }}
+                          transition={{ duration: 2, ease: "easeInOut", bounce: 0 }}
+                          className="absolute bottom-0 left-0 right-0 h-full bg-gradient-to-t from-cyan-600 via-blue-500 to-purple-500 opacity-95 shadow-[0_-10px_25px_rgba(168,85,247,0.7)] z-0"
+                        >
+                          {/* Animated Surface Waves */}
+                          <motion.div
+                            animate={{ x: ["0%", "-50%"] }}
+                            transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+                            className="absolute top-0 left-0 w-[200%] h-5 bg-gradient-to-b from-white/50 to-transparent rounded-[50%] blur-[2px]"
+                            style={{ marginTop: "-2px" }}
+                          />
+                          
+                          {/* Soda Bubbles */}
+                          {[...Array(12)].map((_, i) => (
+                            <motion.div 
+                              key={i}
+                              animate={{ 
+                                y: [60 + Math.random() * 40, -140], 
+                                x: [0, (Math.random() - 0.5) * 40],
+                                opacity: [0, 0.9, 0] 
+                              }} 
+                              transition={{ 
+                                repeat: Infinity, 
+                                duration: 1.5 + Math.random() * 2.5, 
+                                delay: Math.random() * 2,
+                                ease: "easeIn"
+                              }} 
+                              className="absolute w-2.5 h-2.5 bg-white/80 rounded-full blur-[0.5px]"
+                              style={{
+                                left: `${15 + Math.random() * 70}%`,
+                                bottom: "-15px",
+                                transform: `scale(${0.4 + Math.random() * 1.2})`
+                              }}
+                            />
+                          ))}
+                        </motion.div>
+                        
+                        <span className="relative z-10 text-4xl font-black drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-white">{readiness.score}%</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-3">

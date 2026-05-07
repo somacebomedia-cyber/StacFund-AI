@@ -9,7 +9,7 @@ import FundingCard from '../components/FundingCard';
 import ApplicationWorkflow from '../components/ApplicationWorkflow';
 import { calculateMatch, getMatchMeOpportunities, getApplyReadyOpportunities } from '../services/matchingEngine';
 
-interface MarketplaceProps {
+interface FundingExplorerProps {
   user: User | null;
   activeOpportunityId?: string | null;
   resumeOpportunityId?: string | null;
@@ -21,7 +21,7 @@ interface MarketplaceProps {
   onLogin: () => void;
 }
 
-const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, resumeOpportunityId, fallbackOpportunity, onGoToDashboard, onSetActiveOpportunity, onClearResumeOpportunity, onUpgrade, onLogin }) => {
+const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportunityId, resumeOpportunityId, fallbackOpportunity, onGoToDashboard, onSetActiveOpportunity, onClearResumeOpportunity, onUpgrade, onLogin }) => {
   const [mode, setMode] = useState<'DISCOVER' | 'TIMELINE' | 'MATCH_ME' | 'APPLY_READY'>('DISCOVER');
   const [searchQuery, setSearchQuery] = useState('');
   const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info'}>({ show: false, message: '', type: 'success' });
@@ -581,4 +581,4 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, activeOpportunityId, re
   );
 };
 
-export default Marketplace;
+export default FundingExplorer;

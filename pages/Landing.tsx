@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
-import { motion, useScroll, useTransform } from 'motion/react';
-import { ArrowRight, Search, Banknote, Users, Clock, Zap, FolderUp, Radar, Rocket, ShieldCheck, FileText, Target, MessageSquare, Presentation, Brush, Megaphone } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, useScroll, useTransform, AnimatePresence } from 'motion/react';
+import { ArrowRight, Search, Banknote, Users, Clock, Zap, FolderUp, Radar, Rocket, ShieldCheck, FileText, Target, MessageSquare, Presentation, Brush, Megaphone, CheckCircle2, Lock, Plus, Image as ImageIcon, ThumbsUp, Send } from 'lucide-react';
 
 interface LandingProps {
   onGetStarted: () => void;
@@ -29,6 +30,336 @@ const CleanBackground = () => {
   );
 };
 
+// ─── Custom 3D CSS iPhone Mockup ──────────────────────────────────────────────
+const FeatureScreenshot = ({ i }: { i: number }) => {
+  switch(i) {
+    case 0: // Vault
+      return (
+        <div className="h-full flex flex-col pt-4">
+          <div className="flex justify-between items-center mb-6">
+            <h4 className="font-bold text-lg">Secure Vault</h4>
+            <ShieldCheck size={20} className="text-emerald-400" />
+          </div>
+          <div className="flex-1 space-y-4">
+            {[1, 2, 3].map(n => (
+              <div key={n} className="bg-white/10 p-3 rounded-xl flex items-center gap-3">
+                <div className="p-2 bg-emerald-500/20 rounded-lg"><Lock size={16} className="text-emerald-400" /></div>
+                <div className="flex-1">
+                  <div className="h-2 w-20 bg-white/40 rounded mb-1" />
+                  <div className="h-1.5 w-12 bg-white/20 rounded" />
+                </div>
+                <CheckCircle2 size={16} className="text-emerald-500" />
+              </div>
+            ))}
+          </div>
+          <button className="mt-auto w-full py-3 rounded-xl bg-emerald-500 font-bold text-sm tracking-wide">Upload Document</button>
+        </div>
+      );
+    case 1: // Match
+      return (
+         <div className="h-full flex flex-col justify-center items-center">
+            <div className="relative w-40 h-40 flex items-center justify-center">
+              <motion.div animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: 'linear' }} className="absolute inset-0 rounded-full border-2 border-dashed border-blue-500/50" />
+              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity }} className="absolute w-24 h-24 rounded-full bg-blue-500/20" />
+              <div className="text-center relative z-10">
+                <p className="text-3xl font-black text-blue-400">98%</p>
+                <p className="text-xs font-bold text-white/50 uppercase mt-1">Match</p>
+              </div>
+            </div>
+            <div className="mt-8 w-full bg-white/10 p-4 rounded-2xl">
+              <h5 className="font-bold text-sm mb-1">NYDA Youth Fund</h5>
+              <p className="text-xs text-white/50 mb-3">R250,000 Available</p>
+              <button className="w-full py-2 bg-blue-500 rounded-lg text-xs font-bold">Review Terms</button>
+            </div>
+         </div>
+      );
+    case 2: // Motivations
+      return (
+        <div className="h-full flex flex-col">
+          <div className="flex items-center gap-2 mb-4">
+            <Rocket size={18} className="text-purple-400" />
+            <h4 className="font-bold">Cover Letter</h4>
+          </div>
+          <div className="flex-1 bg-white/5 border border-white/10 rounded-xl p-4 relative overflow-hidden">
+             <motion.div 
+                initial={{ height: 10 }}
+                animate={{ height: "100%" }}
+                transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse' }}
+                className="absolute top-0 left-0 w-1 bg-purple-500"
+             />
+             <div className="space-y-3">
+               <div className="h-2 w-full bg-white/20 rounded" />
+               <div className="h-2 w-11/12 bg-white/20 rounded" />
+               <div className="h-2 w-full bg-white/20 rounded" />
+               <div className="h-2 w-3/4 bg-white/20 rounded" />
+               <div className="h-2 w-full bg-purple-400/50 rounded" />
+               <div className="h-2 w-5/6 bg-purple-400/50 rounded" />
+             </div>
+          </div>
+        </div>
+      );
+    case 3: // Auto Fill
+      return (
+        <div className="h-full flex flex-col justify-center">
+          <div className="text-center mb-6">
+            <Target size={32} className="text-pink-400 mx-auto mb-2" />
+            <h4 className="font-bold">Auto-Filling Form</h4>
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((n, idx) => (
+              <div key={n} className="flex flex-col gap-1">
+                <div className="h-2 w-16 bg-white/30 rounded" />
+                <div className="h-8 bg-white/10 border border-pink-500/30 rounded-lg flex items-center px-3 justify-between">
+                  <div className="h-1.5 w-24 bg-pink-400/60 rounded" />
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: idx * 0.2 }}>
+                    <CheckCircle2 size={14} className="text-pink-400" />
+                  </motion.div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    case 4: // AI Advisor
+      return (
+        <div className="h-full flex flex-col justify-end">
+           <div className="flex-1 flex flex-col gap-4 py-4 overflow-hidden">
+             <div className="self-end bg-cyan-500 p-3 rounded-2xl rounded-tr-sm max-w-[80%]">
+               <div className="h-1.5 w-24 bg-white/80 rounded mb-1" />
+               <div className="h-1.5 w-16 bg-white/80 rounded" />
+             </div>
+             <div className="self-start bg-white/10 p-3 rounded-2xl rounded-tl-sm max-w-[80%]">
+               <div className="h-1.5 w-32 bg-cyan-400/60 rounded mb-1.5" />
+               <div className="h-1.5 w-24 bg-cyan-400/60 rounded mb-1.5" />
+               <div className="h-1.5 w-20 bg-cyan-400/60 rounded" />
+             </div>
+             <div className="self-end bg-cyan-500 p-3 rounded-2xl rounded-tr-sm max-w-[80%]">
+               <div className="h-1.5 w-12 bg-white/80 rounded" />
+             </div>
+           </div>
+           <div className="h-12 border border-white/20 rounded-full flex items-center px-4 justify-between mt-2">
+             <div className="h-2 w-24 bg-white/20 rounded" />
+             <Send size={16} className="text-cyan-400" />
+           </div>
+        </div>
+      );
+    case 5: // Pitch
+      return (
+        <div className="h-full flex flex-col">
+          <h4 className="font-bold text-center mb-4">Deck Preview</h4>
+          <div className="flex-1 bg-white/5 border border-indigo-500/30 rounded-xl overflow-hidden flex flex-col">
+            <div className="h-1/2 bg-indigo-500/20 flex items-center justify-center p-4">
+               <div className="w-full h-full border border-indigo-400/50 rounded flex items-center justify-center"><Presentation size={24} className="text-indigo-400" /></div>
+            </div>
+            <div className="p-4 flex-1">
+              <div className="h-2 w-20 bg-indigo-400 rounded mb-3" />
+              <div className="h-1 w-full bg-white/30 rounded mb-1.5" />
+              <div className="h-1 w-5/6 bg-white/30 rounded mb-1.5" />
+              <div className="h-1 w-4/6 bg-white/30 rounded" />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4 justify-center">
+            {[1,2,3,4].map((n) => (
+              <div key={n} className={"w-1.5 h-1.5 rounded-full " + (n === 1 ? "bg-indigo-400" : "bg-white/20")} />
+            ))}
+          </div>
+        </div>
+      );
+    case 6: // Brand
+      return (
+        <div className="h-full flex flex-col">
+           <h4 className="font-bold text-center mb-6">Generated Assets</h4>
+           <div className="pr-2 grid grid-cols-2 gap-3 mb-4">
+              <div className="aspect-square rounded-xl bg-orange-500 flex items-center justify-center"><Brush size={24} /></div>
+              <div className="aspect-square rounded-xl bg-white/10 flex items-center justify-center font-black text-xl italic text-orange-400">Abc</div>
+           </div>
+           <div className="flex gap-2 mb-4">
+             {['#f97316', '#c2410c', '#ffffff', '#000000'].map(val => (
+               <div key={val} className="w-8 h-8 rounded-full border-2 border-white/10 shadow-lg" style={{ backgroundColor: val }} />
+             ))}
+           </div>
+           <button className="w-full py-2.5 rounded-lg bg-orange-500 font-bold text-xs mt-auto">Download Kit</button>
+        </div>
+      );
+    case 7: // Ad
+      return (
+        <div className="h-full">
+           <div className="bg-white text-black rounded-xl overflow-hidden shadow-xl shrink-0">
+             <div className="p-3 flex items-center gap-2">
+               <div className="w-6 h-6 rounded-full bg-red-500" />
+               <div className="font-bold text-[10px]">Sponsored</div>
+             </div>
+             <div className="aspect-video bg-red-100 flex items-center justify-center">
+               <ImageIcon size={32} className="text-red-400" />
+             </div>
+             <div className="p-3">
+               <div className="h-1.5 w-full bg-gray-200 rounded mb-1" />
+               <div className="h-1.5 w-2/3 bg-gray-200 rounded mb-3" />
+               <div className="flex justify-between items-center">
+                 <div className="flex gap-1 text-gray-500"><ThumbsUp size={12} /><span className="text-[9px] font-bold">12k</span></div>
+                 <div className="bg-red-500 text-white text-[9px] font-bold px-2 py-1 rounded">Sign Up</div>
+               </div>
+             </div>
+           </div>
+           <div className="mt-4 bg-white/10 rounded-xl p-3 flex justify-between items-center">
+             <div>
+               <div className="text-[10px] text-white/50">Est. Conversions</div>
+               <div className="font-bold text-red-400">4.5% - 6.0%</div>
+             </div>
+             <Rocket size={16} className="text-red-500" />
+           </div>
+        </div>
+      );
+    default: return null;
+  }
+}
+
+const IPhone17Model = ({ i, colorHex, frameHex, animated = true }: { i: number, colorHex: string, frameHex: string, animated?: boolean }) => {
+  const zDepth = 20;
+
+  return (
+        <motion.div 
+            animate={animated ? { y: [0, -15, 0] } : { y: 0 }}
+            transition={{ y: { duration: 4, repeat: Infinity, ease: 'easeInOut' } }} // Floating
+            style={{ width: '100%', height: '100%', transformStyle: 'preserve-3d' }}
+        >
+            {/* Layers for true 3D edge depth */}
+            {Array.from({ length: zDepth }).map((_, idx) => (
+               <div 
+                 key={idx}
+                 className="absolute inset-0 rounded-[3.5rem] pointer-events-none"
+                 style={{ 
+                   transform: "translateZ(" + (-idx) + "px)",
+                   backgroundColor: idx === zDepth - 1 ? colorHex : frameHex,
+                   opacity: idx === 0 ? 0 : 1, // Let layer 0 be the screen transparent
+                   boxShadow: idx === zDepth - 1 ? "0 20px 60px -10px " + colorHex + "80, 0 50px 100px -20px rgba(0,0,0,0.5)" : 'none',
+                   border: idx > 0 ? "1px solid rgba(255,255,255,0.05)" : 'none'
+                 }}
+               />
+            ))}
+            
+            {/* Front Screen Plate */}
+            <div 
+              className="absolute inset-0 rounded-[3.5rem] border-[8px] overflow-hidden bg-[#0A0A10] flex flex-col pointer-events-auto shadow-inner"
+              style={{ 
+                transform: "translateZ(0px)",
+                borderColor: frameHex,
+              }}
+            >
+               {/* Internal Bezel + Screen Glow */}
+               <div className="absolute inset-0 z-0 opacity-20 pointer-events-none" style={{ background: "radial-gradient(circle at 50% 0%, " + colorHex + ", transparent 70%)" }} />
+               <div className="absolute inset-0 ring-1 ring-white/10 rounded-[2.8rem] z-[100] pointer-events-none" />
+               
+               {/* Dynamic Island */}
+               <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[100px] h-7 bg-black rounded-full z-50 flex items-center justify-between px-2 shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+                 <div className="w-4 h-4 rounded-full bg-[#050510] border border-white/5 relative overflow-hidden flex items-center justify-center">
+                   <div className="w-1.5 h-1.5 rounded-full bg-blue-900/40" />
+                 </div>
+                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 mr-1 shadow-[0_0_8px_#10b981]" />
+               </div>
+
+               {/* Live Component UI */}
+               <div className="relative z-10 w-full h-full pt-14 pb-8 px-5">
+                  <FeatureScreenshot i={i} />
+               </div>
+               
+               {/* Home Indicator */}
+               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1/3 h-1 bg-white/30 rounded-full z-50 pointer-events-none"/>
+            </div>
+
+            {/* Back Camera Bump */}
+            <div 
+               className="absolute top-8 left-6 w-28 h-[120px] rounded-3xl"
+               style={{ 
+                 transform: "translateZ(" + (-(zDepth + 3)) + "px)", 
+                 backgroundColor: frameHex, 
+                 border: "1px solid rgba(255,255,255,0.1)",
+                 boxShadow: "inset 0 2px 4px rgba(255,255,255,0.1), 3px 5px 15px rgba(0,0,0,0.5)"
+               }}
+            >
+               <div className="absolute top-2.5 left-2.5 w-[42px] h-[42px] rounded-full bg-black/80 border border-white/20 flex flex-col items-center justify-center shadow-inner">
+                  <div className="w-5 h-5 rounded-full bg-indigo-900/30 flex items-center justify-center"><div className="w-2 h-2 rounded-full bg-black"/></div>
+               </div>
+               <div className="absolute bottom-2.5 left-2.5 w-[42px] h-[42px] rounded-full bg-black/80 border border-white/20 flex flex-col items-center justify-center shadow-inner">
+                 <div className="w-5 h-5 rounded-full bg-indigo-900/30 flex items-center justify-center"><div className="w-2 h-2 rounded-full bg-black"/></div>
+               </div>
+               <div className="absolute top-1/2 -translate-y-1/2 right-2.5 w-[38px] h-[38px] rounded-full bg-black/80 border border-white/20 flex flex-col items-center justify-center shadow-inner">
+                 <div className="w-4 h-4 rounded-full bg-indigo-900/30 flex items-center justify-center"><div className="w-1.5 h-1.5 rounded-full bg-black"/></div>
+               </div>
+               {/* Flash */}
+               <div className="absolute top-4 right-5 w-4 h-4 rounded-full bg-yellow-100/30 border border-white/10" />
+               {/* Lidar */}
+               <div className="absolute bottom-5 right-5 w-3 h-3 rounded-full bg-black border border-white/10" />
+            </div>
+            
+            {/* Side Buttons */}
+            <div className="absolute top-28 -left-1 w-1 h-12 bg-white/20 rounded-l-sm" style={{ transform: "translateZ(" + (-zDepth/2) + "px)" }} />
+            <div className="absolute top-44 -left-1 w-1 h-16 bg-white/20 rounded-l-sm" style={{ transform: "translateZ(" + (-zDepth/2) + "px)" }} />
+            <div className="absolute top-64 -left-1 w-1 h-16 bg-white/20 rounded-l-sm" style={{ transform: "translateZ(" + (-zDepth/2) + "px)" }} />
+            <div className="absolute top-52 -right-1 w-1 h-20 bg-white/20 rounded-r-sm" style={{ transform: "translateZ(" + (-zDepth/2) + "px)" }} />
+        </motion.div>
+  )
+}
+
+const IPhone17MockupInteractive = ({ feature, i, colorHex, frameHex }: { feature: any, i: number, colorHex: string, frameHex: string }) => {
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  return (
+    <>
+      {/* Thumbnail */}
+      <div 
+        className="relative w-[110px] h-[230px] cursor-pointer group [perspective:1500px]"
+        onClick={() => setIsZoomed(true)}
+      >
+         <motion.div
+           className="w-[280px] h-[580px] pointer-events-none origin-top-left"
+           style={{ transformStyle: 'preserve-3d', scale: 0.35 }}
+           initial={{ rotateY: 720, rotateX: 20, z: -500, opacity: 0 }}
+           whileInView={{ rotateY: -30, rotateX: 15, z: 0, opacity: 1 }}
+           transition={{ duration: 1.2, type: 'spring', bounce: 0.4 }}
+           viewport={{ once: false, margin: "100px" }}
+         >
+            <IPhone17Model i={i} colorHex={colorHex} frameHex={frameHex} animated={true} />
+         </motion.div>
+      </div>
+
+      {/* Zoom Overlay */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isZoomed && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-center justify-center [perspective:2000px] cursor-zoom-out p-4 md:p-10"
+              onClick={() => setIsZoomed(false)}
+            >
+               {/* Close button */}
+               <div className="absolute top-6 right-6 md:top-10 md:right-10 bg-white/10 p-3 rounded-full hover:bg-white/20 transition-colors text-white z-50 cursor-pointer flex items-center justify-center">
+                 <Plus className="rotate-45" size={24} />
+               </div>
+               
+               {/* Interactive full-size phone */}
+               <motion.div
+                 initial={{ scale: 0.2, rotateY: 360, y: 300 }}
+                 animate={{ scale: 1, rotateY: 0, y: 0 }}
+                 exit={{ scale: 0.2, rotateY: -180, opacity: 0 }}
+                 transition={{ type: 'spring', stiffness: 150, damping: 20, mass: 1 }}
+                 className="cursor-default pointer-events-auto"
+                 style={{ transformStyle: 'preserve-3d', width: 280, height: 580 }}
+                 onClick={e => e.stopPropagation()} // Prevent close when interacting with the phone
+               >
+                  <IPhone17Model i={i} colorHex={colorHex} frameHex={frameHex} animated={true} />
+               </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
+  )
+}
+
 // ─── Extensive Features Section ────────────────────────────────────────────────────────
 const ExtensiveFeatures = () => {
   const features = [
@@ -37,56 +368,72 @@ const ExtensiveFeatures = () => {
       description: "Securely store your CIPC docs, tax clearances, and financials in one encrypted location. Never hunt for a PDF again.",
       icon: <ShieldCheck size={32} className="text-emerald-400" />,
       glow: "rgba(16, 185, 129, 0.15)",
-      border: "border-emerald-500/20"
+      border: "border-emerald-500/20",
+      hex: "#10b981",
+      frameHex: "#064e3b"
     },
     {
       title: "Precision Grant Matching",
       description: "Our AI scans NYDA, SEFA, IDC, and private funds daily, matching them precisely against your business profile, stage, and revenue.",
       icon: <Radar size={32} className="text-blue-400" />,
       glow: "rgba(59, 130, 246, 0.15)",
-      border: "border-blue-500/20"
+      border: "border-blue-500/20",
+      hex: "#3b82f6",
+      frameHex: "#1e3a8a"
     },
     {
        title: "Auto-Generated Motivations",
        description: "Struggling with 'Why do you need this funding'? Our LLM generates compelling, tailored motivation letters based on your inputs.",
        icon: <FileText size={32} className="text-purple-400" />,
        glow: "rgba(168, 85, 247, 0.15)",
-       border: "border-purple-500/20"
+       border: "border-purple-500/20",
+       hex: "#a855f7",
+       frameHex: "#581c87"
     },
     {
        title: "One-Click Form Filling",
        description: "We map your vault data directly into standard application forms. What used to take hours now takes seconds.",
        icon: <Target size={32} className="text-pink-400" />,
        glow: "rgba(236, 72, 153, 0.15)",
-       border: "border-pink-500/20"
+       border: "border-pink-500/20",
+       hex: "#ec4899",
+       frameHex: "#831843"
     },
     {
       title: "24/7 AI Business Advisor",
       description: "Get instant answers to funding questions, compliance queries, and strategic advice from our expert AI chatbot.",
       icon: <MessageSquare size={32} className="text-cyan-400" />,
       glow: "rgba(34, 211, 238, 0.15)",
-      border: "border-cyan-500/20"
+      border: "border-cyan-500/20",
+      hex: "#22d3ee",
+      frameHex: "#164e63"
     },
     {
       title: "Pitch Deck Designer",
       description: "Create stunning, professional pitch decks in minutes. Tell your story visually and convince investors.",
       icon: <Presentation size={32} className="text-indigo-400" />,
       glow: "rgba(99, 102, 241, 0.15)",
-      border: "border-indigo-500/20"
+      border: "border-indigo-500/20",
+      hex: "#6366f1",
+      frameHex: "#312e81"
     },
     {
       title: "Instant Brand Identity",
       description: "Generate beautiful, custom logos and brand assets in seconds using our AI-powered logo designer.",
       icon: <Brush size={32} className="text-orange-400" />,
       glow: "rgba(249, 115, 22, 0.15)",
-      border: "border-orange-500/20"
+      border: "border-orange-500/20",
+      hex: "#f97316",
+      frameHex: "#7c2d12"
     },
     {
       title: "Automated Ad Campaigns",
       description: "Create highly converting Facebook and Google ad creatives and copy tailored to your target audience.",
       icon: <Megaphone size={32} className="text-red-400" />,
       glow: "rgba(248, 113, 113, 0.15)",
-      border: "border-red-500/20"
+      border: "border-red-500/20",
+      hex: "#f87171",
+      frameHex: "#7f1d1d"
     }
   ];
 
@@ -108,72 +455,49 @@ const ExtensiveFeatures = () => {
           return (
             <motion.div
               key={i}
-              initial={{ opacity: 0, y: 80 }}
+              initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.7, ease: "easeOut" }}
-              className="sticky flex flex-col md:flex-row items-center gap-8 md:gap-16 glass-panel rounded-[2.5rem] p-8 md:p-14 mb-[8vh] md:mb-[12vh]"
+              className="sticky flex flex-col p-8 md:p-14 mb-[8vh] md:mb-[12vh] rounded-[2.5rem] shadow-2xl"
               style={{
-                top: `${topOffset}px`,
-                boxShadow: `0 -20px 60px -20px ${feature.glow}, inset 0 1px 0 rgba(255,255,255,0.1)`,
-                backgroundColor: '#0a0816', // Dark background so it hides cards scrolling behind it
+                top: topOffset + "px",
+                backgroundColor: feature.hex, // Canva panel style
                 zIndex: i,
-                border: '1px solid rgba(255,255,255,0.05)'
+                border: '1px solid rgba(255,255,255,0.2)'
               }}
             >
-              <div className="flex-1">
-                <div 
-                  className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-8 bg-gradient-to-br from-white/5 to-white/0 border ${feature.border}`}
-                  style={{ boxShadow: `inset 0 0 20px ${feature.glow}` }}
-                >
-                  {feature.icon}
-                </div>
-                <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">{feature.title}</h3>
-                <p className="text-gray-400 text-lg leading-relaxed">
-                  {feature.description}
-                </p>
-              </div>
-              <div className="flex-1 w-full bg-[#05040d] rounded-2xl h-64 md:h-80 border border-white/5 relative overflow-hidden flex items-center justify-center p-6">
-                 {/* Visual Background */}
-                 <div className="absolute inset-0 opacity-30" style={{ background: `radial-gradient(circle at center, ${feature.glow}, transparent 70%)` }} />
-                 
-                 {/* Abstract UI representation */}
-                 <div className="relative z-10 w-full h-full border border-white/10 rounded-xl bg-[#0a0816]/80 backdrop-blur-md flex flex-col group overflow-hidden shadow-2xl">
-                   {/* Fake UI Header */}
-                   <div className="h-10 border-b border-white/10 flex items-center px-4 gap-2 bg-white/5">
-                     <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
-                     <div className="w-3 h-3 rounded-full bg-amber-500/50"></div>
-                     <div className="w-3 h-3 rounded-full bg-emerald-500/50"></div>
-                   </div>
-                   {/* Fake Content area */}
-                   <div className="flex-1 p-6 flex flex-col gap-4 relative">
-                      <motion.div 
-                        initial={{ opacity: 0, width: "0%" }}
-                        whileInView={{ opacity: 1, width: "70%" }}
-                        transition={{ delay: 0.3 + (i * 0.1), duration: 0.8 }}
-                        className="h-4 rounded bg-white/10"
-                      />
-                      <motion.div 
-                        initial={{ opacity: 0, width: "0%" }}
-                        whileInView={{ opacity: 1, width: "40%" }}
-                        transition={{ delay: 0.4 + (i * 0.1), duration: 0.8 }}
-                        className="h-4 rounded bg-white/5"
-                      />
-                      <motion.div 
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 + (i * 0.1), duration: 0.5 }}
-                        className="w-full h-24 rounded-lg mt-auto bg-gradient-to-r from-white/5 to-white/0 border border-white/5 flex items-center px-4" 
-                      >
-                         <div className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex shrink-0" />
-                         <div className="ml-4 flex flex-col gap-2 w-full">
-                           <div className="h-2 w-1/2 rounded bg-white/10" />
-                           <div className="h-2 w-1/3 rounded bg-white/5" />
-                         </div>
-                      </motion.div>
-                   </div>
-                 </div>
-              </div>
+               {/* Ambient pattern or gradient overlay to make it look even more polished */}
+               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-black/20 pointer-events-none rounded-[2.5rem]" />
+               <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none mix-blend-overlay rounded-[2.5rem]" />
+
+               <div className="relative z-10 w-full flex flex-col h-full justify-center">
+                  <div className="flex items-start justify-between relative mb-8">
+                     <div 
+                       className="w-24 h-24 shrink-0 rounded-[2rem] flex items-center justify-center bg-black/10 backdrop-blur-md border border-white/30 text-white shadow-xl relative z-20"
+                       style={{ boxShadow: "inset 0 0 20px " + feature.glow }}
+                     >
+                       {feature.icon}
+                     </div>
+                     
+                     <div className="absolute -top-16 -right-2 md:-top-20 md:-right-6 group cursor-pointer z-50" title="Click to interact with phone">
+                        <IPhone17MockupInteractive feature={feature} i={i} colorHex={feature.hex} frameHex={feature.frameHex} />
+                        {/* Interaction hint */}
+                        <div className="absolute -bottom-4 right-1/2 translate-x-1/2 md:translate-x-0 md:-left-4 md:right-auto bg-white/90 text-black px-3 py-1 rounded-full text-xs font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                          Tap to interact <ArrowRight size={12} className="inline ml-1" />
+                        </div>
+                     </div>
+                  </div>
+                  
+                  <div className="md:pr-32"> {/* Make room for the absolutely positioned phone on desktop */}
+                    <h3 className="text-4xl md:text-5xl font-black mb-4 tracking-tight text-white drop-shadow-md">
+                       {feature.title}
+                    </h3>
+                    <p className="text-xl md:text-2xl text-white/90 leading-relaxed font-medium max-w-2xl drop-shadow-sm">
+                       {feature.description}
+                    </p>
+                  </div>
+               </div>
             </motion.div>
           );
         })}
@@ -317,9 +641,9 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
               whileHover={{ y: -6, scale: 1.03 }}
               transition={{ type: 'spring', stiffness: 300 }}
               className="glass-panel p-6 rounded-3xl relative overflow-hidden group cursor-default"
-              style={{ boxShadow: `0 0 0 0 ${stat.glow}00` }}
+              style={{ boxShadow: "0 0 0 0 " + stat.glow + "00" }}
               onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 30px ${stat.glow}25, inset 0 0 30px ${stat.glow}08`;
+                (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 30px " + stat.glow + "25, inset 0 0 30px " + stat.glow + "08";
               }}
               onMouseLeave={e => {
                 (e.currentTarget as HTMLDivElement).style.boxShadow = '';
@@ -328,7 +652,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
               {/* Top accent line */}
               <div
                 className="absolute top-0 left-0 right-0 h-[1px] opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ background: `linear-gradient(90deg, transparent, ${stat.glow}, transparent)` }}
+                style={{ background: "linear-gradient(90deg, transparent, " + stat.glow + ", transparent)" }}
               />
               <div className="flex justify-center mb-3">{stat.icon}</div>
               <h4 className="text-2xl md:text-3xl font-black mb-1 tracking-tight">{stat.val}</h4>
@@ -396,7 +720,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
                 {/* Icon Container */}
                 <div 
                   className="w-16 h-16 rounded-2xl flex items-center justify-center mb-8 relative z-10 transition-transform duration-500 group-hover:scale-110"
-                  style={{ background: `linear-gradient(135deg, ${feature.glow}20, transparent)`, border: `1px solid ${feature.glow}40` }}
+                  style={{ background: "linear-gradient(135deg, " + feature.glow + "20, transparent)", border: "1px solid " + feature.glow + "40" }}
                 >
                   {feature.icon}
                 </div>
@@ -409,7 +733,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
                 {/* Glow effect on hover */}
                 <div 
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none -z-10"
-                  style={{ background: `radial-gradient(circle at 50% 100%, ${feature.glow}15, transparent 70%)` }}
+                  style={{ background: "radial-gradient(circle at 50% 100%, " + feature.glow + "15, transparent 70%)" }}
                 />
               </motion.div>
             ))}
@@ -482,8 +806,8 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           <StacFundLogo size={24} />
           <span className="text-gray-500 font-black tracking-tight">StacFund</span>
         </div>
-        <p className="text-gray-600 text-xs tracking-wider">
-          © 2025 StacFund · Empowering businesses worldwide.
+        <p className="text-gray-400 text-sm font-medium tracking-wider">
+          © 2026 StacFund. Level up your business.
         </p>
       </footer>
     </div>

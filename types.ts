@@ -117,6 +117,7 @@ export interface User {
   whatsapp?: string;
   isVerified: boolean;
   password?: string;
+  logoUrl?: string;
   subscriptionPlan: 'free' | 'pro' | 'business';
   billingCycle?: 'monthly' | 'yearly';
 }
