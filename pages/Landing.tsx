@@ -215,13 +215,13 @@ const FeatureScreenshot = ({ i }: { i: number }) => {
 }
 
 const IPhone17Model = ({ i, colorHex, frameHex, animated = true }: { i: number, colorHex: string, frameHex: string, animated?: boolean }) => {
-  const zDepth = 20;
+  const zDepth = 6;
 
   return (
         <motion.div 
             animate={animated ? { y: [0, -15, 0] } : { y: 0 }}
             transition={{ y: { duration: 4, repeat: Infinity, ease: 'easeInOut' } }} // Floating
-            style={{ width: '100%', height: '100%', transformStyle: 'preserve-3d' }}
+            style={{ width: '100%', height: '100%', transformStyle: 'preserve-3d', willChange: 'transform' }}
         >
             {/* Layers for true 3D edge depth */}
             {Array.from({ length: zDepth }).map((_, idx) => (
@@ -313,11 +313,11 @@ const IPhone17MockupInteractive = ({ feature, i, colorHex, frameHex }: { feature
       >
          <motion.div
            className="w-[280px] h-[580px] pointer-events-none origin-top-left"
-           style={{ transformStyle: 'preserve-3d', scale: 0.35 }}
+           style={{ transformStyle: 'preserve-3d', scale: 0.35, willChange: 'transform, opacity' }}
            initial={{ rotateY: 720, rotateX: 20, z: -500, opacity: 0 }}
            whileInView={{ rotateY: -30, rotateX: 15, z: 0, opacity: 1 }}
            transition={{ duration: 1.2, type: 'spring', bounce: 0.4 }}
-           viewport={{ once: false, margin: "100px" }}
+           viewport={{ once: true, margin: "100px" }}
          >
             <IPhone17Model i={i} colorHex={colorHex} frameHex={frameHex} animated={true} />
          </motion.div>
@@ -464,7 +464,8 @@ const ExtensiveFeatures = () => {
                 top: topOffset + "px",
                 backgroundColor: feature.hex, // Canva panel style
                 zIndex: i,
-                border: '1px solid rgba(255,255,255,0.2)'
+                border: '1px solid rgba(255,255,255,0.2)',
+                willChange: 'transform'
               }}
             >
                {/* Ambient pattern or gradient overlay to make it look even more polished */}
@@ -489,7 +490,7 @@ const ExtensiveFeatures = () => {
                      </div>
                   </div>
                   
-                  <div className="md:pr-32"> {/* Make room for the absolutely positioned phone on desktop */}
+                  <div className="md:pr-32 text-left"> {/* Make room for the absolutely positioned phone on desktop */}
                     <h3 className="text-4xl md:text-5xl font-black mb-4 tracking-tight text-white drop-shadow-md">
                        {feature.title}
                     </h3>
