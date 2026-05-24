@@ -270,9 +270,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
          Include these fields:
          - executiveSummary (string, paragraphs)
          - swot (object with arrays for 'strengths', 'weaknesses', 'opportunities', 'threats')
-         - marketResearch (object with 'tam', 'sam', 'som' as strings, 'targetAudience' as array of strings, 'competitorAnalysis' as string)
+         - marketResearch (object with 'tam', 'sam', 'som' as VERY SHORT strings e.g., 'ZAR 500M' without explanation, 'targetAudience' as array of strings, 'competitorAnalysis' as string)
          - productsServices (array of objects with 'name', 'description', 'pricing' as strings)
-         - financialPlan (object with 'fundingRequirement', 'fundingPurpose', 'useOfFunds' array of {category, amount}, 'revenueProjections' object with 'y1', 'y2', 'y3' as strings)
+         - financialPlan (object with 'fundingRequirement' as VERY SHORT string e.g., 'R 500,000', 'fundingPurpose' string, 'useOfFunds' array of {category, amount} where amount is short string, 'revenueProjections' object with 'y1', 'y2', 'y3' as VERY SHORT strings)
          `;
          
          const response = await ai.models.generateContent({
@@ -303,9 +303,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
          Include these fields:
          - executiveSummary (string, paragraphs focused on funding needs and impact)
          - swot (object with arrays for 'strengths', 'weaknesses', 'opportunities', 'threats')
-         - marketResearch (object with 'tam', 'sam', 'som' as strings, 'targetAudience' as array of strings, 'competitorAnalysis' as string)
+         - marketResearch (object with 'tam', 'sam', 'som' as VERY SHORT strings e.g., 'ZAR 500M' without explanation, 'targetAudience' as array of strings, 'competitorAnalysis' as string)
          - productsServices (array of objects with 'name', 'description', 'pricing' as strings)
-         - financialPlan (object with 'fundingRequirement', 'fundingPurpose', 'useOfFunds' array of {category, amount}, 'revenueProjections' object with 'y1', 'y2', 'y3' as strings)
+         - financialPlan (object with 'fundingRequirement' as VERY SHORT string e.g., 'R 500,000', 'fundingPurpose' string, 'useOfFunds' array of {category, amount} where amount is short string, 'revenueProjections' object with 'y1', 'y2', 'y3' as VERY SHORT strings)
          `;
          
          const response = await ai.models.generateContent({
