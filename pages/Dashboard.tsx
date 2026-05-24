@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building } from 'lucide-react';
+import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Trash2 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { motion } from 'motion/react';
-import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, getDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import StatCard from '../components/StatCard';
 import ComplianceTracker from '../components/ComplianceTracker';
@@ -178,7 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   }, [activeTab]);
 
   const handleToolClick = (tool: 'digitizer' | 'presentation' | 'logo' | 'register') => {
-    if (user?.subscriptionPlan === 'free') {
+    if (tool !== 'digitizer' && user?.subscriptionPlan === 'free') {
       onUpgrade();
       return;
     }
@@ -187,6 +187,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     if (tool === 'presentation') setShowPresentationDesigner(true);
     if (tool === 'logo') setShowLogoGenerator(true);
     if (tool === 'register') setShowBusinessRegistration(true);
+  };
+
+  const clearAllApplications = async () => {
+    if (!user) return;
+    
+    try {
+      const appsRef = collection(db, 'users', user.id, 'applications');
+      const appSnapshot = await getDocs(appsRef);
+      const deletePromises = appSnapshot.docs.map(document => deleteDoc(doc(db, 'users', user.id, 'applications', document.id)));
+      await Promise.all(deletePromises);
+      setApplications([]);
+    } catch (e) {
+      console.error("Failed to clear applications:", e);
+    }
   };
 
   const getStatusStyle = (status: ApplicationStatus) => {
@@ -360,8 +374,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex justify-between items-center">
                   <h3 className="text-2xl font-black">My Applications</h3>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full">
-                    {applications.length} Total
+                  <div className="flex items-center gap-3">
+                    {applications.length > 0 && (
+                      <button 
+                        onClick={clearAllApplications}
+                        className="text-xs font-bold text-red-500 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 uppercase tracking-widest border border-red-500/0 hover:border-red-500/20"
+                        title="Clear all applications to start fresh"
+                      >
+                        <Trash2 size={14} /> Clear Slate
+                      </button>
+                    )}
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full">
+                      {applications.length} Total
+                    </div>
                   </div>
                 </div>
                 
@@ -532,13 +557,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     onClick={() => handleToolClick('digitizer')}
                     className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all cursor-pointer group relative overflow-hidden"
                   >
-                    {!isPaid && (
-                       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                         <div className="bg-black border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
-                            <Lock size={12} /> Pro Feature
-                         </div>
-                       </div>
-                    )}
                     <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-cyan-500/20 rounded-full blur-[50px] group-hover:bg-cyan-500/30 transition-all"></div>
                     <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-6 shadow-lg shadow-cyan-500/10">
                       <ScanLine size={32} />

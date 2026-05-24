@@ -16,8 +16,9 @@ type AuthState = 'login' | 'signup' | 'verification_pending' | 'verified_success
 
 const StacFundLogo = ({ size = 40 }: { size?: number }) => (
   <img 
-    src="https://plain-apac-prod-public.komododecks.com/202605/01/E345pPd1uITno0rNTXrP/image.png" 
+    src="https://plain-apac-prod-public.komododecks.com/202605/18/MVQzOoGi4sCDyhKzfhaM/image.png" 
     alt="StacFund Logo" 
+    referrerPolicy="no-referrer"
     style={{ width: size, height: size, objectFit: 'contain' }}
   />
 );
@@ -346,7 +347,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden text-white" 
-      style={{ backgroundImage: "url('https://plain-apac-prod-public.komododecks.com/202605/06/BqmNPYSSoslO0BZswqUD/image.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510' }}>
+      style={{ backgroundImage: "linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510' }}>
       {/* Cinematic Background */}
       <div className="absolute inset-0 z-0">
       </div>

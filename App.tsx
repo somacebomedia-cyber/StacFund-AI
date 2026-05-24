@@ -18,8 +18,9 @@ type Page = 'landing' | 'dashboard' | 'funding' | 'profile' | 'auth';
 
 const StacFundLogo = ({ size = 40 }: { size?: number }) => (
   <img 
-    src="https://plain-apac-prod-public.komododecks.com/202605/01/E345pPd1uITno0rNTXrP/image.png" 
+    src="https://plain-apac-prod-public.komododecks.com/202605/18/MVQzOoGi4sCDyhKzfhaM/image.png" 
     alt="StacFund Logo" 
+    referrerPolicy="no-referrer"
     style={{ width: size, height: size, objectFit: 'contain' }}
   />
 );
@@ -261,11 +262,15 @@ const App: React.FC = () => {
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="w-12 h-12 bg-purple-600 rounded-xl mb-4"></div>
-          <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Connecting to Cloud...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center flex-col gap-5">
+        <img 
+          src="https://plain-apac-prod-public.komododecks.com/202605/18/MVQzOoGi4sCDyhKzfhaM/image.png" 
+          alt="StacFund Logo" 
+          referrerPolicy="no-referrer"
+          className="w-[100px] h-[100px] object-contain animate-pulse" 
+          style={{ animationDuration: '2s' }}
+        />
+        <div className="text-gray-500 font-semibold text-sm tracking-wider">Loading StacFund...</div>
       </div>
     );
   }
@@ -282,7 +287,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen text-white relative"
-      style={{ backgroundImage: "url('https://plain-apac-prod-public.komododecks.com/202605/06/BqmNPYSSoslO0BZswqUD/image.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510', backgroundAttachment: 'fixed' }}
+      style={{ backgroundImage: "linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510', backgroundAttachment: 'fixed' }}
     >
       <div className="relative z-10 hidden-scrollbar overflow-y-auto h-screen pb-safe">
         <InstallPrompt />

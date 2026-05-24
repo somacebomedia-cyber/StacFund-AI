@@ -12,8 +12,9 @@ interface LandingProps {
 // ─── Custom Logo ──────────────────────────────────────────────────────
 const StacFundLogo = ({ size = 40 }: { size?: number }) => (
   <img 
-    src="https://plain-apac-prod-public.komododecks.com/202605/01/E345pPd1uITno0rNTXrP/image.png" 
+    src="https://plain-apac-prod-public.komododecks.com/202605/18/MVQzOoGi4sCDyhKzfhaM/image.png" 
     alt="StacFund Logo" 
+    referrerPolicy="no-referrer"
     style={{ width: size, height: size, objectFit: 'contain' }}
   />
 );
@@ -24,7 +25,7 @@ const CleanBackground = () => {
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
       <div 
         className="absolute inset-0 bg-center bg-cover bg-no-repeat"
-        style={{ backgroundImage: "url('https://plain-apac-prod-public.komododecks.com/202605/06/BqmNPYSSoslO0BZswqUD/image.jpg')" }}
+        style={{ backgroundImage: "linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png')" }}
       />
     </div>
   );
@@ -314,9 +315,9 @@ const IPhone17MockupInteractive = ({ feature, i, colorHex, frameHex }: { feature
          <motion.div
            className="w-[280px] h-[580px] pointer-events-none origin-top-left"
            style={{ transformStyle: 'preserve-3d', scale: 0.35, willChange: 'transform, opacity' }}
-           initial={{ rotateY: 720, rotateX: 20, z: -500, opacity: 0 }}
-           whileInView={{ rotateY: -30, rotateX: 15, z: 0, opacity: 1 }}
-           transition={{ duration: 1.2, type: 'spring', bounce: 0.4 }}
+           initial={{ rotateY: -30, rotateX: 15, opacity: 0, y: 20 }}
+           whileInView={{ rotateY: -30, rotateX: 15, opacity: 1, y: 0 }}
+           transition={{ duration: 0.8, ease: "easeOut" }}
            viewport={{ once: true, margin: "100px" }}
          >
             <IPhone17Model i={i} colorHex={colorHex} frameHex={frameHex} animated={true} />
@@ -341,10 +342,10 @@ const IPhone17MockupInteractive = ({ feature, i, colorHex, frameHex }: { feature
                
                {/* Interactive full-size phone */}
                <motion.div
-                 initial={{ scale: 0.2, rotateY: 360, y: 300 }}
-                 animate={{ scale: 1, rotateY: 0, y: 0 }}
-                 exit={{ scale: 0.2, rotateY: -180, opacity: 0 }}
-                 transition={{ type: 'spring', stiffness: 150, damping: 20, mass: 1 }}
+                 initial={{ scale: 0.8, opacity: 0, y: 40 }}
+                 animate={{ scale: 1, opacity: 1, y: 0 }}
+                 exit={{ scale: 0.8, opacity: 0, y: 40 }}
+                 transition={{ type: 'spring', stiffness: 250, damping: 25 }}
                  className="cursor-default pointer-events-auto"
                  style={{ transformStyle: 'preserve-3d', width: 280, height: 580 }}
                  onClick={e => e.stopPropagation()} // Prevent close when interacting with the phone

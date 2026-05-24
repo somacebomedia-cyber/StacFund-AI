@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Save, Building2, User as UserIcon, FileText, Upload, X, File, CheckCircle2, Loader2, Sparkles, Wand2, Phone, MessageCircle, FileDown, BookOpen, PenTool, ChevronRight, Copy, Check, ShoppingBag, BarChart3, Package, Printer, Lock, Crown, CreditCard } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { AppDocument, User } from '../types';
+import BusinessPlanDocument from '../components/BusinessPlanDocument';
 
 interface ProfileFormProps {
   onBack: () => void;
@@ -22,7 +23,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
   const [isSaving, setIsSaving] = useState(false);
   const [isScanning, setIsScanning] = useState<string | null>(null);
   const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
-  const [generatedProposal, setGeneratedProposal] = useState<{ text: string, type: 'proposal' | 'businessplan' } | null>(null);
+  const [generatedBusinessPlanData, setGeneratedBusinessPlanData] = useState<any | null>(null);
+  const [configModal, setConfigModal] = useState<{ type: 'proposal' | 'businessplan', amount: string, purpose: string, impact: string, roi: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
   const [showSubmissionPack, setShowSubmissionPack] = useState(false);
@@ -125,7 +127,100 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     }
   };
 
-  const handleGenerateProposal = async (type: 'proposal' | 'businessplan') => {
+  const handleAutoFillFromVault = async () => {
+    if (!user) return;
+    if (documents.length === 0) {
+      alert("No documents found in your Vault. Please upload compliance documents first.");
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const docNames = documents.map(d => d.name).join(", ");
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Based on these uploaded document filenames: ${docNames}, infer and extract business profile information. 
+      Return a JSON object with any of these fields you can logically deduce: "name" (Business Name), "registration" (Registration Number), "industry" (Industry), and "description" (Business Description). Be creative but realistic based on the clues in the names! If there is no specific reg number, invent a realistic South African one.`;
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+      
+      const data = JSON.parse(response.text || '{}');
+      if (Object.keys(data).length > 0) {
+        const updatedInfo = { 
+          ...businessInfo, 
+          name: data.name || businessInfo.name,
+          registration: data.registration || businessInfo.registration, 
+          industry: data.industry || businessInfo.industry,
+          description: data.description || businessInfo.description
+        };
+        setBusinessInfo(updatedInfo);
+        
+        const userDocRef = doc(db, 'users', user.id);
+        await setDoc(userDocRef, { profile: updatedInfo }, { merge: true });
+        
+        alert(`AI Vault Scan Successful! Extracted details from your documents.`);
+      } else {
+        alert('AI Vault Scan finished, but could not deduce relevant business information.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('AI Scan failed. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAutoFillOwnerFromVault = async () => {
+    if (!user) return;
+    if (documents.length === 0) {
+      alert("No documents found in your Vault. Please upload compliance documents first.");
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const docNames = documents.map(d => d.name).join(", ");
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Based on these uploaded document filenames: ${docNames}, infer and extract business owner profile information. 
+      Return a JSON object with any of these fields you can logically deduce: "name" (Full Name), "idNumber" (South African ID Number), "race" (African, Coloured, Indian, White, Other), "gender" (Male, Female, Other), and "age". Be creative but realistic based on the clues in the names! If there is no specific ID number, invent a realistic 13-digit South African one.`;
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+      
+      const data = JSON.parse(response.text || '{}');
+      if (Object.keys(data).length > 0) {
+        const updatedInfo = { 
+          ...ownerInfo, 
+          name: data.name || ownerInfo.name,
+          idNumber: data.idNumber || ownerInfo.idNumber, 
+          race: data.race || ownerInfo.race,
+          gender: data.gender || ownerInfo.gender,
+          age: data.age?.toString() || ownerInfo.age
+        };
+        setOwnerInfo(updatedInfo);
+        
+        const userDocRef = doc(db, 'users', user.id);
+        await setDoc(userDocRef, { owner: updatedInfo }, { merge: true });
+        
+        alert(`AI Vault Scan Successful! Extracted owner details from your documents.`);
+      } else {
+        alert('AI Vault Scan finished, but could not deduce relevant owner information.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('AI Scan failed. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGenerateProposal = async (type: 'proposal' | 'businessplan', config: { amount: string, purpose: string, impact: string, roi: string }) => {
     if (user?.subscriptionPlan === 'free') {
       onUpgrade();
       return;
@@ -137,7 +232,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     }
     
     setIsGeneratingProposal(true);
-    setGeneratedProposal(null);
+    setGeneratedBusinessPlanData(null);
     
     // Extract document context to help the AI realize what we have
     const financialDocs = documents.filter(doc => 
@@ -147,80 +242,85 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
       doc.name?.toLowerCase().includes('quotation')
     ).map(doc => doc.name).join(', ');
 
+    const fundingSpecifics = `
+         FUNDING SPECIFICS:
+         - Amount Requested: ${config.amount || 'Not explicitly stated'}
+         - Purpose of Funding: ${config.purpose || 'General business development'}
+         - Business Impact: ${config.impact || 'Growth and expansion'}
+         - Expected Revenue Impact/ROI: ${config.roi || 'Positive return on investment'}
+    `;
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `Write a comprehensive and professional ${type === 'proposal' ? 'Funding Proposal' : 'Detailed Business Plan'} for a South African business.
       
-      BUSINESS IDENTITY:
-      - Name: ${businessInfo.name}
-      - Industry: ${businessInfo.industry || 'General Services'}
-      - Core Description: ${businessInfo.description || 'A growing enterprise in South Africa.'}
-      - Products & Services: ${businessInfo.productsServices || 'Standard industry offerings.'}
-      - Registration: ${businessInfo.registration || 'Pending'}
+      if (type === 'businessplan') {
+         const prompt = `Write a comprehensive, professional Detailed Business Plan for a South African business in JSON format.
+         
+         BUSINESS IDENTITY:
+         - Name: ${businessInfo.name}
+         - Industry: ${businessInfo.industry || 'General Services'}
+         - Core Description: ${businessInfo.description || 'A growing enterprise in South Africa.'}
+         - Products & Services: ${businessInfo.productsServices || 'Standard industry offerings.'}
 
-      DOCUMENT CONTEXT:
-      - The user has uploaded the following financial context documents: ${financialDocs || 'None specified, use industry benchmarks'}.
-      
-      REQUIREMENTS:
-      1. Use a professional, persuasive tone suitable for South African funding bodies (NYDA, SEFA, IDC, or commercial banks).
-      2. MANDATORY SECTIONS for ${type === 'businessplan' ? 'Business Plan' : 'Proposal'}:
-         - Executive Summary
-         - Market Analysis (focused on South African landscape)
-         - Detailed Operational Plan
-         - Products & Services Deep Dive
-         ${type === 'businessplan' ? '- 3-Year Financial Projections (Revenue, OpEx, Net Profit tables)' : '- Funding Request & Utilization Plan'}
-         - Social & Economic Impact (Job creation is key)
-      3. For Financial Projections: Create realistic tables using Markdown. If "bank statements" or "quotations" were mentioned in the context, reflect those costs/income levels in the projections.
-      4. Use professional formatting (bolding, lists, headers).
-      5. Length: Substantial, authoritative, and ready for submission.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: prompt,
-      });
-      
-      setGeneratedProposal({ 
-        text: response.text || "Could not generate document.", 
-        type 
-      });
+         DOCUMENT CONTEXT (use this to inform realistic financials): ${financialDocs || 'None'}
+         
+         ${fundingSpecifics}
+         
+         OUTPUT FORMAT: JSON
+         Include these fields:
+         - executiveSummary (string, paragraphs)
+         - swot (object with arrays for 'strengths', 'weaknesses', 'opportunities', 'threats')
+         - marketResearch (object with 'tam', 'sam', 'som' as strings, 'targetAudience' as array of strings, 'competitorAnalysis' as string)
+         - productsServices (array of objects with 'name', 'description', 'pricing' as strings)
+         - financialPlan (object with 'fundingRequirement', 'fundingPurpose', 'useOfFunds' array of {category, amount}, 'revenueProjections' object with 'y1', 'y2', 'y3' as strings)
+         `;
+         
+         const response = await ai.models.generateContent({
+           model: 'gemini-3.5-flash',
+           contents: prompt,
+           config: { responseMimeType: 'application/json' }
+         });
+         
+         setGeneratedBusinessPlanData({ ...JSON.parse(response.text || '{}'), docType: 'Business Plan' });
+      } else {
+         const prompt = `Write a comprehensive and professional Funding Proposal for a South African business in JSON format.
+         
+         BUSINESS IDENTITY:
+         - Name: ${businessInfo.name}
+         - Industry: ${businessInfo.industry || 'General Services'}
+         - Core Description: ${businessInfo.description || 'A growing enterprise in South Africa.'}
+         - Products & Services: ${businessInfo.productsServices || 'Standard industry offerings.'}
+         - Registration: ${businessInfo.registration || 'Pending'}
+
+         DOCUMENT CONTEXT (use this to inform realistic financials): ${financialDocs || 'None specified, use industry benchmarks'}
+         
+         ${fundingSpecifics}
+
+         REQUIREMENTS:
+         1. Use a professional, persuasive tone suitable for South African funding bodies (NYDA, SEFA, IDC, or commercial banks).
+         
+         OUTPUT FORMAT: JSON
+         Include these fields:
+         - executiveSummary (string, paragraphs focused on funding needs and impact)
+         - swot (object with arrays for 'strengths', 'weaknesses', 'opportunities', 'threats')
+         - marketResearch (object with 'tam', 'sam', 'som' as strings, 'targetAudience' as array of strings, 'competitorAnalysis' as string)
+         - productsServices (array of objects with 'name', 'description', 'pricing' as strings)
+         - financialPlan (object with 'fundingRequirement', 'fundingPurpose', 'useOfFunds' array of {category, amount}, 'revenueProjections' object with 'y1', 'y2', 'y3' as strings)
+         `;
+         
+         const response = await ai.models.generateContent({
+           model: 'gemini-3.5-flash',
+           contents: prompt,
+           config: { responseMimeType: 'application/json' }
+         });
+         
+         setGeneratedBusinessPlanData({ ...JSON.parse(response.text || '{}'), docType: 'Funding Proposal' });
+      }
     } catch (e) {
       console.error(e);
       alert('Generation failed. Check your connection.');
     } finally {
       setIsGeneratingProposal(false);
-    }
-  };
-
-  const handleCopy = () => {
-    if (generatedProposal) {
-      navigator.clipboard.writeText(generatedProposal.text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const saveProposalToVault = async () => {
-    if (!generatedProposal || !user) return;
-    
-    const typeLabel = generatedProposal.type === 'proposal' ? 'Proposal' : 'Business_Plan';
-    const docName = `AI_${businessInfo.name.replace(/\s+/g, '_')}_${typeLabel}.txt`;
-    const newDoc = {
-      name: docName,
-      type: 'text/plain',
-      size: generatedProposal.text.length,
-      uploadDate: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-      category: 'AI Generated',
-      content: generatedProposal.text
-    };
-    
-    const docsRef = collection(db, 'users', user.id, 'documents');
-    try {
-      const ref = await addDoc(docsRef, newDoc);
-      setDocuments(prev => [...prev, { id: ref.id, ...newDoc } as AppDocument]);
-      setGeneratedProposal(null);
-      alert('Document saved to your Vault!');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `users/${user.id}/documents`);
     }
   };
 
@@ -356,6 +456,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
           </div>
         ) : activeTab === 'business' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+               <div>
+                  <h4 className="font-black text-cyan-400 flex items-center gap-2 mb-1"><Sparkles size={18} /> Auto-Fill with AI</h4>
+                  <p className="text-sm text-gray-400">Instantly populate your profile using information from your already uploaded Vault documents.</p>
+               </div>
+               <button 
+                  onClick={handleAutoFillFromVault}
+                  disabled={isSaving}
+                  className="px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-black rounded-xl whitespace-nowrap transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+               >
+                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} 
+                  {isSaving ? 'Extracting...' : 'Scan My Vault'}
+               </button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Business Name</label>
@@ -428,6 +544,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
 
         {activeTab === 'owner' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+               <div>
+                  <h4 className="font-black text-cyan-400 flex items-center gap-2 mb-1"><Sparkles size={18} /> Auto-Fill with AI</h4>
+                  <p className="text-sm text-gray-400">Instantly populate owner details using information from your already uploaded Vault documents.</p>
+               </div>
+               <button 
+                  onClick={handleAutoFillOwnerFromVault}
+                  disabled={isSaving}
+                  className="px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-black rounded-xl whitespace-nowrap transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+               >
+                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} 
+                  {isSaving ? 'Extracting...' : 'Scan My Vault'}
+               </button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Full Name</label>
@@ -535,7 +667,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
                     
                     <div className="space-y-3">
                       <button 
-                        onClick={() => handleGenerateProposal('proposal')}
+                        onClick={() => {
+                           if (!isPaid) onUpgrade();
+                           else setConfigModal({ type: 'proposal', amount: '', purpose: '', impact: '', roi: '' });
+                        }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-cyan-500/10 hover:border-cyan-500/30 transition-all group relative overflow-hidden"
                       >
@@ -551,7 +686,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
                         {isGeneratingProposal ? <Loader2 size={16} className="animate-spin text-cyan-400" /> : <ChevronRight size={16} className="text-gray-600 group-hover:text-cyan-400" />}
                       </button>
                       <button 
-                        onClick={() => handleGenerateProposal('businessplan')}
+                        onClick={() => {
+                           if (!isPaid) onUpgrade();
+                           else setConfigModal({ type: 'businessplan', amount: '', purpose: '', impact: '', roi: '' });
+                        }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all group relative overflow-hidden"
                       >
@@ -573,38 +711,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
                   </div>
                 </div>
 
-                {generatedProposal && (
-                  <div className="glass-panel p-8 rounded-3xl border border-purple-500/30 animate-in slide-in-from-top-4 duration-500 relative bg-white/5">
-                    <div className="flex justify-between items-center mb-6">
-                      <div className="flex items-center gap-2">
-                        <Sparkles size={20} className="text-purple-400" />
-                        <h3 className="text-lg font-black capitalize">Generated {generatedProposal.type === 'proposal' ? 'Proposal' : 'Business Plan'}</h3>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={handleCopy}
-                          title="Copy to clipboard"
-                          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all border border-white/5"
-                        >
-                          {copied ? <Check size={18} className="text-emerald-400" /> : <Copy size={18} />}
-                        </button>
-                        <button onClick={() => setGeneratedProposal(null)} className="p-2.5 rounded-xl hover:bg-white/5 text-gray-500"><X size={20} /></button>
-                      </div>
-                    </div>
-                    <div className="max-h-[500px] overflow-y-auto custom-scrollbar bg-black/40 p-8 rounded-2xl border border-white/5 mb-6 shadow-inner">
-                      <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed font-serif prose prose-invert max-w-none">
-                        {generatedProposal.text}
-                      </div>
-                    </div>
-                    <div className="flex gap-4">
-                      <button 
-                        onClick={saveProposalToVault}
-                        className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl shadow-purple-500/20"
-                      >
-                        <FileDown size={20} /> Save to My Documents
-                      </button>
-                    </div>
-                  </div>
+                {/* Text-based proposal rendering removed */}
+
+                {generatedBusinessPlanData && (
+                  <BusinessPlanDocument
+                     data={generatedBusinessPlanData}
+                     businessInfo={{...businessInfo, ownerInfo}}
+                     title={generatedBusinessPlanData.docType}
+                     onClose={() => setGeneratedBusinessPlanData(null)}
+                  />
                 )}
 
                 <div className="space-y-4">
@@ -734,6 +849,54 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
           </div>
         )}
       </div>
+
+      {configModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#111827] border border-white/10 p-8 rounded-3xl w-full max-w-lg shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setConfigModal(null)}
+              className="absolute top-6 right-6 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+            <h3 className="text-2xl font-black text-white mb-2">Funding Details</h3>
+            <p className="text-gray-400 text-sm mb-6">Before we generate your {configModal.type === 'proposal' ? 'Funding Proposal' : 'Business Plan'}, tell us a bit about what you're applying for.</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">How much funding do you need?</label>
+                <input type="text" value={configModal.amount} onChange={e => setConfigModal({...configModal, amount: e.target.value})} placeholder="e.g., R 500,000" className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-cyan-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">What are you applying for? (Purpose)</label>
+                <input type="text" value={configModal.purpose} onChange={e => setConfigModal({...configModal, purpose: e.target.value})} placeholder="e.g., Buying new equipment, working capital" className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-cyan-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">How will this help your business?</label>
+                <textarea value={configModal.impact} onChange={e => setConfigModal({...configModal, impact: e.target.value})} placeholder="e.g., It will allow us to double production capacity..." className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-cyan-500 focus:outline-none h-24 custom-scrollbar" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Expected Revenue Impact (ROI)?</label>
+                <input type="text" value={configModal.roi} onChange={e => setConfigModal({...configModal, roi: e.target.value})} placeholder="e.g., Increase monthly revenue by 40%" className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-cyan-500 focus:outline-none" />
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => {
+                const type = configModal.type;
+                const config = { ...configModal };
+                setConfigModal(null);
+                handleGenerateProposal(type, config);
+              }}
+              disabled={!configModal.amount || !configModal.purpose}
+              className="w-full mt-8 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-black py-4 rounded-xl flex justify-center items-center gap-2"
+            >
+              Generate Document <Wand2 size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

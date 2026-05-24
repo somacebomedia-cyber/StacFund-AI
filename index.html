@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#050510">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="StacFund">
-    <link rel="apple-touch-icon" href="/icon.svg">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg?v=4">
+    <link rel="apple-touch-icon" href="/icon.svg?v=4">
+    <link rel="manifest" href="/manifest.json?v=4">
     <title>StacFund - Power Your Business</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -50,23 +52,21 @@
           background-size: 200% 100%;
           animation: shimmer 2s infinite;
         }
-        /* Loader for initial startup */
-        #root:empty::before {
-            content: 'Loading StacFund...';
-            display: flex;
-            height: 100vh;
-            justify-content: center;
-            align-items: center;
-            color: #6b7280;
-            font-weight: 600;
-            font-size: 0.875rem;
-            letter-spacing: 0.05em;
+        @keyframes pulse-logo {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
         }
     </style>
 
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div style="display:flex;height:100vh;justify-content:center;align-items:center;background-color:#050510;flex-direction:column;gap:20px;">
+           <img src="https://plain-apac-prod-public.komododecks.com/202605/18/MVQzOoGi4sCDyhKzfhaM/image.png" alt="StacFund Logo" referrerPolicy="no-referrer" style="width:100px;height:100px;object-fit:contain;animation:pulse-logo 2s infinite ease-in-out;">
+           <div style="color:#6b7280;font-weight:600;font-size:0.875rem;letter-spacing:0.05em;font-family:'Inter',sans-serif;">Loading StacFund...</div>
+        </div>
+    </div>
     <script type="module" src="./index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
