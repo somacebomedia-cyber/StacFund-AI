@@ -89,6 +89,7 @@ export interface Application {
   status: ApplicationStatus;
   date: string;
   type: FundingType;
+  submissionMethod?: string;
 }
 
 export interface AppDocument {

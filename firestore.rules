@@ -48,6 +48,12 @@ service cloud.firestore {
         && data.type is string && data.type.size() <= 50;
     }
 
+    function isValidFundingNeed(data) {
+      return data.itemName is string && data.itemName.size() <= 200
+        && data.estimatedCost is number
+        && data.status in ['pending', 'applied', 'received'];
+    }
+
     match /user_business_profiles/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       allow create: if isOwner(userId) && isValidId(userId) && isValidUserBusinessProfile(incoming(), userId);
@@ -78,8 +84,7 @@ service cloud.firestore {
 
       // Subcollections
       match /applications/{appId} {
-        // Enforce boundary by checking the list query actually checks the opportunityId is a string
-        allow list: if isOwner(userId) && existing().opportunityId is string;
+        allow list: if isOwner(userId);
         allow get: if isOwner(userId) && isValidId(appId);
         allow create: if isOwner(userId) && isValidId(appId) && isValidApplication(incoming());
         allow update: if isOwner(userId) && isValidId(appId) && isValidApplication(incoming())
@@ -88,13 +93,21 @@ service cloud.firestore {
       }
 
       match /documents/{docId} {
-        // Must tie the list to document type data to avoid blanket fetching bypassing structure
-        allow list: if isOwner(userId) && existing().name is string;
+        allow list: if isOwner(userId);
         allow get: if isOwner(userId) && isValidId(docId);
         allow create: if isOwner(userId) && isValidId(docId) && isValidDocument(incoming());
         allow update: if isOwner(userId) && isValidId(docId) && isValidDocument(incoming())
           && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type', 'size', 'updatedAt']);
         allow delete: if isOwner(userId) && isValidId(docId);
+      }
+
+      match /funding_needs/{needId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(needId);
+        allow create: if isOwner(userId) && isValidId(needId) && isValidFundingNeed(incoming());
+        allow update: if isOwner(userId) && isValidId(needId) && isValidFundingNeed(incoming())
+          && incoming().diff(existing()).affectedKeys().hasOnly(['itemName', 'estimatedCost', 'reason', 'status', 'appliedTo', 'productLink', 'quotationDocId', 'quotationDocName']);
+        allow delete: if isOwner(userId) && isValidId(needId);
       }
     }
   }

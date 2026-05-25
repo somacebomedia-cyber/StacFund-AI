@@ -15,6 +15,8 @@ import PresentationDesigner from '../components/PresentationDesigner';
 import AILogoGenerator from '../components/AILogoGenerator';
 import AdvertGenerator from '../components/AdvertGenerator';
 import BusinessRegistration from '../components/BusinessRegistration';
+import FundingNeedsTracker from '../components/FundingNeedsTracker';
+import { ApplicationTracker } from '../components/ApplicationTracker';
 
 interface DashboardProps {
   onCompleteProfile: () => void;
@@ -31,14 +33,18 @@ interface AIMatch {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFunding, onAvatarUpdate, onUpgrade, user }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'opportunities' | 'tools'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'opportunities' | 'needs' | 'tools'>('overview');
   const [applications, setApplications] = useState<Application[]>([]);
   const [docCount, setDocCount] = useState(0);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
+  const [selectedApplicationForTracker, setSelectedApplicationForTracker] = useState<Application | null>(null);
+  
   const [aiMatches, setAiMatches] = useState<AIMatch[]>([]);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [hasProfile, setHasProfile] = useState(false);
+  const [businessInfo, setBusinessInfo] = useState<any>({});
+  const [ownerInfo, setOwnerInfo] = useState<any>({});
   const [readiness, setReadiness] = useState<ReadinessInfo | null>(null);
   const [isLoadingReadiness, setIsLoadingReadiness] = useState(false);
   
@@ -85,13 +91,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
             // 3. Fetch Profile for Readiness
             const userDocRef = doc(db, 'users', user.id);
             const userDoc = await getDoc(userDocRef);
-            if (userDoc.exists() && userDoc.data().profile) {
-                setHasProfile(true);
-                const combinedProfile = {
-                  ...userDoc.data().profile,
-                  ownerInfo: userDoc.data().ownerInfo || {}
-                };
-                calculateReadiness(JSON.stringify(combinedProfile), docSnapshot.size);
+            if (userDoc.exists()) {
+                const data = userDoc.data();
+                if (data.profile) {
+                    setHasProfile(true);
+                    setBusinessInfo(data.profile);
+                    setOwnerInfo(data.ownerInfo || {});
+                    const combinedProfile = {
+                      ...data.profile,
+                      ownerInfo: data.ownerInfo || {}
+                    };
+                    calculateReadiness(JSON.stringify(combinedProfile), docSnapshot.size);
+                }
             }
         } catch (e) {
             handleFirestoreError(e, OperationType.GET, `users/${user.id}`);
@@ -299,7 +310,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           </div>
 
           <div className="glass-panel p-1.5 rounded-2xl flex overflow-x-auto hide-scrollbar gap-1">
-            {['overview', 'applications', 'opportunities', 'tools'].map((tab) => (
+            {['overview', 'applications', 'opportunities', 'needs', 'tools'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -311,7 +322,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                   <span className="flex items-center justify-center gap-2">
                     {tab} <Sparkles size={14} className="text-cyan-400" />
                   </span>
-                ) : tab}
+                ) : tab === 'needs' ? 'Funding Needs' : tab}
               </button>
             ))}
           </div>
@@ -339,7 +350,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     applications.slice(0, 3).map(app => (
                       <div 
                         key={app.id} 
-                        className={`glass-panel p-5 rounded-2xl flex items-center justify-between group hover:border-white/20 transition-all ${app.status === ApplicationStatus.DRAFT ? 'cursor-pointer' : ''}`}
+                        className={`glass-panel p-5 rounded-2xl flex items-center justify-between group hover:border-white/20 transition-all cursor-pointer`}
                         onClick={() => {
                           if (app.status === ApplicationStatus.DRAFT) {
                             onBrowseFunding(app.opportunityId || app.id, true, {
@@ -347,6 +358,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                               provider: app.provider || 'Unknown Provider',
                               type: app.type || FundingType.GRANT
                             });
+                          } else {
+                            setSelectedApplicationForTracker(app);
                           }
                         }}
                       >
@@ -358,7 +371,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                           </div>
                           <div><h4 className="font-bold group-hover:text-purple-400 transition-colors">{app.opportunityTitle}</h4><p className="text-xs text-gray-500">{app.provider} • {app.date}</p></div>
                         </div>
-                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${getStatusStyle(app.status)}`}>{app.status === ApplicationStatus.DRAFT ? 'IN PROGRESS' : app.status.replace('_', ' ')}</div>
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${getStatusStyle(app.status)}`}>
+                          {app.status === ApplicationStatus.DRAFT ? 'IN PROGRESS' : app.status.replace('_', ' ')}
+                          {app.submissionMethod === 'DIRECT_API' && <Zap size={10} className="text-amber-400 fill-amber-400" title="Direct Connect Fast-Track" />}
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -399,7 +415,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                       return (
                         <div 
                           key={app.id} 
-                          className={`glass-panel p-6 rounded-3xl group hover:border-white/20 transition-all relative overflow-hidden ${app.status === ApplicationStatus.DRAFT ? 'cursor-pointer' : ''}`}
+                          className={`glass-panel p-6 rounded-3xl group hover:border-white/20 transition-all relative overflow-hidden cursor-pointer`}
                           onClick={() => {
                             if (app.status === ApplicationStatus.DRAFT) {
                               onBrowseFunding(app.opportunityId || app.id, true, {
@@ -407,6 +423,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                                 provider: app.provider || 'Unknown Provider',
                                 type: app.type || FundingType.GRANT
                               });
+                            } else {
+                              setSelectedApplicationForTracker(app);
                             }
                           }}
                         >
@@ -436,6 +454,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                                 <span className="text-xs font-bold text-gray-400">{progress}%</span>
                                 <span className={`text-xs font-black px-2 py-0.5 rounded-md ${app.status === ApplicationStatus.REJECTED ? 'bg-red-500/10 text-red-400' : 'text-white'}`}>
                                   {app.status === ApplicationStatus.DRAFT ? 'IN PROGRESS' : app.status.replace('_', ' ')}
+                                  {app.submissionMethod === 'DIRECT_API' && (
+                                    <span className="ml-2 text-amber-400 inline-flex items-center gap-1 bg-amber-400/10 px-1.5 py-0.5 rounded text-[8px]">
+                                      <Zap size={10} className="fill-amber-400" /> FAST-TRACK
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                               <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
@@ -542,6 +565,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     </div>
                   )}
                </div>
+            )}
+            
+            {activeTab === 'needs' && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <FundingNeedsTracker 
+                   user={user} 
+                   onUpgrade={onUpgrade} 
+                   businessInfo={{...businessInfo, name: businessInfo.name || user?.businessName}} 
+                   ownerInfo={ownerInfo} 
+                />
+              </div>
             )}
             
             {activeTab === 'tools' && (
@@ -779,6 +813,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           </div>
         </div>
       </div>
+
+      {selectedApplicationForTracker && (
+        <ApplicationTracker 
+          application={selectedApplicationForTracker} 
+          onClose={() => setSelectedApplicationForTracker(null)} 
+        />
+      )}
     </div>
   );
 };

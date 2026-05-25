@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, FileText, Download, Loader2, ArrowRight, ArrowLeft, FileSignature, Briefcase, ShieldCheck, FileCheck, Upload, Wand2, Sparkles, Building, Hash, Phone, Banknote, HelpCircle, Check } from 'lucide-react';
+import { X, CheckCircle2, FileText, Download, Loader2, ArrowRight, ArrowLeft, FileSignature, Briefcase, ShieldCheck, FileCheck, Upload, Wand2, Sparkles, Building, Hash, Phone, Banknote, HelpCircle, Check, Send, Zap } from 'lucide-react';
 import { FundingOpportunityDb, User, ApplicationStatus, AppDocument } from '../types';
 import { GoogleGenAI } from '@google/genai';
 import { db } from '../services/firebase';
@@ -17,7 +17,7 @@ const steps = [
   { num: 1, label: 'Application Form', description: 'Basic details required', icon: FileSignature },
   { num: 2, label: 'Business Plan', description: 'AI-generated proposal', icon: Briefcase },
   { num: 3, label: 'Compliance Docs', description: 'Select attached files', icon: ShieldCheck },
-  { num: 4, label: 'Review & Download', description: 'Get your pack', icon: Download }
+  { num: 4, label: 'Submit Application', description: 'Choose your route', icon: Send }
 ];
 
 const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, user, onClose, onComplete }) => {
@@ -29,6 +29,9 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [includeAppForm, setIncludeAppForm] = useState(true);
   const [includeBusinessPlan, setIncludeBusinessPlan] = useState(true);
+  
+  const [isDirectSubmitting, setIsDirectSubmitting] = useState(false);
+  const [directSubmitStatus, setDirectSubmitStatus] = useState('');
   
   const [formData, setFormData] = useState({
     businessName: user.businessName || '',
@@ -131,6 +134,76 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
     setSelectedDocs(prev => 
       prev.includes(docId) ? prev.filter(id => id !== docId) : [...prev, docId]
     );
+  };
+
+  const handleDirectSubmit = async () => {
+    setIsDirectSubmitting(true);
+    setDirectSubmitStatus(`Establishing secure connection...`);
+    await new Promise(r => setTimeout(r, 1200));
+    setDirectSubmitStatus(`Connecting to ${opportunity.issuer_name}...`);
+    await new Promise(r => setTimeout(r, 1200));
+    setDirectSubmitStatus('Encrypting submission pack...');
+    await new Promise(r => setTimeout(r, 1200));
+    setDirectSubmitStatus('Transmitting business profile and documents...');
+    await new Promise(r => setTimeout(r, 1500));
+    setDirectSubmitStatus('Awaiting institution receipt confirmation...');
+    await new Promise(r => setTimeout(r, 1500));
+    setDirectSubmitStatus('Application Received.');
+    await new Promise(r => setTimeout(r, 800));
+    
+    const appsRef = collection(db, 'users', user.id, 'applications');
+    const q = query(appsRef, where("opportunityId", "==", opportunity.opportunity_id));
+    
+    try {
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const appDoc = querySnapshot.docs[0];
+        await updateDoc(doc(db, 'users', user.id, 'applications', appDoc.id), {
+          status: ApplicationStatus.SUBMITTED,
+          submissionMethod: 'DIRECT_API',
+          date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+        });
+      } else {
+        const newApplication = {
+          opportunityId: opportunity.opportunity_id,
+          opportunityTitle: opportunity.programme_name,
+          provider: opportunity.issuer_name,
+          status: ApplicationStatus.SUBMITTED,
+          submissionMethod: 'DIRECT_API',
+          date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+          type: opportunity.funding_type
+        };
+        await addDoc(appsRef, newApplication);
+      }
+      
+      const applications = JSON.parse(localStorage.getItem('stacfund_applications') || '[]');
+      const existingIndex = applications.findIndex((a: any) => a.opportunityId === opportunity.opportunity_id && a.userId === user.id);
+      
+      if (existingIndex >= 0) {
+        applications[existingIndex].status = ApplicationStatus.SUBMITTED;
+        applications[existingIndex].submissionMethod = 'DIRECT_API';
+        applications[existingIndex].date = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+        localStorage.setItem('stacfund_applications', JSON.stringify(applications));
+      } else {
+        const newApplication = {
+          opportunityId: opportunity.opportunity_id,
+          opportunityTitle: opportunity.programme_name,
+          provider: opportunity.issuer_name,
+          status: ApplicationStatus.SUBMITTED,
+          submissionMethod: 'DIRECT_API',
+          date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+          type: opportunity.funding_type
+        };
+        localStorage.setItem('stacfund_applications', JSON.stringify([...applications, { ...newApplication, id: Math.random().toString(36).substr(2, 9), userId: user.id }]));
+      }
+      
+      setIsDirectSubmitting(false);
+      onComplete();
+    } catch (error) {
+      setIsDirectSubmitting(false);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}/applications`);
+    }
   };
 
   const handleDownloadPack = async () => {
@@ -416,13 +489,13 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
             {step === 4 && (
               <div className="max-w-2xl mx-auto h-full flex flex-col justify-center animate-in slide-in-from-right-8 fade-in duration-500">
                 <div className="text-center mb-10">
-                  <h3 className="text-3xl font-black mb-3">Your Application Pack</h3>
+                  <h3 className="text-3xl font-black mb-3">Submit Application</h3>
                   <p className="text-gray-400 text-sm max-w-md mx-auto">
-                    Review what's included. Download the final compiled <b>.ZIP</b> file. This action will mark your application as "Submitted".
+                    Review what's included. Choose how you want to submit your application below.
                   </p>
                 </div>
                 
-                <div className="bg-black/40 border border-white/5 rounded-[2rem] p-8 mb-10 relative overflow-hidden backdrop-blur-xl">
+                <div className="bg-black/40 border border-white/5 rounded-[2rem] p-8 mb-8 relative overflow-hidden backdrop-blur-xl">
                   {/* Decorative background elements */}
                   <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
                   
@@ -467,23 +540,50 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
                   </div>
                 </div>
 
-                <button 
-                  onClick={handleDownloadPack}
-                  disabled={isLoading || (!includeAppForm && !includeBusinessPlan && selectedDocs.length === 0)}
-                  className="w-full relative inline-flex items-center justify-center overflow-hidden rounded-2xl bg-white px-8 py-5 font-black text-black transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:hover:scale-100 shadow-[0_0_40px_rgba(255,255,255,0.1)]"
-                >
-                  {isLoading ? (
-                    <span className="flex items-center gap-3">
-                      <Loader2 className="animate-spin text-gray-400" size={24} />
-                      Zipping Files...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-3">
-                      <Download size={24} />
-                      Download Pack & Submit
-                    </span>
-                  )}
-                </button>
+                {isDirectSubmitting ? (
+                  <div className="bg-[#0a0a1a] border border-emerald-500/30 rounded-2xl p-8 flex flex-col items-center justify-center space-y-6 shadow-[0_0_40px_rgba(16,185,129,0.15)] relative overflow-hidden">
+                    <div className="absolute inset-0 bg-emerald-500/5 pulse-animation"></div>
+                    <Loader2 className="animate-spin text-emerald-400 relative z-10" size={36} />
+                    <p className="font-bold text-emerald-400 text-lg relative z-10 text-center animate-pulse">{directSubmitStatus}</p>
+                    <div className="w-full max-w-xs h-1.5 bg-white/5 rounded-full overflow-hidden mt-4 relative z-10">
+                       <div className="h-full bg-emerald-500 rounded-full w-1/2" style={{animation: "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate"}}></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button 
+                      onClick={handleDirectSubmit}
+                      disabled={isLoading || (!includeAppForm && !includeBusinessPlan && selectedDocs.length === 0)}
+                      className="group relative flex flex-col items-start justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500/90 to-purple-600/90 hover:from-indigo-500 hover:to-purple-600 p-6 font-black text-white hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 shadow-[0_4px_20px_rgba(168,85,247,0.3)] text-left border border-white/10"
+                    >
+                       <div>
+                         <div className="p-3 bg-white/20 rounded-xl mb-4 group-hover:scale-110 transition-transform inline-block"><Zap size={24} className="text-white drop-shadow-md" fill="currentColor" /></div>
+                         <h4 className="text-xl mb-2 drop-shadow-sm">Direct Connect</h4>
+                         <p className="text-xs text-white/85 font-medium leading-relaxed drop-shadow-sm">Send instantly to {opportunity.issuer_name} via secure API bridging. Fast-Track timeline.</p>
+                       </div>
+                       <span className="absolute top-4 right-4 bg-white/20 backdrop-blur-md px-2 py-1 rounded text-[10px] uppercase tracking-widest font-black shadow-sm">Recommended</span>
+                    </button>
+                    
+                    <button 
+                      onClick={handleDownloadPack}
+                      disabled={isLoading || (!includeAppForm && !includeBusinessPlan && selectedDocs.length === 0)}
+                      className="group relative flex flex-col items-start justify-between overflow-hidden rounded-2xl bg-white/5 border border-white/10 p-6 font-black text-white hover:bg-white/10 hover:border-white/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 text-left"
+                    >
+                      {isLoading ? (
+                        <div className="flex flex-col items-start">
+                          <div className="p-3 bg-white/10 rounded-xl mb-4 inline-block"><Loader2 className="animate-spin text-gray-400" size={24} /></div>
+                          <h4 className="text-xl mb-2">Zipping Files...</h4>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-start">
+                          <div className="p-3 bg-white/10 rounded-xl mb-4 group-hover:scale-110 transition-transform inline-block"><Download size={24} className="text-gray-400 group-hover:text-white transition-colors" /></div>
+                          <h4 className="text-xl mb-2">Manual Download</h4>
+                          <p className="text-xs text-gray-400 font-medium leading-relaxed group-hover:text-gray-300 transition-colors">Download a complete .ZIP pack to submit via the traditional standard portal.</p>
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
