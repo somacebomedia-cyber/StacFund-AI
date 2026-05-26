@@ -26,6 +26,7 @@ export interface FundingOpportunityDb {
   programme_name: string;
   issuer_name: string;
   issuer_type: string;
+  logo_url?: string;
   official_status: boolean;
   status: 'OPEN' | 'CLOSED' | 'UPCOMING';
   funding_type: FundingType | string;
@@ -39,6 +40,7 @@ export interface FundingOpportunityDb {
   eligibility_summary: string;
   required_documents: string[];
   application_url: string;
+  pdf_form_url?: string;
   source_url: string;
   closing_date: string;
   frequency: string;
@@ -86,6 +88,7 @@ export interface Application {
   opportunityId: string;
   opportunityTitle: string;
   provider: string;
+  logoUrl?: string;
   status: ApplicationStatus;
   date: string;
   type: FundingType;

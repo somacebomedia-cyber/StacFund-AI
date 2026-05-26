@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck } from 'lucide-react';
-import { GoogleGenAI, Type, Schema } from '@google/genai';
-import { collection, addDoc, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck, Server } from 'lucide-react';
+import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { MOCK_FUNDING } from '../constants';
 import { FundingType, User, ApplicationStatus, FundingOpportunityDb, UserBusinessProfile } from '../types';
@@ -25,7 +24,6 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   const [mode, setMode] = useState<'DISCOVER' | 'TIMELINE' | 'MATCH_ME' | 'APPLY_READY'>('DISCOVER');
   const [searchQuery, setSearchQuery] = useState('');
   const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info'}>({ show: false, message: '', type: 'success' });
-  const [isScanning, setIsScanning] = useState(false);
   const [selectedOpp, setSelectedOpp] = useState<FundingOpportunityDb | null>(null);
   const [workflowOpp, setWorkflowOpp] = useState<FundingOpportunityDb | null>(null);
   const [newOppAlert, setNewOppAlert] = useState<{show: boolean, count: number}>({ show: false, count: 0 });
@@ -46,7 +44,6 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists() && userDoc.data().profile) {
           const p = userDoc.data().profile;
-          // Map to schema. Fallback values just to ensure matches work.
           setUserProfile({
             user_id: user.id,
             business_status: p.registered === 'Yes' ? 'REGISTERED' : 'CONCEPT',
@@ -69,64 +66,86 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
     fetchProfile();
   }, [user]);
 
-  // Initialize Data
+  // Initialize Data from Firestore
   useEffect(() => {
-    const storedOps = localStorage.getItem('stacfund_live_opportunities');
-    const storedTime = localStorage.getItem('stacfund_last_scan');
-    
-    if (storedOps) {
-      setOpportunities(JSON.parse(storedOps));
-    } else {
-      setOpportunities(MOCK_FUNDING as FundingOpportunityDb[]);
-    }
+    const fetchOpportunities = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'funding_opportunities'));
+        let ops: FundingOpportunityDb[] = [];
+        
+        let existingIds = new Set<string>();
+        querySnapshot.forEach((docSnap) => {
+          ops.push(docSnap.data() as FundingOpportunityDb);
+          existingIds.add(docSnap.id);
+        });
 
+        // Sync new central registry items that aren't in Firestore yet
+        const missingOps = MOCK_FUNDING.filter(op => !existingIds.has(op.opportunity_id));
+        if (missingOps.length > 0) {
+          const seedPromises = missingOps.map(async (op) => {
+            const opRef = doc(db, 'funding_opportunities', op.opportunity_id);
+            await setDoc(opRef, op);
+            return op;
+          });
+          
+          await Promise.all(seedPromises);
+          ops = [...ops, ...missingOps];
+        }
+        
+        setOpportunities(ops);
+
+        // Also sync active & resume IDs based on the fetched global list
+        if (activeOpportunityId) {
+          const opp = ops.find(o => o.opportunity_id === activeOpportunityId);
+          if (opp) setSelectedOpp(opp);
+        }
+        
+        if (resumeOpportunityId) {
+          let opp = ops.find(o => o.opportunity_id === resumeOpportunityId);
+          if (!opp && fallbackOpportunity) {
+            opp = {
+              opportunity_id: resumeOpportunityId,
+              programme_name: fallbackOpportunity.title || 'Unknown Opportunity',
+              issuer_name: fallbackOpportunity.provider || 'Unknown Provider',
+              issuer_type: 'PRIVATE',
+              official_status: false,
+              status: 'OPEN',
+              funding_type: fallbackOpportunity.type || FundingType.GRANT,
+              target_stage: 'Any',
+              legal_form_required: [],
+              sector_tags: [],
+              geo_scope: 'National',
+              amount_min: 0,
+              amount_max: 0,
+              non_cash_support: 'No',
+              eligibility_summary: 'Opportunity details are currently unavailable. You can still continue your application.',
+              required_documents: [],
+              application_url: '',
+              source_url: '',
+              closing_date: 'Unknown',
+              frequency: 'Once-off',
+              contact_email: '',
+              contact_phone: '',
+              last_verified_at: new Date().toISOString(),
+              verification_notes: '',
+              confidence_score: 50
+            } as FundingOpportunityDb;
+          }
+          if (opp) setWorkflowOpp(opp);
+        }
+
+      } catch (error) {
+        console.error('Error fetching global opportunities', error);
+        // Fallback to MOCK_FUNDING on fail
+        setOpportunities(MOCK_FUNDING as FundingOpportunityDb[]);
+      }
+    };
+    
+    fetchOpportunities();
+
+    const storedTime = localStorage.getItem('stacfund_last_scan');
     if (storedTime) {
       setLastUpdated(storedTime);
-    }
-
-    // Sync active ID prop
-    if (activeOpportunityId && typeof activeOpportunityId === 'string') {
-      const allOps = storedOps ? JSON.parse(storedOps) : MOCK_FUNDING;
-      const opp = allOps.find((o: FundingOpportunityDb) => o.opportunity_id === activeOpportunityId);
-      if (opp) setSelectedOpp(opp);
-    }
-
-    // Sync resume ID prop
-    if (resumeOpportunityId && typeof resumeOpportunityId === 'string') {
-      const allOps = storedOps ? JSON.parse(storedOps) : MOCK_FUNDING;
-      let opp = allOps.find((o: FundingOpportunityDb) => o.opportunity_id === resumeOpportunityId);
-      
-      if (!opp && fallbackOpportunity) {
-        opp = {
-          opportunity_id: resumeOpportunityId,
-          programme_name: fallbackOpportunity.title || 'Unknown Opportunity',
-          issuer_name: fallbackOpportunity.provider || 'Unknown Provider',
-          issuer_type: 'PRIVATE',
-          official_status: false,
-          status: 'OPEN',
-          funding_type: fallbackOpportunity.type || FundingType.GRANT,
-          target_stage: 'Any',
-          legal_form_required: [],
-          sector_tags: [],
-          geo_scope: 'National',
-          amount_min: 0,
-          amount_max: 0,
-          non_cash_support: 'No',
-          eligibility_summary: 'Opportunity details are currently unavailable. You can still continue your application.',
-          required_documents: [],
-          application_url: '',
-          source_url: '',
-          closing_date: 'Unknown',
-          frequency: 'Once-off',
-          contact_email: '',
-          contact_phone: '',
-          last_verified_at: new Date().toISOString(),
-          verification_notes: '',
-          confidence_score: 50
-        } as FundingOpportunityDb;
-      }
-      
-      if (opp) setWorkflowOpp(opp);
     }
   }, [activeOpportunityId, resumeOpportunityId, fallbackOpportunity]);
 
@@ -159,120 +178,6 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
      }
   }, [opportunities, searchQuery, mode, userProfile]);
 
-  const performLiveScan = async () => {
-    if (!user) {
-      onLogin();
-      return;
-    }
-    if (user.subscriptionPlan === 'free') {
-      onUpgrade();
-      return;
-    }
-
-    setIsScanning(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const searchResponse = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: `Find 5 distinct, currently active funding opportunities (grants, loans, equity) available in South Africa for 2026/2027.`,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      const rawText = searchResponse.text || '';
-      if (!rawText) throw new Error("No results found from web scan.");
-
-      const structureResponse = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `You are a data extractor. Analyze this text and return a JSON array matching the FundingOpportunityDb schema.
-        
-        TEXT SOURCE:
-        ${rawText}
-        
-        Fields must include: programme_name, issuer_name, issuer_type (GOVERNMENT|BANK|PRIVATE|VC), official_status: true, funding_type (GRANT|LOAN|EQUITY|HYBRID), target_stage, legal_form_required (array), sector_tags (array), geo_scope (e.g. "National"), amount_min (number), amount_max (number), eligibility_summary, closing_date, confidence_score (80-100).
-        `,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                programme_name: { type: Type.STRING },
-                issuer_name: { type: Type.STRING },
-                issuer_type: { type: Type.STRING, enum: ['GOVERNMENT', 'BANK', 'PRIVATE', 'VC'] },
-                official_status: { type: Type.BOOLEAN },
-                funding_type: { type: Type.STRING, enum: ['GRANT', 'LOAN', 'EQUITY', 'HYBRID'] },
-                target_stage: { type: Type.STRING },
-                legal_form_required: { type: Type.ARRAY, items: { type: Type.STRING } },
-                sector_tags: { type: Type.ARRAY, items: { type: Type.STRING } },
-                geo_scope: { type: Type.STRING },
-                amount_min: { type: Type.INTEGER },
-                amount_max: { type: Type.INTEGER },
-                non_cash_support: { type: Type.BOOLEAN },
-                eligibility_summary: { type: Type.STRING },
-                required_documents: { type: Type.ARRAY, items: { type: Type.STRING } },
-                application_url: { type: Type.STRING },
-                source_url: { type: Type.STRING },
-                closing_date: { type: Type.STRING },
-                frequency: { type: Type.STRING },
-                contact_email: { type: Type.STRING },
-                contact_phone: { type: Type.STRING },
-                last_verified_at: { type: Type.STRING },
-                verification_notes: { type: Type.STRING },
-                confidence_score: { type: Type.INTEGER }
-              },
-              required: ['programme_name', 'issuer_name']
-            }
-          }
-        }
-      });
-
-      const parsedData = JSON.parse(structureResponse.text || '[]');
-      
-      const processedOps: FundingOpportunityDb[] = parsedData.map((op: any) => ({
-        ...op,
-        status: 'OPEN',
-        opportunity_id: 'live_' + Math.random().toString(36).substr(2, 9), 
-        last_verified_at: new Date().toISOString()
-      }));
-
-      const newTitles = new Set(processedOps.map(op => (op.programme_name || '').toLowerCase()));
-      const uniquePreviousLive = opportunities.filter(op => !newTitles.has((op.programme_name || '').toLowerCase()));
-
-      const updatedEncyclopedia = [...processedOps, ...uniquePreviousLive];
-
-      setOpportunities(updatedEncyclopedia);
-      localStorage.setItem('stacfund_live_opportunities', JSON.stringify(updatedEncyclopedia));
-      
-      const timeString = new Date().toLocaleString('en-ZA', { 
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', year: 'numeric' 
-      });
-      setLastUpdated(timeString);
-      localStorage.setItem('stacfund_last_scan', timeString);
-
-      setShowToast({
-        show: true,
-        message: `Encyclopedia Updated: ${processedOps.length} fresh opportunities found!`,
-        type: 'success'
-      });
-      setTimeout(() => setShowToast({ ...showToast, show: false }), 4000);
-
-    } catch (error) {
-      console.error('Scan failed:', error);
-      setShowToast({
-        show: true,
-        message: 'Scan failed. Please check your connection and try again.',
-        type: 'info'
-      });
-      setTimeout(() => setShowToast({ ...showToast, show: false }), 4000);
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
   const handleStartApplication = async (opportunityId: string) => {
     if (!user) {
       onLogin();
@@ -297,11 +202,24 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
       return;
     }
 
+    let logoUrl = opportunity.logo_url || null;
+    if (!logoUrl || logoUrl.endsWith('.gif')) {
+      try {
+        let domain = null;
+        if (opportunity.source_url) domain = new URL(opportunity.source_url).hostname;
+        else if (opportunity.application_url) domain = new URL(opportunity.application_url).hostname;
+        if (domain) logoUrl = `https://logo.clearbit.com/${domain}`;
+      } catch (e) {
+        // ignore
+      }
+    }
+
     try {
       await addDoc(appsRef, {
         opportunityId: opportunity.opportunity_id,
         opportunityTitle: opportunity.programme_name,
         provider: opportunity.issuer_name,
+        logoUrl: logoUrl,
         status: ApplicationStatus.DRAFT,
         date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
         type: opportunity.funding_type
@@ -380,36 +298,25 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
       {mode === 'DISCOVER' && (
       <div className="mb-12">
         <div className="glass-panel p-1 rounded-[2.5rem] relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-cyan-500 animate-shimmer"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-cyan-500"></div>
           <div className="bg-[#050510]/80 backdrop-blur-xl rounded-[2.3rem] p-8 md:p-12 relative overflow-hidden">
              
              <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
                <div className="max-w-2xl">
                  <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tight leading-none">
-                   Find Active <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Funding</span>
+                   South Africa's Central <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Funding</span> Database
                  </h2>
                  <p className="text-gray-400 text-lg leading-relaxed mb-6">
-                   Our AI scans the web for the latest grants, loans, and equity deals. 
+                   Instead of individual searches, we maintain a single, comprehensive, global database of active grants and loans for SMMEs and NPOs. Clean, verified, and always up-to-date.
                  </p>
-                 <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-gray-500">
-                   <span className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg">
-                     <Database size={14} className="text-purple-400" /> {opportunities.length} Total
+                 <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-gray-400">
+                   <span className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+                     <Database size={14} className="text-purple-400" /> {opportunities.length} Listed
+                   </span>
+                   <span className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+                     <Server size={14} className="text-emerald-400" /> Centrally Maintained
                    </span>
                  </div>
-               </div>
-
-               <div className="flex flex-col gap-4 w-full md:w-auto">
-                 <button 
-                   onClick={performLiveScan}
-                   disabled={isScanning}
-                   className="relative group bg-white text-black font-black text-lg px-8 py-5 rounded-2xl flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:scale-100"
-                 >
-                   {isScanning ? (
-                     <><Loader2 className="animate-spin text-cyan-600" size={24} /><span>Scanning...</span></>
-                   ) : (
-                     <><RefreshCw size={24} /><span>Live Scan</span></>
-                   )}
-                 </button>
                </div>
              </div>
           </div>

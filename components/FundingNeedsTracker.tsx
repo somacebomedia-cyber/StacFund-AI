@@ -173,7 +173,69 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
-      const prompt = `Write a comprehensive, professional ${type === 'businessplan' ? 'Detailed Business Plan' : 'Funding Proposal'} for a South African business in JSON format.
+      const businessPlanSchema = {
+        type: Type.OBJECT,
+        properties: {
+          executiveSummary: { type: Type.STRING },
+          swot: {
+            type: Type.OBJECT,
+            properties: {
+              strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+              weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
+              opportunities: { type: Type.ARRAY, items: { type: Type.STRING } },
+              threats: { type: Type.ARRAY, items: { type: Type.STRING } },
+            }
+          },
+          marketResearch: {
+            type: Type.OBJECT,
+            properties: {
+              tam: { type: Type.STRING, description: "Total Addressable Market in ZAR" },
+              sam: { type: Type.STRING, description: "Serviceable Addressable Market in ZAR" },
+              som: { type: Type.STRING, description: "Serviceable Obtainable Market in ZAR" },
+              targetAudience: { type: Type.ARRAY, items: { type: Type.STRING } },
+              competitorAnalysis: { type: Type.STRING },
+            }
+          },
+          productsServices: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                description: { type: Type.STRING },
+                pricing: { type: Type.STRING },
+              }
+            }
+          },
+          financialPlan: {
+            type: Type.OBJECT,
+            properties: {
+              fundingRequirement: { type: Type.STRING },
+              fundingPurpose: { type: Type.STRING },
+              useOfFunds: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    category: { type: Type.STRING },
+                    amount: { type: Type.STRING }
+                  }
+                }
+              },
+              revenueProjections: {
+                type: Type.OBJECT,
+                properties: {
+                  y1: { type: Type.STRING },
+                  y2: { type: Type.STRING },
+                  y3: { type: Type.STRING }
+                }
+              }
+            }
+          }
+        }
+      };
+
+      const prompt = `Write a comprehensive, professional ${type === 'businessplan' ? 'Detailed Business Plan' : 'Funding Proposal'} for a South African business.
       
       BUSINESS IDENTITY:
       - Name: ${businessInfo?.name || user.businessName}
@@ -184,19 +246,18 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
       
       ${fundingSpecifics}
       
-      OUTPUT FORMAT: JSON
-      Include these fields:
-      - executiveSummary (string, paragraphs focused SPECIFICALLY on needing the ${need.itemName} for R${need.estimatedCost})
-      - swot (object with arrays for 'strengths', 'weaknesses', 'opportunities', 'threats')
-      - marketResearch (object with 'tam', 'sam', 'som' as VERY SHORT strings e.g., 'ZAR 500M', 'targetAudience' as array of strings, 'competitorAnalysis' as string)
-      - productsServices (array of objects with 'name', 'description', 'pricing' as strings)
-      - financialPlan (object with 'fundingRequirement' as VERY SHORT string e.g., 'R${need.estimatedCost}', 'fundingPurpose' string, 'useOfFunds' array of {category, amount} including the ${need.itemName}, 'revenueProjections' object with 'y1', 'y2', 'y3' as VERY SHORT strings)
-      `;
+      REQUIREMENTS:
+      1. Write clear, detailed, and highly professional content.
+      2. Ensure financial numbers look realistic and form a coherent business trajectory.
+      3. Focus the executive summary tightly around the requested funding need.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-3.1-pro-preview',
         contents: prompt,
-        config: { responseMimeType: 'application/json' }
+        config: { 
+          responseMimeType: 'application/json',
+          responseSchema: businessPlanSchema
+        }
       });
       
       setGeneratedBusinessPlanData({ ...JSON.parse(response.text || '{}'), docType: type === 'businessplan' ? `Business Plan: ${need.itemName}` : `Funding Proposal: ${need.itemName}` });

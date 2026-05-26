@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, Sparkles, Loader2, Bot, Minimize2, ArrowUpRight, Mic, MicOff, RotateCcw, Zap, Command, CreditCard, Shield } from 'lucide-react';
 import { GoogleGenAI, GenerateContentResponse, Type, FunctionDeclaration } from '@google/genai';
-import { collection, getDocs, updateDoc, doc, query } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, query, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { User, Application } from '../types';
 import { MOCK_FUNDING } from '../constants';
@@ -123,6 +123,42 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
           },
           required: ['docId', 'newContent', 'action']
         }
+      },
+      {
+        name: 'open_form_digitizer',
+        description: 'Open the Offline Form Digitizer tool to scan and auto-fill physical municipality forms.',
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
+        name: 'open_presentation_designer',
+        description: 'Open the AI Pitch Deck Designer tool to create a funding presentation.',
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
+        name: 'get_applications',
+        description: 'Get the list of the user\'s funding applications and their statuses.',
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
+        name: 'clear_applications',
+        description: 'Clear all of the user\'s current applications.',
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
+        name: 'list_documents',
+        description: 'List all of the user\'s uploaded documents.',
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
+        name: 'open_dashboard_tab',
+        description: 'Change the active tab on the Dashboard screen.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            tab: { type: Type.STRING, enum: ['overview', 'applications', 'opportunities', 'needs', 'tools'], description: 'The dashboard tab to open.'}
+          },
+          required: ['tab']
+        }
       }
     ]
   };
@@ -228,10 +264,15 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
           - Open Logo generator using 'generate_logo'.
           - Generate Video Adverts using 'create_video_advert'.
           - Register a business with CIPC using 'register_business'.
+          - Access user applications via 'get_applications' and 'clear_applications'.
+          - Open the offline form digitizer with 'open_form_digitizer'.
+          - Open the AI pitch deck designer with 'open_presentation_designer'.
+          - List all uploaded documents with 'list_documents'.
+          - Switch Dashboard tabs using 'open_dashboard_tab' (e.g. applications, opportunities, needs, tools).
           
           CONTEXT:
-          - Business: ${user?.businessName || 'N/A'}
-          - WhatsApp: ${parsedProfile?.whatsapp || 'Not saved yet'}
+          - Business Name: ${user?.businessName || 'N/A'}
+          - Full Profile Data: ${JSON.stringify(parsedProfile || {})}
           
           BEHAVIOR:
           1. Actively use 'read_document' if the user asks about their business plan, pitch deck, or what documents they have. Read the document to answer their question!
@@ -255,11 +296,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
           let result = "Action performed successfully.";
           
           if (fc.name === 'update_business_profile') {
-            const currentProfile = JSON.parse(localStorage.getItem(`stacfund_profile_${user?.id}`) || '{}');
-            const updatedProfile = { ...currentProfile, ...fc.args };
-            localStorage.setItem(`stacfund_profile_${user?.id}`, JSON.stringify(updatedProfile));
-            if (onProfileUpdate) onProfileUpdate();
-            result = `Profile updated with: ${Object.keys(fc.args).join(', ')}`;
+            if (user) {
+              try {
+                await setDoc(doc(db, 'users', user.id), { profile: fc.args }, { merge: true });
+                if (onProfileUpdate) onProfileUpdate();
+                result = `Profile updated with: ${Object.keys(fc.args).join(', ')}`;
+              } catch (e) {
+                result = `Failed to update profile: ${e}`;
+              }
+            } else {
+              result = 'User not logged in.';
+            }
           } 
           else if (fc.name === 'navigate_to_page') {
             if (onNavigate) onNavigate(fc.args.page as string);
@@ -326,6 +373,65 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                result = `User not logged in.`;
              }
           }
+          else if (fc.name === 'open_form_digitizer') {
+            if (onNavigate) onNavigate('dashboard');
+            window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'digitizer' } }));
+            result = `Navigated to dashboard and opened Form Digitizer popup.`;
+          }
+          else if (fc.name === 'open_presentation_designer') {
+            if (onNavigate) onNavigate('dashboard');
+            window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'presentation' } }));
+            result = `Navigated to dashboard and opened AI Pitch Deck Designer popup.`;
+          }
+          else if (fc.name === 'get_applications') {
+            if (user) {
+              try {
+                const appsRef = collection(db, 'users', user.id, 'applications');
+                const appSnap = await getDocs(appsRef);
+                const apps = appSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                result = `User has ${apps.length} applications: ${JSON.stringify(apps)}`;
+              } catch (e) {
+                result = `Failed to fetch applications: ${e}`;
+              }
+            } else {
+              result = 'User not logged in.';
+            }
+          }
+          else if (fc.name === 'clear_applications') {
+            if (user) {
+              try {
+                const appsRef = collection(db, 'users', user.id, 'applications');
+                const appSnap = await getDocs(appsRef);
+                const deletePromises = appSnap.docs.map(document => deleteDoc(doc(db, 'users', user.id, 'applications', document.id)));
+                await Promise.all(deletePromises);
+                result = `Successfully cleared all ${appSnap.docs.length} applications.`;
+                if (onNavigate) onNavigate('dashboard'); // Trigger re-render or navigation to see changes
+              } catch (e) {
+                result = `Failed to clear applications: ${e}`;
+              }
+            } else {
+              result = 'User not logged in.';
+            }
+          }
+          else if (fc.name === 'list_documents') {
+            if (user) {
+              try {
+                const docsRef = collection(db, 'users', user.id, 'documents');
+                const docSnap = await getDocs(docsRef);
+                const docs = docSnap.docs.map(doc => ({id: doc.id, name: doc.data().name}));
+                result = `User has ${docs.length} documents: ${JSON.stringify(docs)}`;
+              } catch (e) {
+                result = `Failed to list documents: ${e}`;
+              }
+            } else {
+              result = `User not logged in.`;
+            }
+          }
+          else if (fc.name === 'open_dashboard_tab') {
+            if (onNavigate) onNavigate('dashboard');
+            window.dispatchEvent(new CustomEvent('update_dashboard_tab', { detail: { tab: fc.args.tab } }));
+            result = `Navigated to Dashboard and opened the '${fc.args.tab}' tab.`;
+          }
 
           functionResponses.push({
             id: fc.id,
@@ -354,13 +460,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
     }
   };
 
-  const suggestions = [
-    "Set WhatsApp to +27 71 234 5678",
-    "Go to Marketplace",
-    "Update my industry to Agriculture",
-    "Check my readiness"
-  ];
-
   return (
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end pointer-events-none">
       <AnimatePresence>
@@ -370,7 +469,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
             animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20, rotateX: 10 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            className="mb-6 w-[90vw] sm:w-[420px] h-[600px] sm:h-[700px] glass-panel rounded-[32px] border border-white/20 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden pointer-events-auto origin-bottom-right"
+            className="mb-6 w-[90vw] sm:w-[420px] h-[500px] sm:h-[580px] glass-panel rounded-[32px] border border-white/20 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden pointer-events-auto origin-bottom-right"
             style={{ 
               perspective: '1000px',
               boxShadow: '0 0 0 1px rgba(255,255,255,0.1), 0 20px 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05)'
@@ -451,19 +550,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
 
             {/* Input Area */}
             <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-3xl">
-              <div className="flex flex-wrap gap-2 mb-6 no-scrollbar overflow-x-auto pb-2">
-                {suggestions.map((s, i) => (
-                  <motion.button 
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    key={i}
-                    onClick={() => handleSendMessage(undefined, s)}
-                    className="text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-2xl text-gray-400 hover:text-white transition-all whitespace-nowrap flex items-center gap-2 group"
-                  >
-                    <Command size={12} className="text-purple-400 group-hover:rotate-12 transition-transform" /> {s}
-                  </motion.button>
-                ))}
-              </div>
               
               <div className="flex items-center gap-3">
                 <motion.button 

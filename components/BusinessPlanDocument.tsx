@@ -97,29 +97,52 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
       <div ref={printRef} className="print-container w-full max-w-[210mm] bg-white min-h-[297mm] shadow-2xl relative my-12 mx-auto flex flex-col text-gray-900 font-sans">
         
         {/* Cover Page */}
-        <div className="w-full h-[297mm] relative flex flex-col p-16 page-break bg-[#0B0D17] overflow-hidden">
-            <div className="flex-1 flex flex-col justify-center">
-               <p className="text-gray-300 text-2xl mb-2 font-medium break-words">{title}</p>
-               <h1 className="text-5xl font-bold text-white leading-tight tracking-tight mb-4 break-words">
+        <div className="w-full h-[297mm] relative flex flex-col p-16 page-break bg-[#05050A] overflow-hidden">
+            {/* Ambient Background Mesh */}
+            <div className="absolute inset-0 z-0">
+                <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/30 rounded-full blur-[120px] mix-blend-screen"></div>
+                <div className="absolute bottom-[-10%] left-[-10%] w-[700px] h-[700px] bg-purple-900/30 rounded-full blur-[140px] mix-blend-screen"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-cyan-900/10 rounded-full blur-[100px] mix-blend-screen"></div>
+                
+                {/* Dot grid pattern overlay */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-black/50 to-black/80"></div>
+                <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
+            </div>
+
+            <div className="flex-1 flex flex-col justify-center relative z-10 h-full max-w-3xl">
+               <div className="w-24 h-1.5 bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-400 mb-10 rounded-full"></div>
+               <p className="text-indigo-300 text-xl font-bold uppercase tracking-[0.3em] mb-4">{title}</p>
+               <h1 className="text-[5rem] font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-gray-400 leading-[1] tracking-tighter mb-8 break-words drop-shadow-sm">
                  {businessInfo.name || 'NeoTech Industries'}
                </h1>
-               <p className="text-xl text-gray-400">Prepared by {businessInfo.ownerInfo?.name || 'Founder'}</p>
+               <div className="bg-white/5 border border-white/10 p-6 rounded-2xl backdrop-blur-md inline-block max-w-xl">
+                 <p className="text-xl text-gray-300 leading-relaxed font-light">
+                   A comprehensive strategic proposal and operating plan designed for growth and scale.
+                 </p>
+                 <p className="text-sm font-bold text-gray-400 mt-4 uppercase tracking-widest">
+                   Prepared by {businessInfo.ownerInfo?.name || businessInfo.name || 'Founder'}
+                 </p>
+               </div>
             </div>
             
-            <div className="mt-auto grid grid-cols-2 gap-4 text-gray-400 text-sm break-words">
-               <div className="pr-4">
-                  <p className="truncate">{businessInfo.email || 'contact@business.com'}</p>
-                  <p className="mt-1">{businessInfo.whatsapp || '+27 00 000 0000'}</p>
+            <div className="mt-auto relative z-10 pt-8 border-t border-white/10 grid grid-cols-3 gap-8 text-gray-400 text-sm break-words items-center">
+               <div>
+                  <p className="text-white font-bold">{businessInfo.email || 'contact@business.com'}</p>
+                  <p className="mt-1 text-xs uppercase tracking-widest text-gray-500">Contact Email</p>
                </div>
-               <div className="text-right pl-4">
-                  <p className="truncate">{businessInfo.registration || 'Registration Number'}</p>
-                  <p className="mt-1">South Africa</p>
+               <div className="text-center">
+                  <p className="text-white font-bold">{businessInfo.whatsapp || '+27 00 000 0000'}</p>
+                  <p className="mt-1 text-xs uppercase tracking-widest text-gray-500">Direct Line</p>
+               </div>
+               <div className="text-right">
+                  <p className="text-white font-bold truncate">{businessInfo.registration || 'Registration Number'}</p>
+                  <p className="mt-1 text-xs uppercase tracking-widest text-gray-500">South Africa</p>
                </div>
             </div>
 
             {businessInfo.logoUrl && (
-              <div className="absolute top-16 right-16 w-32 h-32 bg-white rounded-xl p-3 flex items-center justify-center overflow-hidden shadow-2xl shrink-0">
-                <img src={businessInfo.logoUrl} alt="Startup Logo" className="max-w-full max-h-full object-contain" />
+              <div className="absolute top-16 right-16 w-40 h-40 bg-white/5 backdrop-blur-xl border border-white/20 rounded-3xl p-6 flex items-center justify-center overflow-hidden shadow-2xl shrink-0 z-10 transition-transform">
+                <img src={businessInfo.logoUrl} alt="Startup Logo" className="max-w-full max-h-full object-contain filter drop-shadow-md" />
               </div>
             )}
         </div>

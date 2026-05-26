@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Trash2 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { motion } from 'motion/react';
 import { collection, getDocs, query, where, getDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
@@ -32,6 +32,52 @@ interface AIMatch {
   score: number;
 }
 
+// Add a small helper component for Application logos to handle fallbacks
+const ApplicationLogo = ({ app }: { app: Application }) => {
+  const [fallbackStage, setFallbackStage] = useState(0);
+
+  const domain = React.useMemo(() => {
+    try {
+      if (app.logoUrl && app.logoUrl.includes('clearbit.com/')) {
+        return app.logoUrl.split('clearbit.com/')[1].split('?')[0];
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, [app.logoUrl]);
+
+  const currentUrl = React.useMemo(() => {
+    if (fallbackStage === 0 && app.logoUrl) {
+      return app.logoUrl;
+    }
+    if (fallbackStage <= 1 && domain) {
+      return `https://logo.clearbit.com/${domain}`;
+    }
+    return null;
+  }, [app.logoUrl, domain, fallbackStage]);
+
+  if (currentUrl) {
+    return (
+      <img 
+        src={currentUrl} 
+        alt={app.provider} 
+        className="w-full h-full object-contain p-1.5 bg-white" 
+        onError={() => setFallbackStage(prev => prev + 1)}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  return (
+    <>
+      {app.type === FundingType.GRANT ? '💰' : 
+       app.type === FundingType.EQUITY ? '📈' : 
+       app.type === FundingType.LOAN ? '🏦' : '🏆'}
+    </>
+  );
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFunding, onAvatarUpdate, onUpgrade, user }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'opportunities' | 'needs' | 'tools'>('overview');
   const [applications, setApplications] = useState<Application[]>([]);
@@ -59,6 +105,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   useEffect(() => {
     const handleOpenAiTool = (event: any) => {
       const { tool, prompt } = event.detail;
+      
+      if (tool !== 'digitizer' && user?.subscriptionPlan === 'free') {
+        onUpgrade();
+        return;
+      }
+
       if (tool === 'logo') {
         setShowLogoGenerator(true);
       } else if (tool === 'advert') {
@@ -66,10 +118,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         setShowAdvertGenerator(true);
       } else if (tool === 'register') {
         setShowBusinessRegistration(true);
+      } else if (tool === 'digitizer') {
+        setShowFormDigitizer(true);
+      } else if (tool === 'presentation') {
+        setShowPresentationDesigner(true);
       }
     };
     window.addEventListener('open_ai_tool', handleOpenAiTool);
     return () => window.removeEventListener('open_ai_tool', handleOpenAiTool);
+  }, [user, onUpgrade]);
+
+  useEffect(() => {
+    const handleUpdateTab = (event: any) => {
+      if (['overview', 'applications', 'opportunities', 'needs', 'tools'].includes(event.detail.tab)) {
+        setActiveTab(event.detail.tab);
+      }
+    };
+    window.addEventListener('update_dashboard_tab', handleUpdateTab);
+    return () => window.removeEventListener('update_dashboard_tab', handleUpdateTab);
   }, []);
 
   useEffect(() => {
@@ -135,9 +201,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { responseMimeType: 'application/json' }
+        config: { 
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              score: { type: Type.NUMBER },
+              tips: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ['score', 'tips']
+          }
+        }
       });
-      const data = JSON.parse(response.text || '{"score": 0, "tips": []}');
+      let text = response.text || '{"score": 0, "tips": []}';
+      text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const data = JSON.parse(text);
       setReadiness(data);
     } catch (e) {
       console.error(e);
@@ -170,10 +248,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { responseMimeType: 'application/json' }
+        config: { 
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                matchReason: { type: Type.STRING },
+                score: { type: Type.NUMBER }
+              },
+              required: ['id', 'matchReason', 'score']
+            }
+          }
+        }
       });
 
-      const matches = JSON.parse(response.text || '[]');
+      let text = response.text || '[]';
+      text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const matches = JSON.parse(text);
       setAiMatches(matches);
     } catch (error) {
       console.error('AI Matching failed:', error);
@@ -313,7 +407,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
             {['overview', 'applications', 'opportunities', 'needs', 'tools'].map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab as any)}
+                onClick={() => {
+                  if (tab === 'opportunities') {
+                    onBrowseFunding();
+                  } else {
+                    setActiveTab(tab as any);
+                  }
+                }}
                 className={`flex-none min-w-[110px] md:flex-1 py-3 px-4 rounded-xl font-bold capitalize transition-all text-sm ${
                   activeTab === tab ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
                 }`}
@@ -364,10 +464,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                         }}
                       >
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-xl">
-                            {app.type === FundingType.GRANT ? '💰' : 
-                             app.type === FundingType.EQUITY ? '📈' : 
-                             app.type === FundingType.LOAN ? '🏦' : '🏆'}
+                          <div className="w-12 h-12 rounded-xl bg-[#111] overflow-hidden flex items-center justify-center text-xl border border-white/10 shrink-0">
+                            <ApplicationLogo app={app} />
                           </div>
                           <div><h4 className="font-bold group-hover:text-purple-400 transition-colors">{app.opportunityTitle}</h4><p className="text-xs text-gray-500">{app.provider} • {app.date}</p></div>
                         </div>
@@ -435,10 +533,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                           )}
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="flex items-center gap-4">
-                              <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform">
-                                {app.type === FundingType.GRANT ? '💰' : 
-                                 app.type === FundingType.EQUITY ? '📈' : 
-                                 app.type === FundingType.LOAN ? '🏦' : '🏆'}
+                              <div className="w-14 h-14 rounded-2xl bg-[#111] overflow-hidden flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform border border-white/10 shrink-0">
+                                <ApplicationLogo app={app} />
                               </div>
                               <div>
                                 <h4 className="text-lg font-bold group-hover:text-purple-400 transition-colors">{app.opportunityTitle}</h4>
@@ -498,75 +594,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
               </div>
             )}
 
-            {activeTab === 'opportunities' && (
-               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-2xl font-black flex items-center gap-2">AI Recommended <Sparkles size={20} className="text-cyan-400" /></h3>
-                      <p className="text-gray-400 text-sm">Opportunities tailored to your business profile</p>
-                    </div>
-                    {hasProfile && !isLoadingAI && !isOffline && (
-                      <button onClick={runAIMatching} className="text-xs font-bold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-widest flex items-center gap-1">
-                        <Loader2 size={12} className={isLoadingAI ? 'animate-spin' : ''} /> Refresh Matches
-                      </button>
-                    )}
-                  </div>
 
-                  {!hasProfile ? (
-                    <div className="glass-panel p-16 rounded-3xl text-center border-dashed border-2">
-                       <Sparkles size={40} className="mx-auto text-gray-700 mb-4" />
-                       <h4 className="text-xl font-bold mb-2">Unlock AI Matching</h4>
-                       <p className="text-gray-500 mb-8 max-w-sm mx-auto">Complete your business profile and upload documents to see personalized funding recommendations.</p>
-                       <button onClick={onCompleteProfile} className="bg-white text-black font-black px-8 py-4 rounded-2xl hover:bg-gray-200 transition-all shadow-xl shadow-white/5">Complete Profile</button>
-                    </div>
-                  ) : isLoadingAI ? (
-                    <div className="space-y-4">
-                      {[1,2,3].map(i => (
-                        <div key={i} className="glass-panel p-8 rounded-3xl h-40 animate-pulse bg-white/5"></div>
-                      ))}
-                    </div>
-                  ) : aiMatches.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-6">
-                      {aiMatches.map((match: any) => {
-                        const opp = MOCK_FUNDING.find(o => o.opportunity_id === match.id);
-                        if (!opp) return null;
-                        return (
-                          <div key={opp.opportunity_id} className="glass-panel p-8 rounded-3xl relative overflow-hidden group hover:border-cyan-500/30 transition-all">
-                             <div className="absolute top-0 right-0 px-4 py-2 bg-cyan-500 text-white font-black text-[10px] uppercase tracking-widest rounded-bl-2xl">
-                               {match.score}% AI Match
-                             </div>
-                             <div className="flex flex-col md:flex-row gap-6">
-                                <div className="flex-1">
-                                  <h4 className="text-xl font-black mb-1 group-hover:text-cyan-400 transition-colors">{opp.programme_name}</h4>
-                                  <p className="text-gray-400 text-sm mb-4">{opp.issuer_name}</p>
-                                  <div className="p-4 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl mb-6">
-                                    <p className="text-xs text-cyan-400 leading-relaxed font-medium">
-                                      <Sparkles size={12} className="inline mr-2 mb-1" />
-                                      {match.matchReason}
-                                    </p>
-                                  </div>
-                                  <div className="flex gap-4">
-                                    <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-lg border border-white/5">R{opp.amount_min.toLocaleString()} - R{opp.amount_max.toLocaleString()}</span>
-                                    <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-lg border border-white/5">{opp.funding_type}</span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center">
-                                   <button onClick={() => onBrowseFunding(opp.opportunity_id)} className="w-full md:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-white font-black rounded-2xl transition-all shadow-lg shadow-cyan-500/20">View Opportunity</button>
-                                </div>
-                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="glass-panel p-16 rounded-3xl text-center">
-                       <AlertTriangle size={32} className="mx-auto text-amber-500 mb-4" />
-                       <p className="text-gray-500 font-bold">No matches found for your current profile. Try updating your information.</p>
-                    </div>
-                  )}
-               </div>
-            )}
-            
             {activeTab === 'needs' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <FundingNeedsTracker 

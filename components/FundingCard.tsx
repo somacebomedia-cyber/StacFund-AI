@@ -1,7 +1,58 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { FundingOpportunityDb, FundingType, RoadmapStep } from '../types';
 import { Heart, ChevronRight, ChevronDown, CheckCircle2, Share2, Copy, MessageCircle, X, ArrowUpRight, Info, Download, ShieldCheck, AlertTriangle, Clock, ListChecks } from 'lucide-react';
+
+interface InstitutionLogoProps {
+  opportunity: FundingOpportunityDb;
+  isNew: boolean;
+}
+
+const InstitutionLogo: React.FC<InstitutionLogoProps> = ({ opportunity, isNew }) => {
+  const [fallbackStage, setFallbackStage] = useState(0);
+  
+  const domain = useMemo(() => {
+    try {
+      if (opportunity.source_url) return new URL(opportunity.source_url).hostname;
+      if (opportunity.application_url) return new URL(opportunity.application_url).hostname;
+    } catch {
+      return null;
+    }
+    return null;
+  }, [opportunity.source_url, opportunity.application_url]);
+
+  const logoUrl = useMemo(() => {
+    if (fallbackStage === 0 && opportunity.logo_url) {
+      return opportunity.logo_url;
+    }
+    if (fallbackStage <= 1 && domain) {
+      return `https://logo.clearbit.com/${domain}`;
+    }
+    return null;
+  }, [opportunity.logo_url, domain, fallbackStage]);
+
+  return (
+    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-bold bg-white/5 transition-transform group-hover:scale-110 overflow-hidden shrink-0 ${isNew ? 'shadow-[0_0_15px_rgba(168,85,247,0.2)]' : ''}`}>
+      {logoUrl ? (
+        <img 
+          src={logoUrl} 
+          alt={`${opportunity.issuer_name} logo`}
+          className="w-full h-full object-contain bg-white"
+          onError={() => setFallbackStage(prev => prev + 1)}
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <>
+          {opportunity.funding_type === FundingType.GRANT && <span className="text-emerald-400">$</span>}
+          {opportunity.funding_type === FundingType.EQUITY && <span className="text-purple-400">#</span>}
+          {opportunity.funding_type === FundingType.LOAN && <span className="text-blue-400">%</span>}
+          {opportunity.funding_type === FundingType.COMPETITION && <span className="text-amber-400">★</span>}
+          {(!opportunity.funding_type || ![FundingType.GRANT, FundingType.EQUITY, FundingType.LOAN, FundingType.COMPETITION].includes(opportunity.funding_type as FundingType)) && <span className="text-gray-400">?</span>}
+        </>
+      )}
+    </div>
+  );
+};
 
 interface FundingCardProps {
   opportunity: FundingOpportunityDb;
@@ -130,91 +181,80 @@ const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, o
   const urgency = getUrgencyIndicator();
 
   return (
-    <div className={`glass-panel rounded-3xl p-8 mb-6 relative transition-all group overflow-hidden border ${isNew ? 'border-purple-500/40 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'border-white/5 hover:border-white/20'}`}>
-      {/* New Highlight Effect */}
+    <div className={`glass-panel p-8 rounded-3xl relative overflow-hidden group transition-all ${isNew ? 'border-purple-500/40 hover:border-purple-500/60 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'border-white/5 hover:border-cyan-500/30'}`}>
+      
+      {/* Featured highlight */}
       {isNew && (
-        <div className="absolute top-0 right-0 overflow-hidden w-24 h-24 pointer-events-none z-10">
-          <div className="absolute top-[-10px] right-[-35px] bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[9px] font-black uppercase tracking-tighter py-1 w-[120px] text-center rotate-45 shadow-lg border-b border-white/20">
+        <div className="absolute top-0 right-0 overflow-hidden w-28 h-28 pointer-events-none z-10 rounded-tr-3xl">
+          <div className="absolute top-[24px] right-[-34px] bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest py-1 w-[150px] text-center rotate-45 shadow-lg border-y border-white/20">
             Featured
           </div>
         </div>
       )}
 
+      {/* AI Match highlight */}
       {matchScore !== undefined && (
-        <div className="absolute top-0 right-10 overflow-hidden w-24 h-24 pointer-events-none z-10">
-          <div className="absolute top-4 right-0 bg-cyan-500 text-white text-[10px] font-black uppercase tracking-tighter py-1 px-3 rounded-bl-xl shadow-lg">
-            {matchScore}% Match
-          </div>
+        <div className="absolute top-0 right-0 px-4 py-2 bg-cyan-500 text-white font-black text-[10px] uppercase tracking-widest rounded-bl-2xl z-10">
+          {matchScore}% AI Match
         </div>
       )}
 
-      <div className="flex justify-between items-start mb-6">
-        <div className="flex gap-4 items-center">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-bold bg-white/5 transition-transform group-hover:scale-110 ${isNew ? 'shadow-[0_0_15px_rgba(168,85,247,0.2)]' : ''}`}>
-            {opportunity.funding_type === FundingType.GRANT && <span className="text-emerald-400">$</span>}
-            {opportunity.funding_type === FundingType.EQUITY && <span className="text-purple-400">#</span>}
-            {opportunity.funding_type === FundingType.LOAN && <span className="text-blue-400">%</span>}
-            {opportunity.funding_type === FundingType.COMPETITION && <span className="text-amber-400">★</span>}
-          </div>
-          <div>
-            <h3 className="text-xl font-bold group-hover:text-purple-400 transition-colors">{opportunity.programme_name}</h3>
-            <p className="text-gray-400 text-sm flex items-center gap-1">
-              {opportunity.issuer_name} 
-              {opportunity.official_status && <ShieldCheck size={14} className="text-emerald-500" title="Official Source Verified" />}
+      <div className="flex flex-col md:flex-row gap-6 mb-6">
+         <div className="flex-1">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex gap-4 items-center">
+                <InstitutionLogo opportunity={opportunity} isNew={isNew} />
+                <div>
+                  <h4 className="text-xl font-black mb-1 group-hover:text-cyan-400 transition-colors flex items-center gap-2">
+                    {opportunity.programme_name}
+                  </h4>
+                  <p className="text-gray-400 text-sm flex items-center gap-1">
+                    {opportunity.issuer_name} 
+                    {opportunity.official_status && <ShieldCheck size={14} className="text-emerald-500" title="Official Source Verified" />}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex gap-2 relative z-20">
+                <button 
+                  onClick={() => setShowShareModal(true)}
+                  className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all border border-white/5"
+                  title="Share Opportunity"
+                >
+                  <Share2 size={18} />
+                </button>
+                <button className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-red-500 transition-all border border-white/5">
+                  <Heart size={18} />
+                </button>
+              </div>
+            </div>
+
+            <p className="text-gray-300 text-sm leading-relaxed mb-6 line-clamp-2 group-hover:line-clamp-none transition-all duration-500">
+              {opportunity.eligibility_summary}
             </p>
-          </div>
-        </div>
-        <div className="flex gap-2 relative z-20">
-          <button 
-            onClick={() => setShowShareModal(true)}
-            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all border border-white/5"
-            title="Share Opportunity"
-          >
-            <Share2 size={18} />
-          </button>
-          <button className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-red-500 transition-all border border-white/5">
-            <Heart size={18} />
-          </button>
-        </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        <span className={`px-3 py-1 rounded-md text-[10px] font-bold border ${getTypeColor(opportunity.funding_type)} uppercase tracking-wider`}>
-          {opportunity.funding_type}
-        </span>
-        <span className={`px-3 py-1 rounded-md text-[10px] font-bold border uppercase tracking-wider flex items-center gap-1 ${urgency.bg} ${urgency.color} ${urgency.border}`}>
-          <Clock size={12} /> {urgency.label}
-        </span>
-        {isNew && (
-          <span className="px-3 py-1 rounded-md text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 uppercase tracking-widest animate-pulse">
-            ✨ NEW OPPORTUNITY
-          </span>
-        )}
-      </div>
+            {opportunity.status === 'UPCOMING' && (
+              <div className="mb-6 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl p-4 flex gap-3">
+                <Info className="text-cyan-400 shrink-0" size={20} />
+                <div>
+                  <h4 className="text-cyan-400 text-xs font-black uppercase tracking-widest mb-1">Preparation Phase</h4>
+                  <p className="text-sm text-cyan-200/80">You are not applying yet. You are PREPARING. Build your vault before the window opens.</p>
+                </div>
+              </div>
+            )}
 
-      <p className="text-gray-300 text-sm leading-relaxed mb-6 line-clamp-2 group-hover:line-clamp-none transition-all duration-500">
-        {opportunity.eligibility_summary}
-      </p>
-
-      {opportunity.status === 'UPCOMING' && (
-        <div className="mb-6 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl p-4 flex gap-3">
-          <Info className="text-cyan-400 shrink-0" size={20} />
-          <div>
-            <h4 className="text-cyan-400 text-xs font-black uppercase tracking-widest mb-1">Preparation Phase</h4>
-            <p className="text-sm text-cyan-200/80">You are not applying yet. You are PREPARING. Build your vault before the window opens.</p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-8 mb-8">
-        <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1 font-bold">Funding Range</p>
-          <p className="text-lg font-black text-white">R{opportunity.amount_min.toLocaleString()} - R{opportunity.amount_max.toLocaleString()}</p>
-        </div>
-        <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1 font-bold">Deadline</p>
-          <p className="text-lg font-black text-white">{opportunity.closing_date}</p>
-        </div>
+            <div className="flex flex-wrap gap-4">
+              <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-lg border border-white/5">
+                R{opportunity.amount_min.toLocaleString()} - R{opportunity.amount_max.toLocaleString()}
+              </span>
+              <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${getTypeColor(opportunity.funding_type)} uppercase tracking-wider`}>
+                {opportunity.funding_type}
+              </span>
+              <span className={`px-3 py-1 rounded-lg text-xs font-bold border uppercase tracking-wider flex items-center gap-1 ${urgency.bg} ${urgency.color} ${urgency.border}`}>
+                <Clock size={12} /> {urgency.label}
+              </span>
+            </div>
+         </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 relative z-20">
@@ -225,18 +265,29 @@ const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, o
         >
           {opportunity.status === 'UPCOMING' ? 'Prepare Application' : opportunity.status === 'CLOSED' ? 'Closed' : 'Start Application'} <ChevronRight size={18} />
         </button>
-        <button 
-          onClick={() => onDownloadForm(opportunity.opportunity_id)}
-          className="px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black transition-all border border-white/10 flex items-center justify-center gap-2"
-          title="Download Official Form"
+        <a 
+          href={opportunity.pdf_form_url || (opportunity.application_url && opportunity.application_url !== 'N/A' && opportunity.application_url !== '' ? opportunity.application_url : opportunity.source_url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black transition-all border border-white/10 flex items-center justify-center gap-2 cursor-pointer"
+          title="Download/Open Official Form"
         >
-          <Download size={18} /> <span className="hidden lg:inline">Form</span>
-        </button>
+          <Download size={18} /> <span className="hidden lg:inline">{opportunity.pdf_form_url ? 'PDF Form' : 'Form'}</span>
+        </a>
+        <a 
+          href={opportunity.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-cyan-400 hover:text-cyan-300 font-black transition-all border border-cyan-500/30 flex items-center justify-center gap-2 cursor-pointer"
+          title="Visit Official Source"
+        >
+          Source <ArrowUpRight size={18} />
+        </a>
         <button 
           onClick={() => onViewDetails(opportunity.opportunity_id)}
           className="px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black transition-all border border-white/10 flex items-center justify-center gap-2"
         >
-          Details <ArrowUpRight size={18} />
+          Details <Info size={18} />
         </button>
         <button 
           onClick={() => setShowRoadmap(!showRoadmap)}

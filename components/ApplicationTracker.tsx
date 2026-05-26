@@ -1,6 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, CheckCircle2, Clock, CalendarDays, Rocket, Info, ArrowRight, Activity, Download, ArrowUpRight } from 'lucide-react';
 import { ApplicationStatus, Application } from '../types';
+
+const TrackerLogo = ({ app }: { app: Application }) => {
+  const [fallbackStage, setFallbackStage] = useState(0);
+
+  const domain = useMemo(() => {
+    try {
+      if (app.logoUrl && app.logoUrl.includes('clearbit.com/')) {
+        return app.logoUrl.split('clearbit.com/')[1].split('?')[0];
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, [app.logoUrl]);
+
+  const currentUrl = useMemo(() => {
+    if (fallbackStage === 0 && app.logoUrl) {
+      return app.logoUrl;
+    }
+    if (fallbackStage <= 1 && domain) {
+      return `https://logo.clearbit.com/${domain}`;
+    }
+    return null;
+  }, [app.logoUrl, domain, fallbackStage]);
+
+  if (currentUrl) {
+    return (
+      <div className="w-12 h-12 rounded-2xl bg-[#111] overflow-hidden flex items-center justify-center text-xl border border-white/10 shrink-0">
+        <img 
+          src={currentUrl} 
+          alt={app.provider} 
+          className="w-full h-full object-contain p-1.5 bg-white" 
+          onError={() => setFallbackStage(prev => prev + 1)}
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-12 h-12 rounded-2xl bg-[#111] overflow-hidden flex items-center justify-center text-xl border border-white/10 shrink-0">
+      {app.type === 'GRANT' ? '💰' : 
+       app.type === 'EQUITY' ? '📈' : 
+       app.type === 'LOAN' ? '🏦' : '🏆'}
+    </div>
+  );
+};
 
 interface ApplicationTrackerProps {
   application: Application;
@@ -115,11 +162,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ applicat
       >
         <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/[0.02]">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-xl shadow-inner border border-white/5">
-                {application.type === 'GRANT' ? '💰' : 
-                 application.type === 'EQUITY' ? '📈' : 
-                 application.type === 'LOAN' ? '🏦' : '🏆'}
-            </div>
+            <TrackerLogo app={application} />
             <div>
               <h2 className="text-xl font-bold">{application.opportunityTitle}</h2>
               <p className="text-sm text-gray-400 font-medium">{application.provider}</p>

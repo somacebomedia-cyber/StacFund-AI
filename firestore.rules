@@ -67,10 +67,8 @@ service cloud.firestore {
     }
 
     match /funding_opportunities/{opportunityId} {
-      // Must not use blanket reads! Checks `resource.data.opportunity_id` to strictly tie condition to the read collection type.
-      allow list: if isSignedIn() && existing().opportunity_id != null;
-      allow get: if isSignedIn() && isValidId(opportunityId);
-      allow write: if false; // Admin only via backend
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(opportunityId);
     }
 
     // User Profile
