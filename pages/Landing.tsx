@@ -439,8 +439,8 @@ const ExtensiveFeatures = () => {
   ];
 
   return (
-    <div className="relative z-10 max-w-5xl mx-auto py-24 px-6 mt-12 mb-24">
-      <div className="text-center mb-24">
+    <div className="relative z-10 max-w-7xl mx-auto py-24 px-6 mt-12 mb-24">
+      <div className="text-center mb-20">
         <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">
           Everything You Need to <br/>
           <span className="gradient-text">Secure Capital</span>
@@ -450,52 +450,54 @@ const ExtensiveFeatures = () => {
         </p>
       </div>
 
-      <div className="relative pb-16">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
         {features.map((feature, i) => {
-          const topOffset = 100 + i * 24; // Stacking offset
+          const delay = i * 0.1;
           return (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.7, ease: "easeOut" }}
-              className="sticky flex flex-col p-8 md:p-14 mb-[8vh] md:mb-[12vh] rounded-[2.5rem] shadow-2xl"
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.6, delay, ease: "easeOut" }}
+              className="relative flex flex-col justify-between p-5 md:p-6 rounded-[1.75rem] shadow-2xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 group min-h-[300px] md:min-h-[320px]"
               style={{
-                top: topOffset + "px",
                 backgroundColor: feature.hex, // Canva panel style
-                zIndex: i,
                 border: '1px solid rgba(255,255,255,0.2)',
                 willChange: 'transform'
               }}
             >
                {/* Ambient pattern or gradient overlay to make it look even more polished */}
-               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-black/20 pointer-events-none rounded-[2.5rem]" />
-               <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none mix-blend-overlay rounded-[2.5rem]" />
+               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-black/20 pointer-events-none rounded-[1.75rem]" />
+               <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none mix-blend-overlay rounded-[1.75rem]" />
 
-               <div className="relative z-10 w-full flex flex-col h-full justify-center">
-                  <div className="flex items-start justify-between relative mb-8">
+               <div className="relative z-10 w-full flex flex-col h-full justify-between font-sans">
+                  {/* Top row with Icon and interactive Phone mockup */}
+                  <div className="flex items-start justify-between relative mb-2">
                      <div 
-                       className="w-24 h-24 shrink-0 rounded-[2rem] flex items-center justify-center bg-black/10 backdrop-blur-md border border-white/30 text-white shadow-xl relative z-20"
-                       style={{ boxShadow: "inset 0 0 20px " + feature.glow }}
-                     >
-                       {feature.icon}
+                       className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-black/10 backdrop-blur-md border border-white/30 text-white shadow-xl relative z-25"
+                       style={{ boxShadow: "inset 0 0 12px " + feature.glow }}
+                      >
+                       {React.cloneElement(feature.icon, { size: 20 })}
                      </div>
                      
-                     <div className="absolute -top-16 -right-2 md:-top-20 md:-right-6 group cursor-pointer z-50" title="Click to interact with phone">
-                        <IPhone17MockupInteractive feature={feature} i={i} colorHex={feature.hex} frameHex={feature.frameHex} />
+                     <div className="absolute -top-3 -right-6 z-50 group cursor-pointer" title="Click to interact with phone">
+                        <div className="scale-[0.52] origin-top-right">
+                           <IPhone17MockupInteractive feature={feature} i={i} colorHex={feature.hex} frameHex={feature.frameHex} />
+                        </div>
                         {/* Interaction hint */}
-                        <div className="absolute -bottom-4 right-1/2 translate-x-1/2 md:translate-x-0 md:-left-4 md:right-auto bg-white/90 text-black px-3 py-1 rounded-full text-xs font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                          Tap to interact <ArrowRight size={12} className="inline ml-1" />
+                        <div className="absolute bottom-4 right-2 bg-white/95 text-black px-2 py-0.5 rounded-full text-[10px] font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                          Tap to interact <ArrowRight size={10} className="inline ml-1" />
                         </div>
                      </div>
                   </div>
                   
-                  <div className="md:pr-32 text-left"> {/* Make room for the absolutely positioned phone on desktop */}
-                    <h3 className="text-4xl md:text-5xl font-black mb-4 tracking-tight text-white drop-shadow-md">
+                  {/* Bottom title and description */}
+                  <div className="text-left mt-auto">
+                    <h3 className="text-xl md:text-2xl font-black mb-1.5 tracking-tight text-white drop-shadow-md">
                        {feature.title}
                     </h3>
-                    <p className="text-xl md:text-2xl text-white/90 leading-relaxed font-medium max-w-2xl drop-shadow-sm">
+                    <p className="text-xs md:text-sm text-white/90 leading-relaxed font-semibold drop-shadow-sm">
                        {feature.description}
                     </p>
                   </div>
