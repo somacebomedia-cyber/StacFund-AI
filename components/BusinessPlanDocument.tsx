@@ -97,7 +97,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
       <div ref={printRef} className="print-container w-full max-w-[210mm] bg-white min-h-[297mm] shadow-2xl relative my-12 mx-auto flex flex-col text-gray-900 font-sans">
         
         {/* Cover Page */}
-        <div className="w-full h-[297mm] relative flex flex-col p-16 page-break bg-[#05050A] overflow-hidden">
+        <div className="w-full min-h-[297mm] relative flex flex-col p-16 page-break bg-[#05050A]">
             {/* Ambient Background Mesh */}
             <div className="absolute inset-0 z-0">
                 <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/30 rounded-full blur-[120px] mix-blend-screen"></div>
@@ -150,7 +150,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
         {/* Content Pages Template Component */}
         
         {/* Executive Summary */}
-        <div className="w-full h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+        <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
             <PageHeader />
             <h2 className="text-4xl font-bold text-[#2E1A47] mb-6 pb-4 border-b border-gray-100 shrink-0">Executive Summary</h2>
             <div className="w-full bg-[#FCF8F5] rounded-xl p-6 mb-6 border border-[#F2EAE5] shrink-0">
@@ -158,141 +158,143 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
                    "{businessInfo.description || data.executiveSummary?.substring(0, 150) + '...'}"
                 </p>
             </div>
-            <div className="text-gray-700 leading-relaxed space-y-4 text-sm text-justify overflow-hidden flex-1 relative">
-                <div className="absolute inset-0 overflow-hidden">
+            <div className="text-gray-700 leading-relaxed space-y-4 text-sm text-justify relative flex-1">
+                <div>
                   {data.executiveSummary?.split('\n').map((paragraph: string, i: number) => (
-                     paragraph.trim() && <p key={i}>{paragraph}</p>
+                     paragraph.trim() && <p key={i} className="mb-4">{paragraph}</p>
                   ))}
                 </div>
             </div>
-            <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">3</div>
+            <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
         </div>
 
         {/* SWOT Analysis */}
         {data.swot && (
-          <div className="w-full h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+          <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
               <PageHeader />
               <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">SWOT Analysis</h2>
               
-              <div className="grid grid-cols-2 gap-6 flex-1 overflow-hidden">
-                 <div className="bg-[#F8FBFE] p-6 rounded-2xl border border-[#E1EEFA] overflow-hidden flex flex-col">
+              <div className="grid grid-cols-2 gap-6 flex-1">
+                 <div className="bg-[#F8FBFE] p-6 rounded-2xl border border-[#E1EEFA] flex flex-col">
                     <div className="flex items-center gap-3 mb-4 shrink-0">
                       <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center text-blue-600 font-black shrink-0">S</div>
                       <h3 className="text-xl font-bold text-[#2E1A47]">Strengths</h3>
                     </div>
-                    <ul className="space-y-3 overflow-hidden flex-1">
-                      {data.swot.strengths?.slice(0, 5).map((s: string, i: number) => (
+                    <ul className="space-y-3 flex-1 pb-4">
+                      {data.swot.strengths?.map((s: string, i: number) => (
                         <li key={i} className="text-gray-600 text-xs leading-relaxed flex items-start gap-2">
-                           <span className="text-blue-400 mt-0.5 shrink-0">•</span> <span className="line-clamp-3">{s}</span>
+                           <span className="text-blue-400 mt-0.5 shrink-0">•</span> <span>{s}</span>
                         </li>
                       ))}
                     </ul>
                  </div>
                  
-                 <div className="bg-[#FEF8F8] p-6 rounded-2xl border border-[#FAE1E1] overflow-hidden flex flex-col">
+                 <div className="bg-[#FEF8F8] p-6 rounded-2xl border border-[#FAE1E1] flex flex-col">
                     <div className="flex items-center gap-3 mb-4 shrink-0">
                       <div className="w-8 h-8 rounded bg-red-100 flex items-center justify-center text-red-600 font-black shrink-0">W</div>
                       <h3 className="text-xl font-bold text-[#2E1A47]">Weaknesses</h3>
                     </div>
-                    <ul className="space-y-3 overflow-hidden flex-1">
-                      {data.swot.weaknesses?.slice(0, 5).map((s: string, i: number) => (
+                    <ul className="space-y-3 flex-1 pb-4">
+                      {data.swot.weaknesses?.map((s: string, i: number) => (
                         <li key={i} className="text-gray-600 text-xs leading-relaxed flex items-start gap-2">
-                           <span className="text-red-400 mt-0.5 shrink-0">•</span> <span className="line-clamp-3">{s}</span>
+                           <span className="text-red-400 mt-0.5 shrink-0">•</span> <span>{s}</span>
                         </li>
                       ))}
                     </ul>
                  </div>
                  
-                 <div className="bg-[#F6FEF9] p-6 rounded-2xl border border-[#E1FBEB] overflow-hidden flex flex-col">
+                 <div className="bg-[#F6FEF9] p-6 rounded-2xl border border-[#E1FBEB] flex flex-col">
                     <div className="flex items-center gap-3 mb-4 shrink-0">
                       <div className="w-8 h-8 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 font-black shrink-0">O</div>
                       <h3 className="text-xl font-bold text-[#2E1A47]">Opportunities</h3>
                     </div>
-                    <ul className="space-y-3 overflow-hidden flex-1">
-                      {data.swot.opportunities?.slice(0, 5).map((s: string, i: number) => (
+                    <ul className="space-y-3 flex-1 pb-4">
+                      {data.swot.opportunities?.map((s: string, i: number) => (
                         <li key={i} className="text-gray-600 text-xs leading-relaxed flex items-start gap-2">
-                           <span className="text-emerald-400 mt-0.5 shrink-0">•</span> <span className="line-clamp-3">{s}</span>
+                           <span className="text-emerald-400 mt-0.5 shrink-0">•</span> <span>{s}</span>
                         </li>
                       ))}
                     </ul>
                  </div>
                  
-                 <div className="bg-[#FEFAF5] p-6 rounded-2xl border border-[#FBEAD4] overflow-hidden flex flex-col">
+                 <div className="bg-[#FEFAF5] p-6 rounded-2xl border border-[#FBEAD4] flex flex-col">
                     <div className="flex items-center gap-3 mb-4 shrink-0">
                       <div className="w-8 h-8 rounded bg-orange-100 flex items-center justify-center text-orange-600 font-black shrink-0">T</div>
                       <h3 className="text-xl font-bold text-[#2E1A47]">Threats</h3>
                     </div>
-                    <ul className="space-y-3 overflow-hidden flex-1">
-                      {data.swot.threats?.slice(0, 5).map((s: string, i: number) => (
+                    <ul className="space-y-3 flex-1 pb-4">
+                      {data.swot.threats?.map((s: string, i: number) => (
                         <li key={i} className="text-gray-600 text-xs leading-relaxed flex items-start gap-2">
-                           <span className="text-orange-400 mt-0.5 shrink-0">•</span> <span className="line-clamp-3">{s}</span>
+                           <span className="text-orange-400 mt-0.5 shrink-0">•</span> <span>{s}</span>
                         </li>
                       ))}
                     </ul>
                  </div>
               </div>
-              <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">4</div>
+              <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
           </div>
         )}
 
         {/* Market Research */}
         {data.marketResearch && (
-           <div className="w-full h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+           <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
              <PageHeader />
              <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Market Research</h2>
              
              <div className="grid grid-cols-3 gap-6 mb-8 shrink-0">
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center flex flex-col justify-center overflow-hidden">
-                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 truncate">Total Market</p>
-                   <p className="text-2xl font-bold text-[#2E1A47] break-words line-clamp-2">{data.marketResearch.tam || 'ZAR 500M'}</p>
+                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center flex flex-col justify-center">
+                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Total Market</p>
+                   <p className="text-xl font-bold text-[#2E1A47] break-words">{data.marketResearch.tam || 'ZAR 500M'}</p>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center flex flex-col justify-center overflow-hidden">
-                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 truncate">Serviceable Market</p>
-                   <p className="text-2xl font-bold text-[#2E1A47] break-words line-clamp-2">{data.marketResearch.sam || 'ZAR 100M'}</p>
+                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center flex flex-col justify-center">
+                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Serviceable Market</p>
+                   <p className="text-xl font-bold text-[#2E1A47] break-words">{data.marketResearch.sam || 'ZAR 100M'}</p>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center flex flex-col justify-center overflow-hidden">
-                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 truncate">Obtainable Market</p>
-                   <p className="text-2xl font-bold text-[#2E1A47] break-words line-clamp-2">{data.marketResearch.som || 'ZAR 10M'}</p>
+                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center flex flex-col justify-center">
+                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Obtainable Market</p>
+                   <p className="text-xl font-bold text-[#2E1A47] break-words">{data.marketResearch.som || 'ZAR 10M'}</p>
                 </div>
              </div>
              
              <h3 className="text-xl font-bold text-[#2E1A47] mb-4 shrink-0">Target Audience</h3>
-             <div className="bg-[#F8F9FA] p-6 rounded-xl border border-gray-100 mb-6 shrink-0 overflow-hidden">
+             <div className="bg-[#F8F9FA] p-6 rounded-xl border border-gray-100 mb-6 shrink-0">
                  <ul className="space-y-3 text-gray-700">
-                    {data.marketResearch.targetAudience?.slice(0, 4).map((t: string, i: number) => (
+                    {data.marketResearch.targetAudience?.map((t: string, i: number) => (
                        <li key={i} className="flex gap-4 items-start">
                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0"></div>
-                           <span className="leading-relaxed text-sm line-clamp-2">{t}</span>
+                           <span className="leading-relaxed text-sm">{t}</span>
                        </li>
                     ))}
                  </ul>
              </div>
              
              <h3 className="text-xl font-bold text-[#2E1A47] mb-4 shrink-0">Competitor Analysis</h3>
-             <div className="text-gray-600 leading-relaxed text-sm text-justify overflow-hidden flex-1 relative">
-                <div className="absolute inset-0 overflow-hidden line-clamp-[10]">
-                  {data.marketResearch.competitorAnalysis}
+             <div className="text-gray-600 leading-relaxed text-sm text-justify relative flex-1">
+                <div>
+                  {data.marketResearch.competitorAnalysis?.split('\n').map((paragraph: string, i: number) => (
+                     paragraph.trim() && <p key={i} className="mb-4">{paragraph}</p>
+                  ))}
                 </div>
              </div>
              
-             <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">5</div>
+             <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
            </div>
         )}
         
         {/* Products & Services */}
         {data.productsServices && (
-           <div className="w-full h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+           <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
              <PageHeader />
              <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Products & Services</h2>
-             <div className="space-y-6 flex-1 overflow-hidden">
-               {data.productsServices?.slice(0, 4).map((item: any, i: number) => (
-                 <div key={i} className="p-6 border border-gray-100 rounded-2xl bg-white shadow-sm flex items-start gap-6 overflow-hidden">
+             <div className="space-y-6 flex-1">
+               {data.productsServices?.map((item: any, i: number) => (
+                 <div key={i} className="p-6 border border-gray-100 rounded-2xl bg-white shadow-sm flex items-start gap-6">
                     <div className="w-10 h-10 shrink-0 rounded-full border-2 border-indigo-100 flex items-center justify-center text-indigo-500 font-bold text-lg">
                       {i + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold text-[#2E1A47] mb-2 truncate">{item.name}</h3>
-                        <p className="text-gray-600 leading-relaxed mb-4 text-xs line-clamp-3">{item.description}</p>
+                        <h3 className="text-xl font-bold text-[#2E1A47] mb-2">{item.name}</h3>
+                        <p className="text-gray-600 leading-relaxed mb-4 text-xs">{item.description}</p>
                         
                         <div className="inline-flex items-center gap-3 px-3 py-1.5 bg-indigo-50 rounded-lg max-w-full">
                            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest shrink-0">Pricing Strategy</span>
@@ -302,26 +304,26 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
                  </div>
                ))}
              </div>
-             <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">6</div>
+             <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
            </div>
         )}
         
         {/* Financial Plan */}
         {data.financialPlan && (
-           <div className="w-full h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+           <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
              <PageHeader />
              <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Financial Plan</h2>
              
-             <div className="mb-10 flex gap-6 shrink-0 h-[220px]">
-                <div className="w-1/2 bg-[#2E1A47] p-8 rounded-3xl text-white flex flex-col overflow-hidden">
+             <div className="mb-10 flex gap-6 shrink-0 h-auto">
+                <div className="w-1/2 bg-[#2E1A47] p-8 rounded-3xl text-white flex flex-col">
                    <p className="text-xs text-[#A592C4] font-bold uppercase tracking-widest mb-3 shrink-0">Funding Required</p>
-                   <p className="text-3xl font-black mb-3 break-words line-clamp-2 shrink-0">{data.financialPlan.fundingRequirement}</p>
+                   <p className="text-3xl font-black mb-3 break-words shrink-0">{data.financialPlan.fundingRequirement}</p>
                    <div className="w-full h-[1px] bg-white/10 mb-4 shrink-0"></div>
-                   <p className="text-[#D3C7E8] font-medium leading-relaxed text-sm line-clamp-4 overflow-hidden">{data.financialPlan.fundingPurpose}</p>
+                   <p className="text-[#D3C7E8] font-medium leading-relaxed text-sm">{data.financialPlan.fundingPurpose}</p>
                 </div>
-                <div className="w-1/2 p-6 border border-gray-100 rounded-3xl bg-[#F8F9FA] flex flex-col overflow-hidden">
+                <div className="w-1/2 p-6 border border-gray-100 rounded-3xl bg-[#F8F9FA] flex flex-col">
                    <h3 className="text-base font-bold text-[#2E1A47] mb-4 shrink-0">Use of Funds Allocation</h3>
-                   <div className="space-y-3 overflow-hidden flex-1 pr-2 custom-scrollbar">
+                   <div className="space-y-3 flex-1 pr-2 custom-scrollbar">
                       {data.financialPlan.useOfFunds?.map((item: any, i: number) => (
                         <div key={i} className="flex justify-between items-center pb-3 border-b border-gray-200 last:border-0">
                            <span className="text-gray-600 font-medium text-xs break-words pr-4 flex-1">{item.category}</span>
@@ -364,9 +366,153 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
                  </div>
              </div>
              
-             <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">7</div>
+             <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
            </div>
         )}
+
+{/* Go-To-Market Strategy */}
+{data.goToMarket && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-6 pb-4 border-b border-gray-100 shrink-0">Go-To-Market Strategy</h2>
+    <div className="text-gray-700 leading-relaxed text-sm mb-8 shrink-0">
+       {data.goToMarket.strategy?.split('\n').map((paragraph: string, i: number) => (
+          paragraph.trim() && <p key={i} className="mb-4">{paragraph}</p>
+       ))}
+    </div>
+    <div className="grid grid-cols-2 gap-6 mb-8 shrink-0">
+      <div>
+        <h3 className="text-base font-bold text-[#2E1A47] mb-3">Channels</h3>
+        <ul className="space-y-2">
+          {data.goToMarket.channels?.map((c: string, i: number) => (
+            <li key={i} className="text-gray-600 text-xs flex items-start gap-2">
+              <span className="text-indigo-400 shrink-0 mt-0.5">→</span> {c}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h3 className="text-base font-bold text-[#2E1A47] mb-3">12-Month Milestones</h3>
+        <div className="space-y-2">
+          {data.goToMarket.milestones?.map((m: any, i: number) => (
+            <div key={i} className="flex gap-3 items-start">
+              <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded shrink-0">{m.quarter}</span>
+              <span className="text-gray-600 text-xs leading-relaxed">{m.goal}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
+  </div>
+)}
+
+{/* Operations Plan */}
+{data.operationsPlan && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-6 pb-4 border-b border-gray-100 shrink-0">Operations Plan</h2>
+    <div className="text-gray-700 leading-relaxed text-sm mb-8 shrink-0">
+       {data.operationsPlan.overview?.split('\n').map((paragraph: string, i: number) => (
+          paragraph.trim() && <p key={i} className="mb-4">{paragraph}</p>
+       ))}
+    </div>
+    <div className="grid grid-cols-2 gap-8 flex-1">
+      <div>
+        <h3 className="text-base font-bold text-[#2E1A47] mb-4">Key Activities</h3>
+        <ul className="space-y-3">
+          {data.operationsPlan.keyActivities?.map((a: string, i: number) => (
+            <li key={i} className="text-gray-600 text-xs flex items-start gap-2">
+              <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+              {a}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h3 className="text-base font-bold text-[#2E1A47] mb-4">Technology & Tools</h3>
+        <div className="flex flex-wrap gap-2">
+          {data.operationsPlan.technologyStack?.map((t: string, i: number) => (
+            <span key={i} className="px-3 py-1 bg-[#F3F0F8] text-[#2E1A47] text-xs font-bold rounded-lg">{t}</span>
+          ))}
+        </div>
+        {data.operationsPlan.location && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Operating Location</p>
+            <p className="text-sm font-bold text-[#2E1A47]">{data.operationsPlan.location}</p>
+          </div>
+        )}
+      </div>
+    </div>
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
+  </div>
+)}
+
+{/* Team */}
+{data.team && data.team.length > 0 && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-6 pb-4 border-b border-gray-100 shrink-0">Management Team</h2>
+    <div className="space-y-6 flex-1">
+      {data.team?.map((member: any, i: number) => (
+        <div key={i} className="p-6 border border-gray-100 rounded-2xl bg-white shadow-sm">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-10 h-10 rounded-full bg-[#2E1A47] flex items-center justify-center text-white font-black text-sm shrink-0">
+              {member.role?.charAt(0)}
+            </div>
+            <h3 className="text-lg font-bold text-[#2E1A47]">{member.role}</h3>
+          </div>
+          <p className="text-gray-600 text-xs leading-relaxed mb-2">{member.responsibilities}</p>
+          <p className="text-gray-400 text-xs italic">{member.background}</p>
+        </div>
+      ))}
+    </div>
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
+  </div>
+)}
+
+{/* Risk Mitigation */}
+{data.riskMitigation && data.riskMitigation.length > 0 && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-6 pb-4 border-b border-gray-100 shrink-0">Risk Analysis & Mitigation</h2>
+    <div className="space-y-4 flex-1">
+      {data.riskMitigation?.map((r: any, i: number) => (
+        <div key={i} className="p-5 border border-gray-100 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Risk</p>
+            <p className="text-sm font-bold text-gray-800">{r.risk}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">Impact</p>
+            <p className="text-xs text-gray-600">{r.impact}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Mitigation</p>
+            <p className="text-xs text-gray-600">{r.mitigation}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
+  </div>
+)}
+
+{/* Conclusion */}
+{data.conclusion && (
+  <div className="w-full min-h-[297mm] p-16 bg-[#05050A] page-break flex flex-col">
+    <div className="flex-1 flex flex-col justify-center relative z-10">
+      <div className="w-24 h-1.5 bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-400 mb-10 rounded-full"></div>
+      <h2 className="text-4xl font-bold text-white mb-8">Conclusion & Call to Action</h2>
+      <div className="bg-white/5 border border-white/10 p-8 rounded-2xl">
+        {data.conclusion?.split('\n').map((p: string, i: number) => (
+          p.trim() && <p key={i} className="text-gray-300 leading-relaxed mb-4 text-sm">{p}</p>
+        ))}
+      </div>
+    </div>
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-600 font-bold border-t border-white/10 pt-4">12</div>
+  </div>
+)}
 
       </div>
     </div>

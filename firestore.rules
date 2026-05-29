@@ -71,9 +71,15 @@ service cloud.firestore {
       allow write: if isSignedIn() && isValidId(opportunityId);
     }
 
+    match /metadata/stats {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // User Profile
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if true;
       allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
       allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly(['businessName'])
@@ -106,6 +112,15 @@ service cloud.firestore {
         allow update: if isOwner(userId) && isValidId(needId) && isValidFundingNeed(incoming())
           && incoming().diff(existing()).affectedKeys().hasOnly(['itemName', 'estimatedCost', 'reason', 'status', 'appliedTo', 'productLink', 'quotationDocId', 'quotationDocName']);
         allow delete: if isOwner(userId) && isValidId(needId);
+      }
+
+      match /notifications/{notifId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(notifId);
+        allow create: if isOwner(userId) && isValidId(notifId);
+        allow update: if isOwner(userId) && isValidId(notifId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+        allow delete: if isOwner(userId) && isValidId(notifId);
       }
     }
   }

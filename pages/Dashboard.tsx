@@ -17,6 +17,7 @@ import AdvertGenerator from '../components/AdvertGenerator';
 import BusinessRegistration from '../components/BusinessRegistration';
 import FundingNeedsTracker from '../components/FundingNeedsTracker';
 import { ApplicationTracker } from '../components/ApplicationTracker';
+import DocumentsVault from '../components/DocumentsVault';
 
 interface DashboardProps {
   onCompleteProfile: () => void;
@@ -24,6 +25,8 @@ interface DashboardProps {
   onAvatarUpdate?: (url: string) => void;
   onUpgrade: () => void;
   user: User | null;
+  activeSection?: 'overview' | 'applications' | 'opportunities' | 'needs' | 'tools' | 'documents';
+  onNavigateToSection?: (section: 'overview' | 'applications' | 'opportunities' | 'needs' | 'tools' | 'documents') => void;
 }
 
 interface AIMatch {
@@ -78,8 +81,13 @@ const ApplicationLogo = ({ app }: { app: Application }) => {
   );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFunding, onAvatarUpdate, onUpgrade, user }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'opportunities' | 'needs' | 'tools'>('overview');
+const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFunding, onAvatarUpdate, onUpgrade, user, activeSection = 'overview', onNavigateToSection }) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'opportunities' | 'needs' | 'tools'>(activeSection);
+  
+  useEffect(() => {
+    setActiveTab(activeSection);
+  }, [activeSection]);
+
   const [applications, setApplications] = useState<Application[]>([]);
   const [docCount, setDocCount] = useState(0);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -131,12 +139,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   useEffect(() => {
     const handleUpdateTab = (event: any) => {
       if (['overview', 'applications', 'opportunities', 'needs', 'tools'].includes(event.detail.tab)) {
-        setActiveTab(event.detail.tab);
+        if (onNavigateToSection) {
+          onNavigateToSection(event.detail.tab);
+        } else {
+          setActiveTab(event.detail.tab);
+        }
       }
     };
     window.addEventListener('update_dashboard_tab', handleUpdateTab);
     return () => window.removeEventListener('update_dashboard_tab', handleUpdateTab);
-  }, []);
+  }, [onNavigateToSection]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -397,54 +409,30 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-3 gap-3 md:gap-6">
             <StatCard label="Applications" value={applications.length} icon={<FileText size={24} />} />
             <StatCard label="Submitted" value={applications.filter(a => a.status === ApplicationStatus.SUBMITTED).length} icon={<CheckCircle size={24} />} colorClass="text-emerald-400" />
             <StatCard label="Documents" value={docCount} icon={<Upload size={24} />} colorClass="text-blue-400" />
           </div>
 
-          <div className="glass-panel p-1.5 rounded-2xl flex overflow-x-auto hide-scrollbar gap-1">
-            {['overview', 'applications', 'opportunities', 'needs', 'tools'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => {
-                  if (tab === 'opportunities') {
-                    onBrowseFunding();
-                  } else {
-                    setActiveTab(tab as any);
-                  }
-                }}
-                className={`flex-none min-w-[110px] md:flex-1 py-3 px-4 rounded-xl font-bold capitalize transition-all text-sm ${
-                  activeTab === tab ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {tab === 'opportunities' ? (
-                  <span className="flex items-center justify-center gap-2">
-                    {tab} <Sparkles size={14} className="text-cyan-400" />
-                  </span>
-                ) : tab === 'needs' ? 'Funding Needs' : tab}
-              </button>
-            ))}
-          </div>
-
           <div className="space-y-6">
             {activeTab === 'overview' && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button onClick={onCompleteProfile} className="glass-panel p-6 rounded-2xl flex items-center gap-4 hover:bg-purple-600/10 border-l-4 border-l-purple-500 transition-all text-left group">
-                    <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform"><Plus size={24} /></div>
-                    <div><h4 className="font-bold">Complete Profile</h4><p className="text-xs text-purple-400/80 font-bold tracking-wider">Unlock Auto-Fill</p></div>
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                  <button onClick={onCompleteProfile} className="glass-panel p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-3 md:gap-4 hover:bg-purple-600/10 border-t-4 md:border-t-0 border-purple-500 md:border-l-4 md:border-l-purple-500 transition-all group">
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform shrink-0"><Plus size={20} className="md:w-6 md:h-6" /></div>
+                    <div><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal">Complete Profile</h4><p className="text-[10px] md:text-xs text-purple-400/80 font-bold tracking-wider mt-1 md:mt-0">Unlock Auto-Fill</p></div>
                   </button>
-                  <button onClick={() => onBrowseFunding()} className="glass-panel p-6 rounded-2xl flex items-center gap-4 hover:bg-emerald-600/10 border-l-4 border-l-emerald-500 transition-all text-left group">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform"><Search size={24} /></div>
-                    <div><h4 className="font-bold">Browse Funding</h4><p className="text-xs text-emerald-400/80 font-bold tracking-wider">Find perfect match</p></div>
+                  <button onClick={() => onBrowseFunding()} className="glass-panel p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-3 md:gap-4 hover:bg-emerald-600/10 border-t-4 md:border-t-0 border-emerald-500 md:border-l-4 md:border-l-emerald-500 transition-all group">
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform shrink-0"><Search size={20} className="md:w-6 md:h-6" /></div>
+                    <div><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal">Browse Funding</h4><p className="text-[10px] md:text-xs text-emerald-400/80 font-bold tracking-wider mt-1 md:mt-0">Find perfect match</p></div>
                   </button>
                 </div>
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-bold">Recent Applications</h3>
-                    <button onClick={() => setActiveTab('applications')} className="text-xs font-bold text-purple-400 hover:text-purple-300 uppercase tracking-wider">View All</button>
+                    <button onClick={() => onNavigateToSection ? onNavigateToSection('applications') : setActiveTab('applications')} className="text-xs font-bold text-purple-400 hover:text-purple-300 uppercase tracking-wider">View All</button>
                   </div>
                   {applications.length > 0 ? (
                     applications.slice(0, 3).map(app => (
@@ -546,8 +534,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                               <div className="flex justify-between items-end mb-2">
                                 <span className={`text-[10px] font-black uppercase tracking-widest ${app.status === ApplicationStatus.REJECTED ? 'text-red-400' : 'text-gray-500'}`}>
                                   {app.status === ApplicationStatus.REJECTED ? 'Application Terminated' : 'Application Progress'}
+                                  <span className="ml-2 font-bold text-gray-400 normal-case">{progress}%</span>
                                 </span>
-                                <span className="text-xs font-bold text-gray-400">{progress}%</span>
                                 <span className={`text-xs font-black px-2 py-0.5 rounded-md ${app.status === ApplicationStatus.REJECTED ? 'bg-red-500/10 text-red-400' : 'text-white'}`}>
                                   {app.status === ApplicationStatus.DRAFT ? 'IN PROGRESS' : app.status.replace('_', ' ')}
                                   {app.submissionMethod === 'DIRECT_API' && (
@@ -594,6 +582,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
               </div>
             )}
 
+
+            {activeTab === 'documents' && (
+              <DocumentsVault user={user} />
+            )}
 
             {activeTab === 'needs' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">

@@ -256,7 +256,27 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
       const businessPlanSchema = {
         type: Type.OBJECT,
         properties: {
-          executiveSummary: { type: Type.STRING },
+          executiveSummary: {
+            type: Type.STRING,
+            description: "A rich, 4–6 paragraph executive summary covering the business vision, problem solved, solution, traction, and funding ask."
+          },
+          problemStatement: {
+            type: Type.STRING,
+            description: "2–3 paragraphs describing the specific market problem this business solves, with South African context where relevant."
+          },
+          solution: {
+            type: Type.STRING,
+            description: "2–3 paragraphs describing the business solution, unique approach, and core value proposition."
+          },
+          businessModel: {
+            type: Type.OBJECT,
+            properties: {
+              revenueStreams: { type: Type.ARRAY, items: { type: Type.STRING } },
+              customerAcquisition: { type: Type.STRING },
+              keyPartnerships: { type: Type.ARRAY, items: { type: Type.STRING } },
+              costStructure: { type: Type.ARRAY, items: { type: Type.STRING } },
+            }
+          },
           swot: {
             type: Type.OBJECT,
             properties: {
@@ -269,11 +289,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
           marketResearch: {
             type: Type.OBJECT,
             properties: {
-              tam: { type: Type.STRING, description: "Total Addressable Market in ZAR" },
-              sam: { type: Type.STRING, description: "Serviceable Addressable Market in ZAR" },
-              som: { type: Type.STRING, description: "Serviceable Obtainable Market in ZAR" },
+              tam: { type: Type.STRING, description: "Total Addressable Market in ZAR with reasoning" },
+              sam: { type: Type.STRING, description: "Serviceable Addressable Market in ZAR with reasoning" },
+              som: { type: Type.STRING, description: "Serviceable Obtainable Market in ZAR with reasoning" },
               targetAudience: { type: Type.ARRAY, items: { type: Type.STRING } },
-              competitorAnalysis: { type: Type.STRING },
+              competitorAnalysis: { type: Type.STRING, description: "At least 300 words covering 3–4 competitors with positioning comparison" },
+              marketTrends: { type: Type.ARRAY, items: { type: Type.STRING } },
             }
           },
           productsServices: {
@@ -282,8 +303,46 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
               type: Type.OBJECT,
               properties: {
                 name: { type: Type.STRING },
-                description: { type: Type.STRING },
+                description: { type: Type.STRING, description: "At least 3 sentences" },
                 pricing: { type: Type.STRING },
+                differentiator: { type: Type.STRING },
+              }
+            }
+          },
+          goToMarket: {
+            type: Type.OBJECT,
+            properties: {
+              strategy: { type: Type.STRING, description: "3–4 paragraphs on go-to-market approach" },
+              channels: { type: Type.ARRAY, items: { type: Type.STRING } },
+              milestones: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    quarter: { type: Type.STRING },
+                    goal: { type: Type.STRING },
+                  }
+                }
+              }
+            }
+          },
+          operationsPlan: {
+            type: Type.OBJECT,
+            properties: {
+              overview: { type: Type.STRING },
+              keyActivities: { type: Type.ARRAY, items: { type: Type.STRING } },
+              technologyStack: { type: Type.ARRAY, items: { type: Type.STRING } },
+              location: { type: Type.STRING },
+            }
+          },
+          team: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                role: { type: Type.STRING },
+                responsibilities: { type: Type.STRING },
+                background: { type: Type.STRING },
               }
             }
           },
@@ -291,14 +350,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
             type: Type.OBJECT,
             properties: {
               fundingRequirement: { type: Type.STRING },
-              fundingPurpose: { type: Type.STRING },
+              fundingPurpose: { type: Type.STRING, description: "At least 2 paragraphs" },
               useOfFunds: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
                     category: { type: Type.STRING },
-                    amount: { type: Type.STRING }
+                    amount: { type: Type.STRING },
+                    rationale: { type: Type.STRING },
                   }
                 }
               },
@@ -307,37 +367,71 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
                 properties: {
                   y1: { type: Type.STRING },
                   y2: { type: Type.STRING },
-                  y3: { type: Type.STRING }
+                  y3: { type: Type.STRING },
+                  assumptions: { type: Type.STRING },
                 }
+              },
+              breakEven: { type: Type.STRING },
+            }
+          },
+          riskMitigation: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                risk: { type: Type.STRING },
+                impact: { type: Type.STRING },
+                mitigation: { type: Type.STRING },
               }
             }
+          },
+          conclusion: {
+            type: Type.STRING,
+            description: "A strong 2–3 paragraph closing call to action directed at the funder."
           }
         }
       };
 
       if (type === 'businessplan') {
-         const prompt = `Write a comprehensive, professional Detailed Business Plan for a South African business.
-         
-         BUSINESS IDENTITY:
-         - Name: ${businessInfo.name}
-         - Industry: ${businessInfo.industry || 'General Services'}
-         - Core Description: ${businessInfo.description || 'A growing enterprise in South Africa.'}
-         - Products & Services: ${businessInfo.productsServices || 'Standard industry offerings.'}
+         const prompt = `You are a senior South African business consultant writing a PREMIUM, INVESTOR-GRADE business plan. This document will be submitted to formal funding bodies including NYDA, SEFA, IDC, NEF, and commercial banks. It must be thorough, specific, and compelling.
 
-         DOCUMENT CONTEXT (use this to inform realistic financials): ${financialDocs || 'None'}
-         
-         ${fundingSpecifics}
-         
-         REQUIREMENTS:
-         1. Write clear, detailed, and highly professional content.
-         2. Ensure financial numbers look realistic and form a coherent business trajectory.`;
+BUSINESS IDENTITY:
+- Business Name: ${businessInfo.name}
+- Industry: ${businessInfo.industry || 'General Services'}
+- Business Type: ${businessInfo.type || 'Private Company'}
+- Description: ${businessInfo.description || 'A growing South African enterprise.'}
+- Products & Services: ${businessInfo.productsServices || 'Standard industry offerings.'}
+- Years in Operation: ${businessInfo.years || 'Early stage'}
+- Current Employees: ${businessInfo.employees || 'Lean founding team'}
+- Current Revenue: ${businessInfo.revenue || 'Pre-revenue / early revenue'}
+- B2B Connections: ${businessInfo.b2bConnection || 'Building pipeline'}
+
+OWNER PROFILE:
+- Name: ${businessInfo.ownerInfo?.name || ownerInfo.name || 'Founder'}
+- Background: South African entrepreneur
+
+FINANCIAL DOCUMENT CONTEXT: ${financialDocs || 'None uploaded — use realistic SA industry benchmarks'}
+
+${fundingSpecifics}
+
+WRITING REQUIREMENTS:
+1. Write every section in full, professional prose — no placeholder text, no "TBD", no vague filler.
+2. Maximize the detail and depth of every section. The output must be exceptionally comprehensive, mirroring the extreme depth of a 90-page premium consulting document.
+3. All financial figures must be in South African Rand (ZAR) and be internally consistent across sections.
+4. Market sizing (TAM/SAM/SOM) must include the reasoning behind the numbers.
+5. Competitor analysis must name at least 3 realistic competitors in the South African market and explain positioning extensively.
+6. The go-to-market milestones must be quarterly and span 12 months with rich tactical steps.
+7. Risk mitigation must cover at least 6 specific business risks with concrete responses.
+8. The conclusion must be a direct, persuasive call to action addressed to the funder.
+9. Expand wildly on every array or list; provide as many examples, items, and team members as realistically logical.`;
          
          const response = await ai.models.generateContent({
            model: 'gemini-3.1-pro-preview',
            contents: prompt,
            config: { 
              responseMimeType: 'application/json',
-             responseSchema: businessPlanSchema
+             responseSchema: businessPlanSchema,
+             maxOutputTokens: 8192
            }
          });
          
@@ -365,7 +459,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
            contents: prompt,
            config: { 
              responseMimeType: 'application/json',
-             responseSchema: businessPlanSchema
+             responseSchema: businessPlanSchema,
+             maxOutputTokens: 8192
            }
          });
          
@@ -453,7 +548,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
       <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 group font-bold">
-        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
+        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Mission Control
       </button>
 
       <div className="mb-12">

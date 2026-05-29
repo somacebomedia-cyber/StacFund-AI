@@ -110,7 +110,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
     setIsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `Generate a comprehensive, professional 1-page business plan/proposal for ${formData.businessName} applying for ${opportunity.programme_name} (${opportunity.issuer_name}). 
+      const prompt = `Generate a comprehensive, professional business plan/proposal for ${formData.businessName} applying for ${opportunity.programme_name} (${opportunity.issuer_name}). 
       Funding requested: ${formData.fundingRequested}. 
       Purpose: ${formData.purpose}.
       Make it structured with Executive Summary, Market Opportunity, Use of Funds, and Team. Format it beautifully using Markdown.`;
@@ -134,6 +134,72 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
     setSelectedDocs(prev => 
       prev.includes(docId) ? prev.filter(id => id !== docId) : [...prev, docId]
     );
+  };
+
+  const saveDraft = async () => {
+    if (!formData.businessName) return;
+
+    const appsRef = collection(db, 'users', user.id, 'applications');
+    const q = query(appsRef, where("opportunityId", "==", opportunity.opportunity_id));
+
+    let logoUrl = '';
+    if (opportunity.logo_url) {
+      logoUrl = opportunity.logo_url;
+    } else if (opportunity.source_url) {
+      try {
+        logoUrl = `https://logo.clearbit.com/${new URL(opportunity.source_url).hostname}`;
+      } catch (e) {
+        console.warn('Error parsing source_url for clearbit logo:', e);
+      }
+    }
+
+    const draftData = {
+      opportunityId: opportunity.opportunity_id,
+      opportunityTitle: opportunity.programme_name,
+      provider: opportunity.issuer_name,
+      logoUrl,
+      status: ApplicationStatus.DRAFT,
+      date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+      type: opportunity.funding_type,
+    };
+
+    try {
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        const existingDoc = snapshot.docs[0];
+        // Only write if still a draft — never downgrade a submitted app
+        if (existingDoc.data().status === ApplicationStatus.DRAFT) {
+          await updateDoc(
+            doc(db, 'users', user.id, 'applications', existingDoc.id),
+            draftData
+          );
+        }
+      } else {
+        await addDoc(appsRef, draftData);
+      }
+
+      // Mirror to localStorage
+      const stored = JSON.parse(localStorage.getItem('stacfund_applications') || '[]');
+      const idx = stored.findIndex(
+        (a: any) => a.opportunityId === opportunity.opportunity_id && a.userId === user.id
+      );
+      if (idx >= 0) {
+        if (stored[idx].status === ApplicationStatus.DRAFT) {
+          stored[idx] = { ...stored[idx], ...draftData };
+        }
+      } else {
+        stored.push({
+          ...draftData,
+          id: Math.random().toString(36).substr(2, 9),
+          userId: user.id,
+        });
+      }
+      localStorage.setItem('stacfund_applications', JSON.stringify(stored));
+
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `users/${user.id}/applications`);
+    }
   };
 
   const handleDirectSubmit = async () => {
@@ -395,7 +461,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
                   
                   <h3 className="text-3xl font-black mb-4">Generate Business Plan</h3>
                   <p className="text-gray-400 max-w-md mx-auto mb-10 text-sm leading-relaxed">
-                    We will use our AI to draft a tailored, professional single-page business plan based on your application form. This will form the core of your proposal to <span className="text-white font-bold">{opportunity.issuer_name}</span>.
+                    We will use our AI to draft a tailored, professional business plan based on your application form. This will form the core of your proposal to <span className="text-white font-bold">{opportunity.issuer_name}</span>.
                   </p>
                   
                   <button 
@@ -479,7 +545,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
                   </div>
                   <div>
                     <h4 className="font-bold text-emerald-400 mb-1">AI Business Plan Generated</h4>
-                    <p className="text-xs text-emerald-400/80 leading-relaxed font-medium">Your 1-page business plan was successfully drafted and will be automatically included in the final pack. No action needed.</p>
+                    <p className="text-xs text-emerald-400/80 leading-relaxed font-medium">Your business plan was successfully drafted and will be automatically included in the final pack. No action needed.</p>
                   </div>
                 </div>
               </div>
@@ -601,7 +667,12 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
             
             {step < 4 && (
               <button 
-                onClick={() => setStep(Math.min(4, step + 1))}
+                onClick={async () => {
+                  if (step === 1) {
+                    await saveDraft();
+                  }
+                  setStep(Math.min(4, step + 1));
+                }}
                 disabled={isLoading || (step === 1 && (!formData.businessName || !formData.fundingRequested))}
                 className="w-full sm:w-auto px-10 py-4 rounded-xl font-black bg-purple-600 text-white hover:bg-purple-500 transition-all disabled:opacity-50 flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
               >

@@ -55,7 +55,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
           properties: {
             page: { 
               type: Type.STRING, 
-              enum: ['dashboard', 'marketplace', 'profile'],
+              enum: ['dashboard', 'funding', 'profile', 'tools', 'needs', 'applications', 'pricing', 'documents'],
               description: 'The target page to navigate to.' 
             }
           },
@@ -155,7 +155,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
         parameters: {
           type: Type.OBJECT,
           properties: {
-            tab: { type: Type.STRING, enum: ['overview', 'applications', 'opportunities', 'needs', 'tools'], description: 'The dashboard tab to open.'}
+            tab: { type: Type.STRING, enum: ['overview', 'applications', 'opportunities', 'needs', 'tools', 'documents'], description: 'The dashboard tab to open.'}
           },
           required: ['tab']
         }

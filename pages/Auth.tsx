@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Target, Mail, Lock, Building2, ArrowRight, Loader2, CheckCircle2, Inbox, AlertTriangle, Zap, ShieldCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { doc, setDoc, collection, addDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, addDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { auth, db, hasValidFirebaseConfig, handleFirestoreError, OperationType } from '../services/firebase';
 import { User } from '../types';
 
@@ -166,17 +166,50 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       const userCredential = await signInWithPopup(auth, provider);
       
       try {
-        const userDocRef = doc(db, 'users', userCredential.user.uid);
-        const userDoc = await getDoc(userDocRef);
+        const uid = userCredential.user.uid;
+        const userDocRef = doc(db, 'users', uid);
+        const statsRef = doc(db, 'metadata', 'stats');
         
-        if (!userDoc.exists()) {
-          await setDoc(userDocRef, {
-            businessName: userCredential.user.displayName || 'My Business',
-            email: userCredential.user.email,
-            createdAt: new Date(),
-            subscriptionPlan: 'free'
-          });
-        }
+        await runTransaction(db, async (transaction) => {
+          const userDoc = await transaction.get(userDocRef);
+          
+          if (!userDoc.exists()) {
+            const statsDoc = await transaction.get(statsRef);
+            let userCount = 1;
+            if (statsDoc.exists()) {
+              userCount = (statsDoc.data().userCount || 0) + 1;
+            }
+            
+            transaction.set(statsRef, { userCount }, { merge: true });
+            
+            transaction.set(userDocRef, {
+              businessName: userCredential.user.displayName || 'My Business',
+              email: userCredential.user.email,
+              createdAt: new Date(),
+              subscriptionPlan: 'free',
+              signupNumber: userCount
+            });
+            
+            if (userCount <= 1000) {
+              const notifRef = doc(collection(db, 'users', uid, 'notifications'));
+              
+              const getOrdinal = (n: number) => {
+                const s = ["th", "st", "nd", "rd"];
+                const v = n % 100;
+                return (v >= 11 && v <= 13) ? "th" : (s[n % 10] || "th");
+              };
+              
+              transaction.set(notifRef, {
+                userId: uid,
+                title: '🎉 Beta User Achievement Unlocked!',
+                message: `Congratulations! You are the ${userCount}${getOrdinal(userCount)} early adopter to join our beta program. Thank you for your support!`,
+                isRead: false,
+                date: new Date().toISOString(),
+                type: 'success'
+              });
+            }
+          }
+        });
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, `users/${userCredential.user.uid}`);
       }
@@ -217,11 +250,44 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       
       try {
-        await setDoc(doc(db, 'users', userCredential.user.uid), {
-          businessName: formData.businessName,
-          email: formData.email,
-          createdAt: new Date(),
-          subscriptionPlan: 'free'
+        const uid = userCredential.user.uid;
+        const statsRef = doc(db, 'metadata', 'stats');
+        
+        await runTransaction(db, async (transaction) => {
+          const statsDoc = await transaction.get(statsRef);
+          let userCount = 1;
+          if (statsDoc.exists()) {
+            userCount = (statsDoc.data().userCount || 0) + 1;
+          }
+          
+          transaction.set(statsRef, { userCount }, { merge: true });
+          
+          transaction.set(doc(db, 'users', uid), {
+            businessName: formData.businessName,
+            email: formData.email,
+            createdAt: new Date(),
+            subscriptionPlan: 'free',
+            signupNumber: userCount
+          });
+          
+          if (userCount <= 1000) {
+            const notifRef = doc(collection(db, 'users', uid, 'notifications'));
+            
+            const getOrdinal = (n: number) => {
+              const s = ["th", "st", "nd", "rd"];
+              const v = n % 100;
+              return (v >= 11 && v <= 13) ? "th" : (s[n % 10] || "th");
+            };
+            
+            transaction.set(notifRef, {
+              userId: uid,
+              title: '🎉 Beta User Achievement Unlocked!',
+              message: `Congratulations! You are the ${userCount}${getOrdinal(userCount)} early adopter to join our beta program. Thank you for your support!`,
+              isRead: false,
+              date: new Date().toISOString(),
+              type: 'success'
+            });
+          }
         });
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, `users/${userCredential.user.uid}`);
@@ -338,7 +404,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
             onClick={proceedToDashboard}
             className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] active:scale-[0.98]"
           >
-            Go to Dashboard <ArrowRight size={20} />
+            Go to Mission Control <ArrowRight size={20} />
           </button>
         </motion.div>
       </div>

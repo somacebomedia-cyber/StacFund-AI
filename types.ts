@@ -3,6 +3,7 @@ export enum FundingType {
   GRANT = 'GRANT',
   EQUITY = 'EQUITY',
   LOAN = 'LOAN',
+  HYBRID = 'HYBRID',
   COMPETITION = 'COMPETITION'
 }
 
@@ -124,6 +125,17 @@ export interface User {
   logoUrl?: string;
   subscriptionPlan: 'free' | 'pro' | 'business';
   billingCycle?: 'monthly' | 'yearly';
+}
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  date: string;
+  type?: 'info' | 'success' | 'warning' | 'alert';
+  actionPage?: string;
 }
 
 export interface ReadinessInfo {
