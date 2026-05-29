@@ -3,27 +3,29 @@
   "short_name": "StacFund",
   "description": "Power Your Business with StacFund",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#050510",
   "theme_color": "#050510",
   "icons": [
     {
-      "src": "/icon.svg?v=4",
+      "src": "/icon.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon.svg?v=4",
+      "src": "/icon.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon.svg?v=4",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "src": "/icon.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
