@@ -725,24 +725,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 <div className="flex flex-col items-center relative py-2">
                   {/* 3D Black Metal Base */}
                   <div className="relative w-36 h-36 rounded-full bg-gradient-to-br from-[#3a414c] via-[#0a0f16] to-[#000000] shadow-[0_15px_25px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-4px_8px_rgba(0,0,0,1)] p-[4px] flex items-center justify-center">
-                    
-                    {/* Inner lip of the base */}
-                    <div className="w-full h-full rounded-full bg-gradient-to-b from-[#000] to-[#111] shadow-[inset_0_4px_15px_rgba(0,0,0,1)] flex items-center justify-center p-[2px]">
                       
-                      {/* Clear Glass Dome */}
-                      <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-black/40 shadow-[inset_0_4px_15px_rgba(255,255,255,0.4),inset_0_-8px_20px_rgba(0,0,0,0.8)] border border-white/20">
+                      {/* Inner lip of the base */}
+                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#000] to-[#111] shadow-[inset_0_4px_15px_rgba(0,0,0,1)] flex items-center justify-center p-[2px]">
                         
-                        {/* 3D Glass Highlights (must sit above liquid) */}
-                        <div className="absolute inset-0 rounded-full z-20 pointer-events-none">
-                          {/* Top curvature bright reflection */}
-                          <div className="absolute top-[2%] left-[15%] w-[70%] h-[40%] bg-gradient-to-b from-white/70 to-transparent rounded-[50%] blur-[1.5px]"></div>
-                          {/* Subtle rim light at the bottom */}
-                          <div className="absolute bottom-[2%] left-[10%] w-[80%] h-[15%] bg-white/30 rounded-[50%] blur-[3px]"></div>
-                        </div>
-
-                        {/* Liquid container */}
-                        <motion.div 
-                          initial={{ y: "100%" }}
+                        {/* Clear Glass Dome */}
+                        <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-black/40 shadow-[inset_0_4px_15px_rgba(255,255,255,0.4),inset_0_-8px_20px_rgba(0,0,0,0.8)] border border-white/20">
+                          
+                          {/* 3D Glass Highlights (must sit above liquid) */}
+                          <div className="absolute inset-0 rounded-full z-20 pointer-events-none">
+                            {/* Top curvature bright reflection */}
+                            <div className="absolute top-[2%] left-[15%] w-[70%] h-[40%] bg-gradient-to-b from-white/70 to-transparent rounded-[50%] blur-[1.5px]"></div>
+                            {/* Subtle rim light at the bottom */}
+                            <div className="absolute bottom-[2%] left-[10%] w-[80%] h-[15%] bg-white/30 rounded-[50%] blur-[3px]"></div>
+                          </div>
+  
+                          {/* Liquid container */}
+                          <motion.div 
+                            initial={{ y: "100%" }}
                           animate={{ y: `${100 - readiness.score}%` }}
                           transition={{ duration: 2, ease: "easeInOut", bounce: 0 }}
                           className="absolute bottom-0 left-0 right-0 h-full bg-gradient-to-t from-cyan-600 via-blue-500 to-purple-500 opacity-95 shadow-[0_-10px_25px_rgba(168,85,247,0.7)] z-0"

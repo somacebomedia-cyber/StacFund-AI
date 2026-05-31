@@ -514,6 +514,417 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   </div>
 )}
 
+{/* Vision & Mission */}
+{data.visionMission && (
+  <div className="w-full min-h-[297mm] p-16 bg-[#05050A] page-break flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col justify-center relative z-10">
+      <div className="absolute inset-0">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px]"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-900/20 rounded-full blur-[100px]"></div>
+      </div>
+      <div className="w-16 h-1 bg-gradient-to-r from-purple-500 to-cyan-400 mb-8 rounded-full relative z-10"></div>
+      <div className="grid grid-cols-2 gap-8 relative z-10">
+        <div className="bg-white/5 border border-white/10 p-8 rounded-2xl">
+          <p className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-4">Vision</p>
+          <p className="text-2xl font-bold text-white leading-relaxed">{data.visionMission.vision}</p>
+        </div>
+        <div className="bg-white/5 border border-white/10 p-8 rounded-2xl">
+          <p className="text-xs font-black text-purple-400 uppercase tracking-widest mb-4">Mission</p>
+          <p className="text-2xl font-bold text-white leading-relaxed">{data.visionMission.mission}</p>
+        </div>
+      </div>
+      {data.valueProposition && (
+        <div className="mt-8 bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 p-8 rounded-2xl relative z-10">
+          <p className="text-xs font-black text-cyan-400 uppercase tracking-widest mb-3">Value Proposition</p>
+          <p className="text-xl text-gray-200 leading-relaxed italic">"{data.valueProposition}"</p>
+        </div>
+      )}
+    </div>
+    <div className="shrink-0 text-right text-sm text-gray-600 font-bold border-t border-white/10 pt-4 relative z-10">3</div>
+  </div>
+)}
+
+{/* Problem & Solution */}
+{(data.problemStatement || data.solutionOverview) && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <PageHeader />
+    {data.problemStatement && (
+      <>
+        <h2 className="text-4xl font-bold text-[#2E1A47] mb-3 pb-4 border-b border-gray-100 shrink-0">The Problem</h2>
+        <div className="bg-red-50 border-l-4 border-red-400 p-6 rounded-r-2xl mb-8 shrink-0">
+          <div className="text-gray-700 text-sm leading-relaxed space-y-3">
+            {data.problemStatement?.split('\n').map((p: string, i: number) =>
+              p.trim() && <p key={i}>{p}</p>
+            )}
+          </div>
+        </div>
+      </>
+    )}
+    {data.solutionOverview && (
+      <>
+        <h2 className="text-4xl font-bold text-[#2E1A47] mb-3 pb-4 border-b border-gray-100 shrink-0">The Solution</h2>
+        <div className="bg-emerald-50 border-l-4 border-emerald-400 p-6 rounded-r-2xl flex-1">
+          <div className="text-gray-700 text-sm leading-relaxed space-y-3">
+            {data.solutionOverview?.split('\n').map((p: string, i: number) =>
+              p.trim() && <p key={i}>{p}</p>
+            )}
+          </div>
+        </div>
+      </>
+    )}
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">4</div>
+  </div>
+)}
+
+{/* Viability Score */}
+{data.viabilityScore && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Viability Assessment</h2>
+    <div className="flex items-center justify-center mb-10 shrink-0">
+      <div className="relative w-48 h-48">
+        <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
+          <circle cx="100" cy="100" r="80" fill="none" stroke="#f3f0f8" strokeWidth="16"/>
+          <circle
+            cx="100" cy="100" r="80" fill="none"
+            stroke="url(#scoreGrad)" strokeWidth="16"
+            strokeLinecap="round"
+            strokeDasharray={`${(data.viabilityScore.overall / 100) * 502} 502`}
+          />
+          <defs>
+            <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#6366f1"/>
+              <stop offset="100%" stopColor="#a855f7"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-5xl font-black text-[#2E1A47]">{data.viabilityScore.overall}</span>
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">/ 100</span>
+        </div>
+      </div>
+    </div>
+    <div className="grid grid-cols-2 gap-4 mb-8 shrink-0">
+      {[
+        { label: 'Market Opportunity', key: 'marketOpportunity', color: 'bg-blue-500' },
+        { label: 'Team Strength', key: 'teamStrength', color: 'bg-purple-500' },
+        { label: 'Financial Viability', key: 'financialViability', color: 'bg-emerald-500' },
+        { label: 'Social Impact', key: 'socialImpact', color: 'bg-orange-500' },
+        { label: 'Competitive Position', key: 'competitivePosition', color: 'bg-cyan-500' },
+      ].map((item) => (
+        <div key={item.key} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-bold text-gray-500">{item.label}</span>
+            <span className="text-sm font-black text-[#2E1A47]">{data.viabilityScore[item.key]}/100</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className={`${item.color} h-2 rounded-full transition-all`}
+              style={{ width: `${data.viabilityScore[item.key]}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+    {data.viabilityScore.reasoning && (
+      <div className="bg-[#F8F5FF] border border-[#E8DEFF] p-6 rounded-2xl flex-1">
+        <p className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3">Assessment Reasoning</p>
+        <p className="text-gray-700 text-sm leading-relaxed">{data.viabilityScore.reasoning}</p>
+      </div>
+    )}
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">5</div>
+  </div>
+)}
+
+{/* TAM SAM SOM Visual Page */}
+{data.marketResearch && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Market Size & Opportunity</h2>
+    <div className="flex items-center justify-center gap-8 mb-10 shrink-0">
+      <div className="relative flex items-center justify-center" style={{width: 280, height: 280}}>
+        <svg width="280" height="280" viewBox="0 0 280 280">
+          <circle cx="140" cy="140" r="130" fill="#EEF2FF" stroke="#C7D2FE" strokeWidth="2"/>
+          <circle cx="140" cy="140" r="90" fill="#DDD6FE" stroke="#A78BFA" strokeWidth="2"/>
+          <circle cx="140" cy="140" r="52" fill="#2E1A47" stroke="#6D28D9" strokeWidth="2"/>
+          <text x="140" y="135" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">SOM</text>
+          <text x="140" y="152" textAnchor="middle" fill="#C4B5FD" fontSize="9">Obtainable</text>
+        </svg>
+        <div className="absolute top-2 right-2 text-right">
+          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">TAM</p>
+          <p className="text-xs font-bold text-[#2E1A47]">{data.marketResearch.tam?.split(' ').slice(0,2).join(' ')}</p>
+        </div>
+        <div className="absolute left-0 top-1/3">
+          <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">SAM</p>
+          <p className="text-xs font-bold text-[#2E1A47]">{data.marketResearch.sam?.split(' ').slice(0,2).join(' ')}</p>
+        </div>
+      </div>
+      <div className="flex-1 space-y-6">
+        {[
+          { label: 'TAM', sub: 'Total Addressable Market', value: data.marketResearch.tam, color: 'bg-indigo-100 text-indigo-700' },
+          { label: 'SAM', sub: 'Serviceable Available Market', value: data.marketResearch.sam, color: 'bg-purple-100 text-purple-700' },
+          { label: 'SOM', sub: 'Serviceable Obtainable Market', value: data.marketResearch.som, color: 'bg-[#2E1A47] text-white' },
+        ].map((m) => (
+          <div key={m.label} className="flex gap-4 items-start">
+            <span className={`px-3 py-1 rounded-lg text-xs font-black shrink-0 ${m.color}`}>{m.label}</span>
+            <div>
+              <p className="text-xs font-bold text-gray-400 mb-1">{m.sub}</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{m.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+    {data.marketResearch.industryAnalysis && (
+      <div className="flex-1">
+        <h3 className="text-base font-bold text-[#2E1A47] mb-3">Industry Analysis</h3>
+        <div className="text-gray-600 text-sm leading-relaxed space-y-3">
+          {data.marketResearch.industryAnalysis?.split('\n').map((p: string, i: number) =>
+            p.trim() && <p key={i}>{p}</p>
+          )}
+        </div>
+      </div>
+    )}
+    {data.marketResearch.marketTrends && (
+      <div className="mt-6 shrink-0">
+        <h3 className="text-base font-bold text-[#2E1A47] mb-3">Market Trends</h3>
+        <div className="grid grid-cols-2 gap-3">
+          {data.marketResearch.marketTrends?.map((t: string, i: number) => (
+            <div key={i} className="flex items-start gap-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
+              <span className="text-indigo-400 shrink-0 font-black mt-0.5">↑</span>{t}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">9</div>
+  </div>
+)}
+
+{/* Business Models */}
+{data.businessModels && data.businessModels.length > 0 && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Business Models</h2>
+    <div className="grid grid-cols-2 gap-6 flex-1">
+      {data.businessModels?.map((model: any, i: number) => (
+        <div key={i} className="p-6 border border-gray-100 rounded-2xl bg-white shadow-sm flex flex-col">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-sm shrink-0">
+              {i + 1}
+            </div>
+            <h3 className="text-base font-bold text-[#2E1A47]">{model.name}</h3>
+          </div>
+          <p className="text-gray-600 text-xs leading-relaxed mb-4 flex-1">{model.description}</p>
+          <div className="grid grid-cols-2 gap-3 mt-auto">
+            <div>
+              <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Advantages</p>
+              <ul className="space-y-1">
+                {model.advantages?.slice(0,3).map((a: string, j: number) => (
+                  <li key={j} className="text-[10px] text-gray-500 flex items-start gap-1">
+                    <span className="text-emerald-400 shrink-0">+</span>{a}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Challenges</p>
+              <ul className="space-y-1">
+                {model.challenges?.slice(0,3).map((c: string, j: number) => (
+                  <li key={j} className="text-[10px] text-gray-500 flex items-start gap-1">
+                    <span className="text-red-400 shrink-0">−</span>{c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">11</div>
+  </div>
+)}
+
+{/* Financial Statements */}
+{data.financialStatements && (
+  <>
+    {/* P&L */}
+    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+      <PageHeader />
+      <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Profit & Loss Statement</h2>
+      <div className="overflow-x-auto flex-1">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b-2 border-[#2E1A47]">
+              <th className="text-left py-3 font-black text-[#2E1A47] text-xs uppercase tracking-widest">Line Item</th>
+              {['Year 1','Year 2','Year 3','Year 4','Year 5'].map(y => (
+                <th key={y} className="text-right py-3 font-black text-[#2E1A47] text-xs uppercase tracking-widest px-2">{y}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.financialStatements.profitLoss?.map((row: any, i: number) => (
+              <tr key={i} className={`border-b border-gray-50 ${row.isTotal ? 'bg-[#F8F5FF] font-bold' : ''}`}>
+                <td className="py-3 text-gray-700 font-medium">{row.label}</td>
+                {row.values?.map((v: string, j: number) => (
+                  <td key={j} className={`py-3 text-right px-2 font-mono ${row.isTotal ? 'font-black text-[#2E1A47]' : 'text-gray-600'} ${v?.startsWith('(') ? 'text-red-500' : ''}`}>{v}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">28</div>
+    </div>
+
+    {/* Balance Sheet */}
+    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+      <PageHeader />
+      <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Balance Sheet</h2>
+      <div className="overflow-x-auto flex-1">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b-2 border-[#2E1A47]">
+              <th className="text-left py-3 font-black text-[#2E1A47] text-xs uppercase tracking-widest">Item</th>
+              {['Year 1','Year 2','Year 3','Year 4','Year 5'].map(y => (
+                <th key={y} className="text-right py-3 font-black text-[#2E1A47] text-xs uppercase tracking-widest px-2">{y}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.financialStatements.balanceSheet?.map((row: any, i: number) => (
+              <tr key={i} className={`border-b border-gray-50 ${row.isTotal ? 'bg-[#F8F5FF] font-bold' : ''} ${row.isHeader ? 'bg-gray-100' : ''}`}>
+                <td className={`py-3 text-gray-700 ${row.isHeader ? 'font-black text-[#2E1A47] uppercase text-[10px] tracking-widest' : 'font-medium pl-4'}`}>{row.label}</td>
+                {row.isHeader ? <td colSpan={5}></td> : row.values?.map((v: string, j: number) => (
+                  <td key={j} className={`py-3 text-right px-2 font-mono ${row.isTotal ? 'font-black text-[#2E1A47]' : 'text-gray-600'}`}>{v}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">29</div>
+    </div>
+
+    {/* Cash Flow */}
+    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+      <PageHeader />
+      <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Cash Flow Statement</h2>
+      <div className="overflow-x-auto flex-1">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b-2 border-[#2E1A47]">
+              <th className="text-left py-3 font-black text-[#2E1A47] text-xs uppercase tracking-widest">Activity</th>
+              {['Year 1','Year 2','Year 3','Year 4','Year 5'].map(y => (
+                <th key={y} className="text-right py-3 font-black text-[#2E1A47] text-xs uppercase tracking-widest px-2">{y}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.financialStatements.cashFlow?.map((row: any, i: number) => (
+              <tr key={i} className={`border-b border-gray-50 ${row.isTotal ? 'bg-[#F8F5FF] font-bold' : ''}`}>
+                <td className="py-3 text-gray-700 font-medium">{row.label}</td>
+                {row.values?.map((v: string, j: number) => (
+                  <td key={j} className={`py-3 text-right px-2 font-mono ${row.isTotal ? 'font-black text-[#2E1A47]' : 'text-gray-600'} ${v?.startsWith('(') ? 'text-red-500' : ''}`}>{v}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">30</div>
+    </div>
+  </>
+)}
+
+{/* Pre & Post Launch */}
+{data.implementationPlan && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Implementation Plan</h2>
+    <div className="grid grid-cols-2 gap-8 flex-1">
+      {data.implementationPlan.preLaunch && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-3 h-3 rounded-full bg-orange-400 shrink-0"></div>
+            <h3 className="text-base font-bold text-[#2E1A47]">Pre-Launch</h3>
+          </div>
+          <div className="space-y-4">
+            {data.implementationPlan.preLaunch?.map((section: any, i: number) => (
+              <div key={i}>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{section.category}</p>
+                <ul className="space-y-1.5">
+                  {section.tasks?.map((t: string, j: number) => (
+                    <li key={j} className="flex items-start gap-2 text-xs text-gray-600">
+                      <span className="w-4 h-4 rounded border border-gray-300 shrink-0 mt-0.5 flex items-center justify-center text-[8px] text-gray-400">✓</span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {data.implementationPlan.postLaunch && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-3 h-3 rounded-full bg-emerald-400 shrink-0"></div>
+            <h3 className="text-base font-bold text-[#2E1A47]">Post-Launch</h3>
+          </div>
+          <div className="space-y-4">
+            {data.implementationPlan.postLaunch?.map((section: any, i: number) => (
+              <div key={i}>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{section.category}</p>
+                <ul className="space-y-1.5">
+                  {section.tasks?.map((t: string, j: number) => (
+                    <li key={j} className="flex items-start gap-2 text-xs text-gray-600">
+                      <span className="w-4 h-4 rounded border border-gray-300 shrink-0 mt-0.5 flex items-center justify-center text-[8px] text-gray-400">✓</span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">44</div>
+  </div>
+)}
+
+{/* 5-Year Plan */}
+{data.implementationPlan?.fiveYearPlan && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">5-Year Strategic Plan</h2>
+    <div className="space-y-6 flex-1">
+      {data.implementationPlan.fiveYearPlan?.map((year: any, i: number) => (
+        <div key={i} className="flex gap-6 items-start">
+          <div className="w-20 shrink-0 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-sm mx-auto mb-1">
+              Y{i + 1}
+            </div>
+            <p className="text-[10px] font-bold text-gray-400">{year.year || `Year ${i + 1}`}</p>
+          </div>
+          <div className="flex-1 border-l-2 border-indigo-100 pl-6">
+            <h3 className="text-base font-bold text-[#2E1A47] mb-3">{year.title}</h3>
+            <ul className="space-y-2">
+              {year.initiatives?.map((init: string, j: number) => (
+                <li key={j} className="text-xs text-gray-600 flex items-start gap-2">
+                  <span className="text-indigo-400 shrink-0 mt-0.5">→</span>{init}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">45</div>
+  </div>
+)}
+
       </div>
     </div>
   );

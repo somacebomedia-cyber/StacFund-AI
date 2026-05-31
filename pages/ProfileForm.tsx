@@ -24,7 +24,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
   const [isScanning, setIsScanning] = useState<string | null>(null);
   const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
   const [generatedBusinessPlanData, setGeneratedBusinessPlanData] = useState<any | null>(null);
-  const [configModal, setConfigModal] = useState<{ type: 'proposal' | 'businessplan', amount: string, purpose: string, impact: string, roi: string } | null>(null);
+  const [configModal, setConfigModal] = useState<{ type: 'proposal' | 'businessplan', amount: string, purpose: string, impact: string, roi: string, premiumOutput: boolean } | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ current: number, total: number, label: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
   const [showSubmissionPack, setShowSubmissionPack] = useState(false);
@@ -220,7 +221,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     }
   };
 
-  const handleGenerateProposal = async (type: 'proposal' | 'businessplan', config: { amount: string, purpose: string, impact: string, roi: string }) => {
+  const handleGenerateProposal = async (type: 'proposal' | 'businessplan', config: { amount: string, purpose: string, impact: string, roi: string, premiumOutput?: boolean }) => {
     if (user?.subscriptionPlan === 'free') {
       onUpgrade();
       return;
@@ -250,12 +251,17 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
          - Expected Revenue Impact/ROI: ${config.roi || 'Positive return on investment'}
     `;
 
+    // 1. Determine batches
+    const cleanedAmount = parseInt(config.amount.replace(/[^0-9]/g, '') || '0', 10);
+    let totalBatches = 2; // under R50k
+    if (config.premiumOutput || cleanedAmount > 2000000) totalBatches = 5;
+    else if (cleanedAmount > 500000) totalBatches = 4;
+    else if (cleanedAmount >= 50000) totalBatches = 3;
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
-      const businessPlanSchema = {
-        type: Type.OBJECT,
-        properties: {
+      const fullBusinessPlanSchemaProperties = {
           executiveSummary: {
             type: Type.STRING,
             description: "A rich, 4–6 paragraph executive summary covering the business vision, problem solved, solution, traction, and funding ask."
@@ -388,12 +394,178 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
           conclusion: {
             type: Type.STRING,
             description: "A strong 2–3 paragraph closing call to action directed at the funder."
+          },
+          viabilityScore: {
+            type: Type.OBJECT,
+            properties: {
+              overall: { type: Type.NUMBER, description: "Score out of 100" },
+              marketOpportunity: { type: Type.NUMBER },
+              teamStrength: { type: Type.NUMBER },
+              financialViability: { type: Type.NUMBER },
+              socialImpact: { type: Type.NUMBER },
+              competitivePosition: { type: Type.NUMBER },
+              reasoning: { type: Type.STRING }
+            }
+          },
+          businessModels: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                description: { type: Type.STRING },
+                advantages: { type: Type.ARRAY, items: { type: Type.STRING } },
+                challenges: { type: Type.ARRAY, items: { type: Type.STRING } }
+              }
+            }
+          },
+          financialStatements: {
+            type: Type.OBJECT,
+            properties: {
+              profitLoss: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    label: { type: Type.STRING },
+                    values: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    isTotal: { type: Type.BOOLEAN }
+                  }
+                }
+              },
+              balanceSheet: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    label: { type: Type.STRING },
+                    values: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    isTotal: { type: Type.BOOLEAN },
+                    isHeader: { type: Type.BOOLEAN }
+                  }
+                }
+              },
+              cashFlow: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    label: { type: Type.STRING },
+                    values: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    isTotal: { type: Type.BOOLEAN }
+                  }
+                }
+              }
+            }
+          },
+          implementationPlan: {
+            type: Type.OBJECT,
+            properties: {
+              preLaunch: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    category: { type: Type.STRING },
+                    tasks: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  }
+                }
+              },
+              postLaunch: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    category: { type: Type.STRING },
+                    tasks: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  }
+                }
+              },
+              fiveYearPlan: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    year: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    initiatives: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  }
+                }
+              }
+            }
           }
-        }
       };
 
-      if (type === 'businessplan') {
-         const prompt = `You are a senior South African business consultant writing a PREMIUM, INVESTOR-GRADE business plan. This document will be submitted to formal funding bodies including NYDA, SEFA, IDC, NEF, and commercial banks. It must be thorough, specific, and compelling.
+      const allPrompts = [
+         { 
+           label: "Core Identity & Problem-Solution Fit", 
+           sections: ['executiveSummary', 'problemStatement', 'solution'],
+           instructions: "Focus on the executive summary, the core problem statement in the SA context, and the proposed solution."
+         },
+         {
+           label: "Business Model & Product Strategy",
+           sections: ['businessModel', 'swot', 'productsServices', 'businessModels'],
+           instructions: "Elaborate deeply on the revenue streams, precise product/service descriptions, SWOT analysis, and various business models."
+         },
+         {
+           label: "Market Research & Operations",
+           sections: ['marketResearch', 'goToMarket', 'operationsPlan', 'team'],
+           instructions: "Provide comprehensive market sizes, exhaustive competitor analysis, operational plans, go-to-market channels, and team structures."
+         },
+         {
+           label: "Financial Deep Dive",
+           sections: ['financialPlan', 'financialStatements'],
+           instructions: "Generate realistic, investor-grade financial projections including Profit & Loss, Balance Sheet, Cash Flow, funding requirements, and revenue assumptions."
+         },
+         {
+           label: "Risk, Implementation & Conclusion",
+           sections: ['riskMitigation', 'implementationPlan', 'conclusion', 'viabilityScore'],
+           instructions: "Detail concrete risk mitigation strategies, a multi-phased implementation plan, a strong conclusion, and an objective viability score out of 100."
+         }
+      ];
+
+      // Distribute based on totalBatches
+      let batches: typeof allPrompts = [];
+      if (totalBatches === 2) {
+         batches = [
+           { label: "Business Fundamentals", sections: [...allPrompts[0].sections, ...allPrompts[1].sections, ...allPrompts[2].sections], instructions: "Generate the core identity, business model, market research, and operations." },
+           { label: "Financials & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: "Generate the financial deep dive, risk management, and implementation plan." }
+         ];
+      } else if (totalBatches === 3) {
+         batches = [
+           { label: "Business Fundamentals", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
+           { label: "Market & Operations", sections: [...allPrompts[2].sections], instructions: allPrompts[2].instructions },
+           { label: "Financials & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: allPrompts[3].instructions + " " + allPrompts[4].instructions }
+         ];
+      } else if (totalBatches === 4) {
+         batches = [
+           { label: "Core Identity & Model", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
+           allPrompts[2], allPrompts[3], allPrompts[4]
+         ];
+      } else {
+         batches = allPrompts;
+      }
+
+      let mergedData: any = { docType: type === 'businessplan' ? 'Business Plan' : 'Funding Proposal' };
+      let rollingContext = "";
+
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        setBatchProgress({ current: i + 1, total: totalBatches, label: batch.label });
+
+        const batchProperties: any = {};
+        batch.sections.forEach(sec => {
+          batchProperties[sec] = (fullBusinessPlanSchemaProperties as any)[sec];
+        });
+
+        const batchSchema = {
+          type: Type.OBJECT,
+          properties: batchProperties
+        };
+
+        const batchPrompt = `You are a senior South African business consultant writing a ${config.premiumOutput ? 'PREMIUM, INVESTOR-GRADE' : 'standard'} ${type === 'businessplan' ? 'business plan' : 'funding proposal'}.
+This document will be submitted to formal funding bodies including NYDA, SEFA, IDC, NEF, and commercial banks. 
+It must be thorough, specific, and compelling.
 
 BUSINESS IDENTITY:
 - Business Name: ${businessInfo.name}
@@ -414,63 +586,45 @@ FINANCIAL DOCUMENT CONTEXT: ${financialDocs || 'None uploaded — use realistic 
 
 ${fundingSpecifics}
 
+PREVIOUSLY GENERATED SECTIONS CONTEXT (Ensure continuity):
+${rollingContext ? rollingContext : "None."}
+
+CURRENT BATCH TASK:
+Generate only the specific fields defined in the schema.
+${batch.instructions}
+
 WRITING REQUIREMENTS:
-1. Write every section in full, professional prose — no placeholder text, no "TBD", no vague filler.
-2. Maximize the detail and depth of every section. The output must be exceptionally comprehensive, mirroring the extreme depth of a 90-page premium consulting document.
-3. All financial figures must be in South African Rand (ZAR) and be internally consistent across sections.
-4. Market sizing (TAM/SAM/SOM) must include the reasoning behind the numbers.
-5. Competitor analysis must name at least 3 realistic competitors in the South African market and explain positioning extensively.
-6. The go-to-market milestones must be quarterly and span 12 months with rich tactical steps.
-7. Risk mitigation must cover at least 6 specific business risks with concrete responses.
-8. The conclusion must be a direct, persuasive call to action addressed to the funder.
-9. Expand wildly on every array or list; provide as many examples, items, and team members as realistically logical.`;
-         
-         const response = await ai.models.generateContent({
-           model: 'gemini-3.1-pro-preview',
-           contents: prompt,
-           config: { 
-             responseMimeType: 'application/json',
-             responseSchema: businessPlanSchema,
-             maxOutputTokens: 8192
-           }
-         });
-         
-         setGeneratedBusinessPlanData({ ...JSON.parse(response.text || '{}'), docType: 'Business Plan' });
-      } else {
-         const prompt = `Write a comprehensive and professional Funding Proposal for a South African business.
-         
-         BUSINESS IDENTITY:
-         - Name: ${businessInfo.name}
-         - Industry: ${businessInfo.industry || 'General Services'}
-         - Core Description: ${businessInfo.description || 'A growing enterprise in South Africa.'}
-         - Products & Services: ${businessInfo.productsServices || 'Standard industry offerings.'}
-         - Registration: ${businessInfo.registration || 'Pending'}
+1. Write every section in full, professional prose. No placeholders.
+2. The output must be exceptionally comprehensive${config.premiumOutput ? ', mirroring a premium 90-page consulting document' : ''}.
+3. All financial figures must be in South African Rand (ZAR) and be internally consistent.
+4. Ensure continuity with the previously generated sections.
+5. Provide detailed arrays where the schema requests them (e.g. at least 3 items per array).
+`;
 
-         DOCUMENT CONTEXT (use this to inform realistic financials): ${financialDocs || 'None specified, use industry benchmarks'}
-         
-         ${fundingSpecifics}
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-pro-preview',
+          contents: batchPrompt,
+          config: { 
+            responseMimeType: 'application/json',
+            responseSchema: batchSchema,
+            maxOutputTokens: 8192
+          }
+        });
 
-         REQUIREMENTS:
-         1. Use a professional, persuasive tone suitable for South African funding bodies (NYDA, SEFA, IDC, or commercial banks).
-         2. Write clear, detailed, and highly professional content focusing on funding impact.`;
-         
-         const response = await ai.models.generateContent({
-           model: 'gemini-3.1-pro-preview',
-           contents: prompt,
-           config: { 
-             responseMimeType: 'application/json',
-             responseSchema: businessPlanSchema,
-             maxOutputTokens: 8192
-           }
-         });
-         
-         setGeneratedBusinessPlanData({ ...JSON.parse(response.text || '{}'), docType: 'Funding Proposal' });
+        const batchResult = JSON.parse(response.text || '{}');
+        mergedData = { ...mergedData, ...batchResult };
+
+        const resultSummary = Object.keys(batchResult).map(k => `${k} section generated.`).join(" ");
+        rollingContext += `Batch ${i+1} (${batch.label}): ${resultSummary}\n`;
       }
+
+      setGeneratedBusinessPlanData(mergedData);
     } catch (e) {
       console.error(e);
       alert('Generation failed. Check your connection.');
     } finally {
       setIsGeneratingProposal(false);
+      setBatchProgress(null);
     }
   };
 
@@ -819,7 +973,7 @@ WRITING REQUIREMENTS:
                       <button 
                         onClick={() => {
                            if (!isPaid) onUpgrade();
-                           else setConfigModal({ type: 'proposal', amount: '', purpose: '', impact: '', roi: '' });
+                           else setConfigModal({ type: 'proposal', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false });
                         }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-cyan-500/10 hover:border-cyan-500/30 transition-all group relative overflow-hidden"
@@ -838,7 +992,7 @@ WRITING REQUIREMENTS:
                       <button 
                         onClick={() => {
                            if (!isPaid) onUpgrade();
-                           else setConfigModal({ type: 'businessplan', amount: '', purpose: '', impact: '', roi: '' });
+                           else setConfigModal({ type: 'businessplan', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false });
                         }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all group relative overflow-hidden"
@@ -1030,6 +1184,19 @@ WRITING REQUIREMENTS:
                 <input type="text" value={configModal.roi} onChange={e => setConfigModal({...configModal, roi: e.target.value})} placeholder="e.g., Increase monthly revenue by 40%" className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-cyan-500 focus:outline-none" />
               </div>
             </div>
+
+            <label className="flex items-center gap-3 mt-6 p-4 rounded-xl border border-purple-500/30 bg-purple-500/10 cursor-pointer hover:bg-purple-500/20 transition-all">
+              <input 
+                type="checkbox" 
+                checked={configModal.premiumOutput}
+                onChange={e => setConfigModal({...configModal, premiumOutput: e.target.checked})}
+                className="w-5 h-5 rounded border-white/20 bg-black/50 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900" 
+              />
+              <div className="flex-1">
+                <div className="font-bold text-white flex items-center gap-2">Premium Output <Crown size={16} className="text-amber-400" /></div>
+                <div className="text-xs text-gray-400">Forces maximum detail (5-batch generation) regardless of funding amount. Takes longer.</div>
+              </div>
+            </label>
             
             <button 
               onClick={() => {
@@ -1043,6 +1210,32 @@ WRITING REQUIREMENTS:
             >
               Generate Document <Wand2 size={18} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {batchProgress && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-gray-900 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl relative text-center animate-in fade-in zoom-in-95">
+            <div className="w-16 h-16 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center mx-auto mb-6">
+              <Loader2 size={32} className="animate-spin" />
+            </div>
+            <h3 className="text-xl font-black text-white mb-2">Generating Content</h3>
+            <p className="text-gray-400 text-sm mb-6">{batchProgress.label}</p>
+            
+            <div className="flex justify-between text-xs font-bold text-gray-400 mb-2 px-1">
+              <span>{Math.round(((batchProgress.current - 1) / batchProgress.total) * 100)}%</span>
+              <span>100%</span>
+            </div>
+            <div className="w-full bg-black/50 overflow-hidden h-3 rounded-full mb-3 border border-white/5">
+               <div 
+                 className="bg-cyan-500 h-full rounded-full transition-all duration-500"
+                 style={{ width: `${((batchProgress.current - 1) / batchProgress.total) * 100}%` }}
+               />
+            </div>
+            <div className="text-xs font-bold text-cyan-500/70 uppercase tracking-widest">
+              Batch {batchProgress.current} OF {batchProgress.total}
+            </div>
           </div>
         </div>
       )}
