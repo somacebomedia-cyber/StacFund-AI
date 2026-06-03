@@ -7,6 +7,7 @@ import { collection, getDocs, updateDoc, doc, query, deleteDoc, setDoc } from 'f
 import { db } from '../services/firebase';
 import { User, Application } from '../types';
 import { MOCK_FUNDING } from '../constants';
+import { handleGeminiError } from '../services/geminiError';
 
 interface Message {
   role: 'user' | 'model';
@@ -453,6 +454,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
 
     } catch (error) {
       console.error('Chat error:', error);
+      handleGeminiError(error);
       setMessages(prev => [...prev, { role: 'model', text: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment." }]);
     } finally {
       setIsTyping(false);

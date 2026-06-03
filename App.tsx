@@ -38,6 +38,38 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const error = event.reason;
+      if (error) {
+        const msg = (error.message || String(error)).toLowerCase();
+        if (
+          msg.includes('429') ||
+          msg.includes('resource_exhausted') ||
+          msg.includes('prepayment') ||
+          msg.includes('depleted') ||
+          msg.includes('quota')
+        ) {
+          setQuotaError(error.message || "Your prepayment credits are depleted. Please manage your project and billing in Google AI Studio.");
+        }
+      }
+    };
+
+    const handleCustomQuotaError = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      setQuotaError(customEvent.detail?.message || "Your prepayment credits are depleted. Please manage your project and billing in Google AI Studio.");
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('gemini_quota_error', handleCustomQuotaError);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('gemini_quota_error', handleCustomQuotaError);
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentUser) {
@@ -445,6 +477,34 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col h-screen hidden-scrollbar overflow-y-auto relative z-10">
         <InstallPrompt />
+
+        {quotaError && (
+          <div className="mx-6 mt-4 p-5 rounded-3xl border border-red-500/20 bg-red-950/20 backdrop-blur-md flex items-start gap-4 text-red-200 text-xs shadow-xl animate-in fade-in slide-in-from-top-4 duration-300">
+            <AlertTriangle size={20} className="shrink-0 text-red-400 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-extrabold text-[#fff] text-sm tracking-tight mb-1">AI Action Interrupted (Prepayment Limits Reached)</p>
+              <p className="text-gray-300 mb-3 leading-relaxed">
+                Your current Google AI Studio prepayment credits/billing limits have been depleted. Advanced features like our AI Document Digitizer, dynamic matching engines, pitch deck structures, and the AI Assistant might experience disruptions.
+              </p>
+              <div className="flex items-center gap-4">
+                <a 
+                  href="https://ai.studio/projects" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="inline-flex items-center gap-1.5 font-bold text-red-400 hover:text-red-300 transition-colors uppercase tracking-wider text-[10px] bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-xl border border-red-500/20"
+                >
+                  Manage Billing in AI Studio <ChevronRight size={12} />
+                </a>
+                <button 
+                  onClick={() => setQuotaError(null)}
+                  className="text-gray-400 hover:text-white transition-colors underline uppercase tracking-wider text-[10px] font-bold"
+                >
+                  Dismiss Warning
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {isNotificationsOpen && (
           <div className="fixed inset-0 z-[100] md:absolute md:inset-auto md:right-4 md:top-4 pointer-events-none">

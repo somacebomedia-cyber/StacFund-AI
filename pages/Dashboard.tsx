@@ -5,6 +5,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { motion } from 'motion/react';
 import { collection, getDocs, query, where, getDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
+import { handleGeminiError } from '../services/geminiError';
 import StatCard from '../components/StatCard';
 import ComplianceTracker from '../components/ComplianceTracker';
 import GlassAvatar from '../components/GlassAvatar';
@@ -231,6 +232,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       setReadiness(data);
     } catch (e) {
       console.error(e);
+      handleGeminiError(e);
     } finally {
       setIsLoadingReadiness(false);
     }
@@ -283,6 +285,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       setAiMatches(matches);
     } catch (error) {
       console.error('AI Matching failed:', error);
+      handleGeminiError(error);
     } finally {
       setIsLoadingAI(false);
     }
