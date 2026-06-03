@@ -68,7 +68,18 @@ const App: React.FC = () => {
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // User is signed in, fetch extra profile data from Firestore
+        // Set basic user immediately to avoid offline blocking
+        setCurrentUser({
+          id: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          businessName: 'Loading...',
+          isVerified: firebaseUser.emailVerified,
+          subscriptionPlan: 'free'
+        });
+        setCurrentPage(prev => (prev === 'landing' || prev === 'auth') ? 'dashboard' : prev);
+        setIsInitializing(false);
+
+        // Fetch extra profile data silently
         try {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           const userDoc = await getDoc(userDocRef);
@@ -84,18 +95,6 @@ const App: React.FC = () => {
               subscriptionPlan: userData.subscriptionPlan || 'free',
               billingCycle: userData.billingCycle
             });
-            // Only redirect to dashboard if we were on landing or auth
-            setCurrentPage(prev => (prev === 'landing' || prev === 'auth') ? 'dashboard' : prev);
-          } else {
-            // Fallback if doc doesn't exist yet (rare race condition)
-            setCurrentUser({
-              id: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              businessName: 'New User',
-              isVerified: firebaseUser.emailVerified,
-              subscriptionPlan: 'free'
-            });
-            setCurrentPage(prev => (prev === 'landing' || prev === 'auth') ? 'dashboard' : prev);
           }
         } catch (e) {
           console.error("Error fetching user profile:", e);
@@ -104,8 +103,8 @@ const App: React.FC = () => {
         // User is signed out
         setCurrentUser(null);
         setCurrentPage(prev => (prev !== 'landing' && prev !== 'auth') ? 'landing' : prev);
+        setIsInitializing(false);
       }
-      setIsInitializing(false);
     }, (error) => {
       // Handle initialization errors gracefully
       console.error("Firebase Auth Error:", error);

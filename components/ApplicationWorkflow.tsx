@@ -116,7 +116,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       Make it structured with Executive Summary, Market Opportunity, Use of Funds, and Team. Format it beautifully using Markdown.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
+        model: 'gemini-3.5-flash',
         contents: prompt
       });
       

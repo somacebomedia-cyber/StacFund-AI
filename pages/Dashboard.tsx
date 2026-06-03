@@ -211,7 +211,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       Return a JSON object with "score" (0-100) representing funding readiness and "tips" (array of 3 short strings) to improve it.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.5-flash',
         contents: prompt,
         config: { 
           responseMimeType: 'application/json',
@@ -258,7 +258,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.5-flash',
         contents: prompt,
         config: { 
           responseMimeType: 'application/json',

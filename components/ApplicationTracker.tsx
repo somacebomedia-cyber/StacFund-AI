@@ -64,14 +64,12 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ applicat
     currentStageIndex = 0; // Not submitted
   } else if (application.status === ApplicationStatus.SUBMITTED) {
     currentStageIndex = 1;
-  } else if (application.status === ApplicationStatus.REVIEWING) {
+  } else if (application.status === ApplicationStatus.UNDER_REVIEW) {
     currentStageIndex = 2;
   } else if (application.status === ApplicationStatus.APPROVED) {
     currentStageIndex = 4;
   } else if (application.status === ApplicationStatus.REJECTED) {
     currentStageIndex = -1; // Special case
-  } else if (application.status === ApplicationStatus.FUNDED) {
-    currentStageIndex = 5;
   }
 
   // Calculate dates based on submission date

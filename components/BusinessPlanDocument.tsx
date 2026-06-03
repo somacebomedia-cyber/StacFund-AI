@@ -22,9 +22,9 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
         const opt = {
             margin: 0,
             filename: `${businessInfo.name?.replace(/\s+/g, '_') || 'Business'}_${title.replace(/\s+/g, '_')}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
+            image: { type: 'jpeg' as const, quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true, logging: false },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const },
             pagebreak: { mode: 'css', avoid: '.page-break-avoid' }
         };
         
@@ -149,6 +149,48 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
         {/* Content Pages Template Component */}
         
+        {/* Table of Contents */}
+        <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+          <PageHeader />
+          <h2 className="text-4xl font-bold text-[#2E1A47] mb-12 pb-4 border-b border-gray-100 shrink-0">Table of Contents</h2>
+          <div className="flex-1 space-y-0">
+            {[
+              { num: '01', title: 'Executive Summary', sub: 'Business overview and funding ask' },
+              { num: '02', title: 'Vision & Mission', sub: 'Purpose, values and direction' },
+              { num: '03', title: 'The Problem & Solution', sub: 'Market gap and our answer' },
+              { num: '04', title: 'Viability Assessment', sub: 'Scoring across 5 dimensions' },
+              { num: '05', title: 'Market Size & Opportunity', sub: 'TAM, SAM, SOM analysis' },
+              { num: '06', title: 'Competitive Positioning', sub: 'Competitor landscape and differentiation' },
+              { num: '07', title: 'Products & Services', sub: 'Offerings, pricing and differentiators' },
+              { num: '08', title: 'Business Models', sub: 'Revenue model variations' },
+              { num: '09', title: 'Go-To-Market Strategy', sub: 'Channels, milestones and execution' },
+              { num: '10', title: 'Social Media & Digital Marketing', sub: 'Platform strategy and content mix' },
+              { num: '11', title: 'SEO & Content Strategy', sub: 'Keywords and digital presence' },
+              { num: '12', title: 'Operations Plan', sub: 'Activities, technology and location' },
+              { num: '13', title: 'Management Team', sub: 'Founders and key roles' },
+              { num: '14', title: 'Branding & Identity', sub: 'Visual identity and brand voice' },
+              { num: '15', title: 'Financial Plan', sub: 'Funding requirement and projections' },
+              { num: '16', title: 'Financial Statements', sub: 'P&L, Balance Sheet, Cash Flow' },
+              { num: '17', title: 'SWOT Analysis', sub: 'Strengths, Weaknesses, Opportunities, Threats' },
+              { num: '18', title: 'Risk Analysis & Mitigation', sub: 'Key risks and responses' },
+              { num: '19', title: 'SA Compliance & Regulatory', sub: 'Legal and regulatory readiness' },
+              { num: '20', title: 'Implementation Plan', sub: 'Pre-launch and post-launch roadmap' },
+              { num: '21', title: '5-Year Strategic Plan', sub: 'Long-term vision by year' },
+              { num: '22', title: 'Conclusion', sub: 'Call to action for funders' },
+            ].map((item) => (
+              <div key={item.num} className="flex items-center gap-4 py-3 border-b border-gray-50 group hover:bg-[#F9F7FF] px-2 rounded-lg transition-colors">
+                <span className="text-xs font-black text-[#2E1A47]/30 w-8 shrink-0">{item.num}</span>
+                <div className="flex-1">
+                  <span className="text-sm font-bold text-[#2E1A47]">{item.title}</span>
+                  <span className="text-xs text-gray-400 ml-2">{item.sub}</span>
+                </div>
+                <div className="flex-1 border-b border-dashed border-gray-200 mx-2"></div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4">2</div>
+        </div>
+
         {/* Executive Summary */}
         <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
             <PageHeader />
@@ -448,6 +490,123 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   </div>
 )}
 
+{/* Social Media & Digital Marketing */}
+{data.socialMediaStrategy && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Social Media & Digital Marketing</h2>
+    {data.socialMediaStrategy.overview && (
+      <div className="text-sm text-gray-700 leading-relaxed space-y-3 mb-8">
+        {data.socialMediaStrategy.overview.split('\n').map((p: string, i: number) =>
+          p.trim() && <p key={i}>{p}</p>
+        )}
+      </div>
+    )}
+    {data.socialMediaStrategy.platforms && (
+      <div className="mb-8">
+        <h3 className="text-xs font-black text-[#2E1A47] uppercase tracking-widest mb-4">Platform Strategy</h3>
+        <div className="space-y-3">
+          {data.socialMediaStrategy.platforms.map((platform: any, i: number) => (
+            <div key={i} className="bg-[#F9F7FF] rounded-2xl p-5 flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-xl bg-[#2E1A47] text-white flex items-center justify-center text-xs font-black shrink-0">
+                {platform.name?.charAt(0)}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-1">
+                  <h4 className="text-sm font-black text-[#2E1A47]">{platform.name}</h4>
+                  <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">{platform.postFrequency}</span>
+                </div>
+                <p className="text-xs text-gray-500 mb-2">{platform.audience}</p>
+                <div className="flex flex-wrap gap-1">
+                  {platform.contentTypes?.map((type: string, j: number) => (
+                    <span key={j} className="text-[10px] bg-white text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full">{type}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="text-[10px] text-gray-400">Goal</span>
+                <p className="text-xs font-bold text-[#2E1A47]">{platform.primaryGoal}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+    {data.socialMediaStrategy.contentMix && (
+      <div>
+        <h3 className="text-xs font-black text-[#2E1A47] uppercase tracking-widest mb-4">Content Mix</h3>
+        <div className="grid grid-cols-2 gap-3">
+          {data.socialMediaStrategy.contentMix.map((item: any, i: number) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-black shrink-0">
+                {item.percentage}%
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[#2E1A47]">{item.category}</p>
+                <p className="text-[10px] text-gray-400">{item.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
+{/* SEO & Content Strategy */}
+{data.seoStrategy && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">SEO & Content Strategy</h2>
+    {data.seoStrategy.overview && (
+      <div className="text-sm text-gray-700 leading-relaxed space-y-3 mb-8">
+        {data.seoStrategy.overview.split('\n').map((p: string, i: number) =>
+          p.trim() && <p key={i}>{p}</p>
+        )}
+      </div>
+    )}
+    {data.seoStrategy.keywords && (
+      <div>
+        <h3 className="text-xs font-black text-[#2E1A47] uppercase tracking-widest mb-4">Target Keywords</h3>
+        <div className="rounded-2xl border border-gray-100 overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-[#2E1A47] text-white">
+                <th className="p-3 text-left font-bold">Keyword</th>
+                <th className="p-3 text-left font-bold">Intent</th>
+                <th className="p-3 text-left font-bold">Difficulty</th>
+                <th className="p-3 text-left font-bold">Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.seoStrategy.keywords.map((kw: any, i: number) => (
+                <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F9F7FF]'}>
+                  <td className="p-3 font-bold text-[#2E1A47]">{kw.term}</td>
+                  <td className="p-3 text-gray-600">{kw.intent}</td>
+                  <td className="p-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      kw.difficulty === 'Low' ? 'bg-green-100 text-green-700' :
+                      kw.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>{kw.difficulty}</span>
+                  </td>
+                  <td className="p-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      kw.priority === 'Primary' ? 'bg-indigo-100 text-indigo-700' :
+                      kw.priority === 'Secondary' ? 'bg-purple-100 text-purple-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>{kw.priority}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
 {/* Team */}
 {data.team && data.team.length > 0 && (
   <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
@@ -468,6 +627,67 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
       ))}
     </div>
     <div className="mt-auto shrink-0 text-right text-sm text-gray-400 font-bold border-t border-gray-100 pt-4"></div>
+  </div>
+)}
+
+{/* Branding & Identity */}
+{data.brandingIdentity && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Branding & Identity</h2>
+    <div className="grid grid-cols-2 gap-8 mb-8">
+      <div>
+        <h3 className="text-xs font-black text-[#2E1A47] uppercase tracking-widest mb-4">Colour Palette</h3>
+        <div className="flex gap-3">
+          {[
+            { label: 'Primary', hex: data.brandingIdentity.primaryColor || '#2E1A47' },
+            { label: 'Secondary', hex: data.brandingIdentity.secondaryColor || '#6C3FC5' },
+            { label: 'Accent', hex: data.brandingIdentity.accentColor || '#00D4FF' },
+          ].map((swatch) => (
+            <div key={swatch.label} className="flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-2xl shadow-md border border-gray-100" style={{ backgroundColor: swatch.hex }}></div>
+              <span className="text-[10px] font-bold text-gray-500">{swatch.label}</span>
+              <span className="text-[9px] text-gray-400 font-mono">{swatch.hex}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-xs font-black text-[#2E1A47] uppercase tracking-widest mb-4">Typography</h3>
+        <div className="space-y-3">
+          <div className="bg-[#F9F7FF] rounded-xl p-4">
+            <p className="text-[10px] text-gray-500 mb-1">Primary / Headlines</p>
+            <p className="text-lg font-black text-[#2E1A47]">{data.brandingIdentity.primaryFont || 'Inter'}</p>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-4">
+            <p className="text-[10px] text-gray-500 mb-1">Body Copy</p>
+            <p className="text-sm text-gray-700">{data.brandingIdentity.bodyFont || 'Inter'}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    {data.brandingIdentity.tagline && (
+      <div className="bg-gradient-to-r from-[#2E1A47] to-indigo-700 rounded-2xl p-8 mb-8 text-center">
+        <p className="text-xs font-black text-white/50 uppercase tracking-widest mb-3">Brand Tagline</p>
+        <p className="text-2xl font-black text-white italic">"{data.brandingIdentity.tagline}"</p>
+      </div>
+    )}
+    {data.brandingIdentity.brandVoice && (
+      <div className="mb-6">
+        <h3 className="text-xs font-black text-[#2E1A47] uppercase tracking-widest mb-3">Brand Voice & Tone</h3>
+        <p className="text-sm text-gray-700 leading-relaxed">{data.brandingIdentity.brandVoice}</p>
+      </div>
+    )}
+    {data.brandingIdentity.brandPersonality && (
+      <div>
+        <h3 className="text-xs font-black text-[#2E1A47] uppercase tracking-widest mb-3">Brand Personality</h3>
+        <div className="flex flex-wrap gap-2">
+          {data.brandingIdentity.brandPersonality.map((trait: string, i: number) => (
+            <span key={i} className="px-4 py-2 bg-[#F3F0F8] text-[#2E1A47] text-xs font-bold rounded-full">{trait}</span>
+          ))}
+        </div>
+      </div>
+    )}
   </div>
 )}
 
@@ -516,7 +736,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
 {/* Vision & Mission */}
 {data.visionMission && (
-  <div className="w-full min-h-[297mm] p-16 bg-[#05050A] page-break flex flex-col overflow-hidden">
+  <div className="w-full min-h-[297mm] p-16 bg-[#05050A] page-break flex flex-col">
     <div className="flex-1 flex flex-col justify-center relative z-10">
       <div className="absolute inset-0">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px]"></div>
@@ -546,7 +766,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
 {/* Problem & Solution */}
 {(data.problemStatement || data.solutionOverview) && (
-  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
     <PageHeader />
     {data.problemStatement && (
       <>
@@ -578,7 +798,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
 {/* Viability Score */}
 {data.viabilityScore && (
-  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
     <PageHeader />
     <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Viability Assessment</h2>
     <div className="flex items-center justify-center mb-10 shrink-0">
@@ -638,7 +858,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
 {/* TAM SAM SOM Visual Page */}
 {data.marketResearch && (
-  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
     <PageHeader />
     <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Market Size & Opportunity</h2>
     <div className="flex items-center justify-center gap-8 mb-10 shrink-0">
@@ -701,9 +921,71 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   </div>
 )}
 
+{/* Competitive Positioning */}
+{data.competitorPositioning && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Competitive Positioning</h2>
+    {data.competitorPositioning.summary && (
+      <div className="text-sm text-gray-700 leading-relaxed space-y-3 mb-8">
+        {data.competitorPositioning.summary.split('\n').map((p: string, i: number) =>
+          p.trim() && <p key={i}>{p}</p>
+        )}
+      </div>
+    )}
+    {data.competitorPositioning.competitors && data.competitorPositioning.competitors.length > 0 && (
+      <div className="flex-1">
+        <h3 className="text-base font-bold text-[#2E1A47] mb-4">Competitor Comparison Matrix</h3>
+        <div className="overflow-x-auto rounded-2xl border border-gray-100">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-[#2E1A47] text-white">
+                <th className="p-3 text-left font-bold">Competitor</th>
+                <th className="p-3 text-center font-bold">Quality</th>
+                <th className="p-3 text-center font-bold">Pricing</th>
+                <th className="p-3 text-center font-bold">Innovation</th>
+                <th className="p-3 text-center font-bold">Service</th>
+                <th className="p-3 text-center font-bold">Market Presence</th>
+                <th className="p-3 text-left font-bold">Key Weakness</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.competitorPositioning.competitors.map((c: any, i: number) => (
+                <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F9F7FF]'}>
+                  <td className="p-3 font-bold text-[#2E1A47]">{c.name}</td>
+                  {(['productQuality', 'pricing', 'innovation', 'customerService', 'marketPresence'] as const).map((dim) => (
+                    <td key={dim} className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <div className="w-8 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                          <div className="h-full bg-[#2E1A47] rounded-full" style={{ width: `${(c[dim] || 5) * 10}%` }}></div>
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500">{c[dim] || '–'}</span>
+                      </div>
+                    </td>
+                  ))}
+                  <td className="p-3 text-gray-500 text-[10px]">{c.keyWeakness}</td>
+                </tr>
+              ))}
+              <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black">
+                <td className="p-3">✦ {businessInfo.name}</td>
+                <td className="p-3 text-center text-xs">9</td>
+                <td className="p-3 text-center text-xs">7</td>
+                <td className="p-3 text-center text-xs">10</td>
+                <td className="p-3 text-center text-xs">9</td>
+                <td className="p-3 text-center text-xs">8</td>
+                <td className="p-3 text-xs">Challenger — rapid growth trajectory</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
 {/* Business Models */}
 {data.businessModels && data.businessModels.length > 0 && (
-  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
     <PageHeader />
     <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Business Models</h2>
     <div className="grid grid-cols-2 gap-6 flex-1">
@@ -749,7 +1031,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 {data.financialStatements && (
   <>
     {/* P&L */}
-    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
       <PageHeader />
       <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Profit & Loss Statement</h2>
       <div className="overflow-x-auto flex-1">
@@ -778,7 +1060,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
     </div>
 
     {/* Balance Sheet */}
-    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
       <PageHeader />
       <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Balance Sheet</h2>
       <div className="overflow-x-auto flex-1">
@@ -807,7 +1089,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
     </div>
 
     {/* Cash Flow */}
-    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+    <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
       <PageHeader />
       <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Cash Flow Statement</h2>
       <div className="overflow-x-auto flex-1">
@@ -837,9 +1119,45 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   </>
 )}
 
+{/* SA Compliance & Regulatory */}
+{data.saCompliance && (
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
+    <PageHeader />
+    <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">SA Compliance & Regulatory</h2>
+    {data.saCompliance.overview && (
+      <div className="text-sm text-gray-700 leading-relaxed space-y-3 mb-8">
+        {data.saCompliance.overview.split('\n').map((p: string, i: number) =>
+          p.trim() && <p key={i}>{p}</p>
+        )}
+      </div>
+    )}
+    {data.saCompliance.requirements && (
+      <div className="grid grid-cols-2 gap-4">
+        {data.saCompliance.requirements.map((req: any, i: number) => (
+          <div key={i} className="bg-[#F9F7FF] rounded-2xl p-5 border border-[#E8E0F5]">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-10 h-10 rounded-xl bg-[#2E1A47] flex items-center justify-center text-white text-[10px] font-black shrink-0">
+                {req.body?.substring(0, 4)}
+              </div>
+              <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                req.status === 'Required' ? 'bg-red-100 text-red-700' :
+                req.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-green-100 text-green-700'
+              }`}>{req.status}</span>
+            </div>
+            <h4 className="text-sm font-black text-[#2E1A47] mb-1">{req.body}</h4>
+            <p className="text-xs text-gray-600 mb-2">{req.requirement}</p>
+            {req.notes && <p className="text-[10px] text-gray-400 italic">{req.notes}</p>}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
 {/* Pre & Post Launch */}
 {data.implementationPlan && (
-  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
     <PageHeader />
     <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">Implementation Plan</h2>
     <div className="grid grid-cols-2 gap-8 flex-1">
@@ -896,7 +1214,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
 {/* 5-Year Plan */}
 {data.implementationPlan?.fiveYearPlan && (
-  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col overflow-hidden">
+  <div className="w-full min-h-[297mm] p-16 bg-white page-break flex flex-col">
     <PageHeader />
     <h2 className="text-4xl font-bold text-[#2E1A47] mb-8 pb-4 border-b border-gray-100 shrink-0">5-Year Strategic Plan</h2>
     <div className="space-y-6 flex-1">

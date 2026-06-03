@@ -94,7 +94,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
       Return a JSON object with "registration", "industry", and "description".`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
@@ -301,6 +301,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
               targetAudience: { type: Type.ARRAY, items: { type: Type.STRING } },
               competitorAnalysis: { type: Type.STRING, description: "At least 300 words covering 3–4 competitors with positioning comparison" },
               marketTrends: { type: Type.ARRAY, items: { type: Type.STRING } },
+              industryAnalysis: { type: Type.STRING, description: "3–4 paragraphs of SA industry analysis including growth rates, key drivers, regulatory climate, and future outlook." },
             }
           },
           productsServices: {
@@ -493,34 +494,154 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
                 }
               }
             }
+          },
+          visionMission: {
+            type: Type.OBJECT,
+            properties: {
+              vision: { type: Type.STRING, description: "Inspiring 2–3 sentence vision statement for where the business will be in 10 years." },
+              mission: { type: Type.STRING, description: "Clear 2–3 sentence mission statement describing the company's daily purpose." },
+              coreValues: { type: Type.ARRAY, items: { type: Type.STRING }, description: "6–8 core company values, each as a short phrase." }
+            }
+          },
+          valueProposition: {
+            type: Type.STRING,
+            description: "One powerful sentence capturing the unique value delivered to customers vs competitors."
+          },
+          solutionOverview: {
+            type: Type.STRING,
+            description: "5–6 detailed paragraphs: what the solution is, how it works step-by-step, the technology/methodology, measurable customer outcomes, and what makes it defensible."
+          },
+          competitorPositioning: {
+            type: Type.OBJECT,
+            properties: {
+              summary: { type: Type.STRING, description: "3–4 paragraphs analysing the competitive landscape, white spaces, and this business's positioning strategy." },
+              competitors: {
+                type: Type.ARRAY,
+                description: "At least 5 competitors",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    productQuality: { type: Type.NUMBER, description: "Score 1–10" },
+                    pricing: { type: Type.NUMBER, description: "Score 1–10 (10=most expensive)" },
+                    innovation: { type: Type.NUMBER, description: "Score 1–10" },
+                    customerService: { type: Type.NUMBER, description: "Score 1–10" },
+                    marketPresence: { type: Type.NUMBER, description: "Score 1–10" },
+                    keyWeakness: { type: Type.STRING }
+                  }
+                }
+              }
+            }
+          },
+          brandingIdentity: {
+            type: Type.OBJECT,
+            properties: {
+              primaryColor: { type: Type.STRING, description: "Hex color code e.g. #2E1A47" },
+              secondaryColor: { type: Type.STRING, description: "Hex color code" },
+              accentColor: { type: Type.STRING, description: "Hex color code" },
+              primaryFont: { type: Type.STRING, description: "e.g. Inter, Montserrat" },
+              bodyFont: { type: Type.STRING },
+              tagline: { type: Type.STRING },
+              brandVoice: { type: Type.STRING, description: "2–3 sentences describing brand tone and personality" },
+              brandPersonality: { type: Type.ARRAY, items: { type: Type.STRING }, description: "6 brand personality traits" }
+            }
+          },
+          socialMediaStrategy: {
+            type: Type.OBJECT,
+            properties: {
+              overview: { type: Type.STRING, description: "3 paragraphs on social media objectives, target audience online behaviour, and content philosophy." },
+              platforms: {
+                type: Type.ARRAY,
+                description: "At least 4 platforms",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    audience: { type: Type.STRING },
+                    postFrequency: { type: Type.STRING },
+                    contentTypes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    primaryGoal: { type: Type.STRING }
+                  }
+                }
+              },
+              contentMix: {
+                type: Type.ARRAY,
+                description: "Content categories adding up to 100%",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    category: { type: Type.STRING },
+                    percentage: { type: Type.NUMBER },
+                    description: { type: Type.STRING }
+                  }
+                }
+              }
+            }
+          },
+          seoStrategy: {
+            type: Type.OBJECT,
+            properties: {
+              overview: { type: Type.STRING, description: "3 paragraphs on SEO and digital marketing strategy for the SA market." },
+              keywords: {
+                type: Type.ARRAY,
+                description: "At least 10 keywords",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    term: { type: Type.STRING },
+                    intent: { type: Type.STRING, description: "Informational / Commercial / Transactional" },
+                    difficulty: { type: Type.STRING, description: "Low / Medium / High" },
+                    priority: { type: Type.STRING, description: "Primary / Secondary / Long-tail" }
+                  }
+                }
+              }
+            }
+          },
+          saCompliance: {
+            type: Type.OBJECT,
+            properties: {
+              overview: { type: Type.STRING, description: "2 paragraphs on the regulatory environment for this business in South Africa." },
+              requirements: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    body: { type: Type.STRING, description: "e.g. CIPC, SARS, POPIA, BEE, Health & Safety" },
+                    requirement: { type: Type.STRING },
+                    status: { type: Type.STRING, description: "Required / Optional / In Progress" },
+                    notes: { type: Type.STRING }
+                  }
+                }
+              }
+            }
           }
       };
 
       const allPrompts = [
          { 
-           label: "Core Identity & Problem-Solution Fit", 
-           sections: ['executiveSummary', 'problemStatement', 'solution'],
-           instructions: "Focus on the executive summary, the core problem statement in the SA context, and the proposed solution."
+           label: "Core Identity & Vision", 
+           sections: ['executiveSummary', 'problemStatement', 'solution', 'visionMission', 'valueProposition', 'solutionOverview'],
+           instructions: "Write the executive summary, core problem in SA context, solution, and generate a compelling vision/mission/values and value proposition."
          },
          {
-           label: "Business Model & Product Strategy",
-           sections: ['businessModel', 'swot', 'productsServices', 'businessModels'],
-           instructions: "Elaborate deeply on the revenue streams, precise product/service descriptions, SWOT analysis, and various business models."
+           label: "Business Model, Brand & Competitive Position",
+           sections: ['businessModel', 'swot', 'productsServices', 'businessModels', 'brandingIdentity', 'competitorPositioning'],
+           instructions: "Elaborate deeply on revenue streams, products/services, SWOT, business models, and provide a full branding identity and competitive positioning analysis with at least 5 named competitors scored on 5 dimensions."
          },
          {
-           label: "Market Research & Operations",
-           sections: ['marketResearch', 'goToMarket', 'operationsPlan', 'team'],
-           instructions: "Provide comprehensive market sizes, exhaustive competitor analysis, operational plans, go-to-market channels, and team structures."
+           label: "Market Research, Marketing & Operations",
+           sections: ['marketResearch', 'goToMarket', 'operationsPlan', 'team', 'socialMediaStrategy', 'seoStrategy'],
+           instructions: "Provide comprehensive market sizing (TAM/SAM/SOM in ZAR), industry analysis, go-to-market channels, operational plan, team structure, full social media strategy, and SEO keyword strategy."
          },
          {
            label: "Financial Deep Dive",
            sections: ['financialPlan', 'financialStatements'],
-           instructions: "Generate realistic, investor-grade financial projections including Profit & Loss, Balance Sheet, Cash Flow, funding requirements, and revenue assumptions."
+           instructions: "Generate investor-grade financials: P&L, Balance Sheet, Cash Flow (minimum 8 rows each), funding requirements, 3-year revenue projections with assumptions. All figures in ZAR."
          },
          {
-           label: "Risk, Implementation & Conclusion",
-           sections: ['riskMitigation', 'implementationPlan', 'conclusion', 'viabilityScore'],
-           instructions: "Detail concrete risk mitigation strategies, a multi-phased implementation plan, a strong conclusion, and an objective viability score out of 100."
+           label: "Risk, Compliance, Implementation & Conclusion",
+           sections: ['riskMitigation', 'implementationPlan', 'conclusion', 'viabilityScore', 'saCompliance'],
+           instructions: "Detail 6+ risk mitigation strategies, a multi-phased implementation plan, strong conclusion, objective viability score, and full SA compliance requirements (CIPC, SARS, POPIA, BEE, Health & Safety)."
          }
       ];
 
@@ -528,18 +649,18 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
       let batches: typeof allPrompts = [];
       if (totalBatches === 2) {
          batches = [
-           { label: "Business Fundamentals", sections: [...allPrompts[0].sections, ...allPrompts[1].sections, ...allPrompts[2].sections], instructions: "Generate the core identity, business model, market research, and operations." },
-           { label: "Financials & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: "Generate the financial deep dive, risk management, and implementation plan." }
+           { label: "Business Fundamentals", sections: [...allPrompts[0].sections, ...allPrompts[1].sections, ...allPrompts[2].sections], instructions: "Generate core identity, vision, business model, branding, market research, operations, and marketing strategy." },
+           { label: "Financials, Compliance & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: "Generate the full financial package, SA compliance, risk management, and implementation plan." }
          ];
       } else if (totalBatches === 3) {
          batches = [
-           { label: "Business Fundamentals", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
-           { label: "Market & Operations", sections: [...allPrompts[2].sections], instructions: allPrompts[2].instructions },
-           { label: "Financials & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: allPrompts[3].instructions + " " + allPrompts[4].instructions }
+           { label: "Identity, Model & Brand", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
+           { label: "Market, Marketing & Operations", sections: [...allPrompts[2].sections], instructions: allPrompts[2].instructions },
+           { label: "Financials, Compliance & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: allPrompts[3].instructions + " " + allPrompts[4].instructions }
          ];
       } else if (totalBatches === 4) {
          batches = [
-           { label: "Core Identity & Model", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
+           { label: "Core Identity & Brand", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
            allPrompts[2], allPrompts[3], allPrompts[4]
          ];
       } else {
@@ -594,15 +715,17 @@ Generate only the specific fields defined in the schema.
 ${batch.instructions}
 
 WRITING REQUIREMENTS:
-1. Write every section in full, professional prose. No placeholders.
-2. The output must be exceptionally comprehensive${config.premiumOutput ? ', mirroring a premium 90-page consulting document' : ''}.
-3. All financial figures must be in South African Rand (ZAR) and be internally consistent.
-4. Ensure continuity with the previously generated sections.
-5. Provide detailed arrays where the schema requests them (e.g. at least 3 items per array).
+1. Write every string field in full, professional prose. Zero placeholders.
+2. Minimum 300 words per string field. For overview/analysis fields, minimum 500 words.
+3. All arrays must have a minimum of 6 items (financial tables: minimum 10 rows).
+4. ${config.premiumOutput ? 'PREMIUM MODE: Match the depth of a 95-page consulting-grade document. Each section must be exhaustive.' : 'Write comprehensively enough to fill at least 2 A4 pages per section.'}
+5. All financial figures must be in South African Rand (ZAR) and internally consistent across all sections.
+6. Ensure continuity with previously generated sections.
+7. Use specific South African context: reference SA laws, SA funders (NYDA, SEFA, IDC, NEF), SA market data.
 `;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-3.1-pro-preview',
+          model: 'gemini-3.5-flash',
           contents: batchPrompt,
           config: { 
             responseMimeType: 'application/json',
@@ -611,7 +734,23 @@ WRITING REQUIREMENTS:
           }
         });
 
-        const batchResult = JSON.parse(response.text || '{}');
+        let batchResult = {};
+        try {
+            batchResult = JSON.parse(response.text || '{}');
+        } catch (e) {
+            console.warn("JSON Parse failed, attempting recovery", e);
+            let text = (response.text || '').trim();
+            // simple fix for under-terminated string / object
+            const lastBrace = text.lastIndexOf('}');
+            if (lastBrace !== -1) {
+                text = text.substring(0, lastBrace + 1);
+                try { batchResult = JSON.parse(text); } catch(e2) {
+                   console.warn("Extreme fallback failed", e2);
+                }
+            } else {
+                if (text.startsWith('{')) { text += '}'; try { batchResult = JSON.parse(text); } catch(e3) {}}
+            }
+        }
         mergedData = { ...mergedData, ...batchResult };
 
         const resultSummary = Object.keys(batchResult).map(k => `${k} section generated.`).join(" ");

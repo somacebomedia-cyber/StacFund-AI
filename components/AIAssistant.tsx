@@ -251,7 +251,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
       const parsedProfile = profileData ? JSON.parse(profileData) : null;
       
       const sessionChat = ai.chats.create({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.5-flash',
         config: {
           tools: [tools],
           systemInstruction: `You are the StacFund AI Assistant. You are AGENTIC. 

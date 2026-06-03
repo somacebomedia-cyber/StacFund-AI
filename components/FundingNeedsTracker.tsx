@@ -116,33 +116,80 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
     if (!files || files.length === 0 || !user) return;
     const file = files[0];
     
-    try {
-      setUploadingQuotationFor(needId);
-      const docsRef = collection(db, 'users', user.id, 'documents');
-      const newDoc = {
-          userId: user.id,
-          name: `Quotation: ${file.name}`,
-          type: file.type || 'application/pdf',
-          size: file.size,
-          uploadDate: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-          category: 'Quotation'
-      };
-      
-      const docRef = await addDoc(docsRef, newDoc);
-      
-      await updateDoc(doc(db, 'users', user.id, 'funding_needs', needId), { 
-        quotationDocId: docRef.id,
-        quotationDocName: newDoc.name
-      });
-      
-      setNeeds(needs.map(n => n.id === needId ? { ...n, quotationDocId: docRef.id, quotationDocName: newDoc.name } : n));
-    } catch (error) {
-      console.error("Failed to upload quotation", error);
-      alert("Failed to upload quotation");
-    } finally {
-      setUploadingQuotationFor(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    setUploadingQuotationFor(needId);
+    
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64Data = (reader.result as string).split(',')[1];
+        
+        const docsRef = collection(db, 'users', user.id, 'documents');
+        const newDoc = {
+            userId: user.id,
+            name: `Quotation: ${file.name}`,
+            type: file.type || 'application/pdf',
+            size: file.size,
+            uploadDate: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+            category: 'Quotation'
+        };
+        
+        const docRef = await addDoc(docsRef, newDoc);
+        
+        // Use Gemini to extract item name and price
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const response = await ai.models.generateContent({
+             model: 'gemini-3.5-flash',
+             contents: [
+                {
+                   role: 'user',
+                   parts: [
+                       { inlineData: { data: base64Data, mimeType: file.type || 'application/pdf' } },
+                       { text: "Extract the primary quoted item's name and the total cost (price) from this quotation. Return ONLY JSON like {\"itemName\": \"Real Product Name\", \"estimatedCost\": 25000}. If you can't find it, return empty object." }
+                   ]
+                }
+             ],
+             config: {
+                 responseMimeType: 'application/json',
+                 responseSchema: {
+                     type: Type.OBJECT,
+                     properties: {
+                         itemName: { type: Type.STRING },
+                         estimatedCost: { type: Type.NUMBER }
+                     }
+                 }
+             }
+        });
+        
+        const extracted = JSON.parse(response.text || '{}');
+        let updateData: any = { 
+          quotationDocId: docRef.id,
+          quotationDocName: newDoc.name
+        };
+        
+        if (extracted.itemName && extracted.estimatedCost) {
+            updateData.itemName = extracted.itemName;
+            updateData.estimatedCost = extracted.estimatedCost;
+            alert(`AI successfully extracted Item: ${extracted.itemName}, Cost: R${extracted.estimatedCost}`);
+        } else {
+            alert('Quotation uploaded, but AI could not extract the item name and cost.');
+        }
+
+        await updateDoc(doc(db, 'users', user.id, 'funding_needs', needId), updateData);
+        
+        setNeeds(needs.map(n => n.id === needId ? { ...n, ...updateData } : n));
+      } catch (error) {
+        console.error("Failed to upload quotation", error);
+        alert("Failed to upload quotation");
+      } finally {
+        setUploadingQuotationFor(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.onerror = () => {
+        alert("Failed to read file.");
+        setUploadingQuotationFor(null);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleGenerateProposal = async (type: 'proposal' | 'businessplan', need: FundingNeed) => {
@@ -173,9 +220,9 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
-      const businessPlanSchema = {
-        type: Type.OBJECT,
-        properties: {
+      let totalBatches = 5;
+
+      const fullBusinessPlanSchemaProperties = {
           executiveSummary: {
             type: Type.STRING,
             description: "A rich, 4–6 paragraph executive summary covering the business vision, problem solved, solution, traction, and funding ask."
@@ -215,6 +262,7 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
               targetAudience: { type: Type.ARRAY, items: { type: Type.STRING } },
               competitorAnalysis: { type: Type.STRING, description: "At least 300 words covering 3–4 competitors with positioning comparison" },
               marketTrends: { type: Type.ARRAY, items: { type: Type.STRING } },
+              industryAnalysis: { type: Type.STRING, description: "3–4 paragraphs of SA industry analysis including growth rates, key drivers, regulatory climate, and future outlook." },
             }
           },
           productsServices: {
@@ -308,11 +356,299 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
           conclusion: {
             type: Type.STRING,
             description: "A strong 2–3 paragraph closing call to action directed at the funder."
+          },
+          viabilityScore: {
+            type: Type.OBJECT,
+            properties: {
+              overall: { type: Type.NUMBER, description: "Score out of 100" },
+              marketOpportunity: { type: Type.NUMBER },
+              teamStrength: { type: Type.NUMBER },
+              financialViability: { type: Type.NUMBER },
+              socialImpact: { type: Type.NUMBER },
+              competitivePosition: { type: Type.NUMBER },
+              reasoning: { type: Type.STRING }
+            }
+          },
+          businessModels: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                description: { type: Type.STRING },
+                advantages: { type: Type.ARRAY, items: { type: Type.STRING } },
+                challenges: { type: Type.ARRAY, items: { type: Type.STRING } }
+              }
+            }
+          },
+          financialStatements: {
+            type: Type.OBJECT,
+            properties: {
+              profitLoss: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    label: { type: Type.STRING },
+                    values: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    isTotal: { type: Type.BOOLEAN }
+                  }
+                }
+              },
+              balanceSheet: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    label: { type: Type.STRING },
+                    values: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    isTotal: { type: Type.BOOLEAN },
+                    isHeader: { type: Type.BOOLEAN }
+                  }
+                }
+              },
+              cashFlow: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    label: { type: Type.STRING },
+                    values: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    isTotal: { type: Type.BOOLEAN }
+                  }
+                }
+              }
+            }
+          },
+          implementationPlan: {
+            type: Type.OBJECT,
+            properties: {
+              preLaunch: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    category: { type: Type.STRING },
+                    tasks: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  }
+                }
+              },
+              postLaunch: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    category: { type: Type.STRING },
+                    tasks: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  }
+                }
+              },
+              fiveYearPlan: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    year: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    initiatives: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  }
+                }
+              }
+            }
+          },
+          visionMission: {
+            type: Type.OBJECT,
+            properties: {
+              vision: { type: Type.STRING, description: "Inspiring 2–3 sentence vision statement for where the business will be in 10 years." },
+              mission: { type: Type.STRING, description: "Clear 2–3 sentence mission statement describing the company's daily purpose." },
+              coreValues: { type: Type.ARRAY, items: { type: Type.STRING }, description: "6–8 core company values, each as a short phrase." }
+            }
+          },
+          valueProposition: {
+            type: Type.STRING,
+            description: "One powerful sentence capturing the unique value delivered to customers vs competitors."
+          },
+          solutionOverview: {
+            type: Type.STRING,
+            description: "5–6 detailed paragraphs: what the solution is, how it works step-by-step, the technology/methodology, measurable customer outcomes, and what makes it defensible."
+          },
+          competitorPositioning: {
+            type: Type.OBJECT,
+            properties: {
+              summary: { type: Type.STRING, description: "3–4 paragraphs analysing the competitive landscape, white spaces, and this business's positioning strategy." },
+              competitors: {
+                type: Type.ARRAY,
+                description: "At least 5 competitors",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    productQuality: { type: Type.NUMBER, description: "Score 1–10" },
+                    pricing: { type: Type.NUMBER, description: "Score 1–10 (10=most expensive)" },
+                    innovation: { type: Type.NUMBER, description: "Score 1–10" },
+                    customerService: { type: Type.NUMBER, description: "Score 1–10" },
+                    marketPresence: { type: Type.NUMBER, description: "Score 1–10" },
+                    keyWeakness: { type: Type.STRING }
+                  }
+                }
+              }
+            }
+          },
+          brandingIdentity: {
+            type: Type.OBJECT,
+            properties: {
+              primaryColor: { type: Type.STRING, description: "Hex color code e.g. #2E1A47" },
+              secondaryColor: { type: Type.STRING, description: "Hex color code" },
+              accentColor: { type: Type.STRING, description: "Hex color code" },
+              primaryFont: { type: Type.STRING, description: "e.g. Inter, Montserrat" },
+              bodyFont: { type: Type.STRING },
+              tagline: { type: Type.STRING },
+              brandVoice: { type: Type.STRING, description: "2–3 sentences describing brand tone and personality" },
+              brandPersonality: { type: Type.ARRAY, items: { type: Type.STRING }, description: "6 brand personality traits" }
+            }
+          },
+          socialMediaStrategy: {
+            type: Type.OBJECT,
+            properties: {
+              overview: { type: Type.STRING, description: "3 paragraphs on social media objectives, target audience online behaviour, and content philosophy." },
+              platforms: {
+                type: Type.ARRAY,
+                description: "At least 4 platforms",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    audience: { type: Type.STRING },
+                    postFrequency: { type: Type.STRING },
+                    contentTypes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    primaryGoal: { type: Type.STRING }
+                  }
+                }
+              },
+              contentMix: {
+                type: Type.ARRAY,
+                description: "Content categories adding up to 100%",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    category: { type: Type.STRING },
+                    percentage: { type: Type.NUMBER },
+                    description: { type: Type.STRING }
+                  }
+                }
+              }
+            }
+          },
+          seoStrategy: {
+            type: Type.OBJECT,
+            properties: {
+              overview: { type: Type.STRING, description: "3 paragraphs on SEO and digital marketing strategy for the SA market." },
+              keywords: {
+                type: Type.ARRAY,
+                description: "At least 10 keywords",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    term: { type: Type.STRING },
+                    intent: { type: Type.STRING, description: "Informational / Commercial / Transactional" },
+                    difficulty: { type: Type.STRING, description: "Low / Medium / High" },
+                    priority: { type: Type.STRING, description: "Primary / Secondary / Long-tail" }
+                  }
+                }
+              }
+            }
+          },
+          saCompliance: {
+            type: Type.OBJECT,
+            properties: {
+              overview: { type: Type.STRING, description: "2 paragraphs on the regulatory environment for this business in South Africa." },
+              requirements: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    body: { type: Type.STRING, description: "e.g. CIPC, SARS, POPIA, BEE, Health & Safety" },
+                    requirement: { type: Type.STRING },
+                    status: { type: Type.STRING, description: "Required / Optional / In Progress" },
+                    notes: { type: Type.STRING }
+                  }
+                }
+              }
+            }
           }
-        }
       };
 
-      const prompt = `You are a senior South African business consultant writing a PREMIUM, INVESTOR-GRADE ${type === 'businessplan' ? 'Detailed Business Plan' : 'Funding Proposal'}. This document will be submitted to formal funding bodies including NYDA, SEFA, IDC, NEF, and commercial banks. It must be thorough, specific, and compelling.
+      
+      const allPrompts = [
+         { 
+           label: "Core Identity & Vision", 
+           sections: ['executiveSummary', 'problemStatement', 'solution', 'visionMission', 'valueProposition', 'solutionOverview'],
+           instructions: "Write the executive summary, core problem in SA context, solution, and generate a compelling vision/mission/values and value proposition."
+         },
+         {
+           label: "Business Model, Brand & Competitive Position",
+           sections: ['businessModel', 'swot', 'productsServices', 'businessModels', 'brandingIdentity', 'competitorPositioning'],
+           instructions: "Elaborate deeply on revenue streams, products/services, SWOT, business models, and provide a full branding identity and competitive positioning analysis with at least 5 named competitors scored on 5 dimensions."
+         },
+         {
+           label: "Market Research, Marketing & Operations",
+           sections: ['marketResearch', 'goToMarket', 'operationsPlan', 'team', 'socialMediaStrategy', 'seoStrategy'],
+           instructions: "Provide comprehensive market sizing (TAM/SAM/SOM in ZAR), industry analysis, go-to-market channels, operational plan, team structure, full social media strategy, and SEO keyword strategy."
+         },
+         {
+           label: "Financial Deep Dive",
+           sections: ['financialPlan', 'financialStatements'],
+           instructions: "Generate investor-grade financials: P&L, Balance Sheet, Cash Flow (minimum 8 rows each), funding requirements, 3-year revenue projections with assumptions. All figures in ZAR."
+         },
+         {
+           label: "Risk, Compliance, Implementation & Conclusion",
+           sections: ['riskMitigation', 'implementationPlan', 'conclusion', 'viabilityScore', 'saCompliance'],
+           instructions: "Detail 6+ risk mitigation strategies, a multi-phased implementation plan, strong conclusion, objective viability score, and full SA compliance requirements (CIPC, SARS, POPIA, BEE, Health & Safety)."
+         }
+      ];
+
+      // Distribute based on totalBatches
+      let batches: typeof allPrompts = [];
+      if (totalBatches === 2) {
+         batches = [
+           { label: "Business Fundamentals", sections: [...allPrompts[0].sections, ...allPrompts[1].sections, ...allPrompts[2].sections], instructions: "Generate core identity, vision, business model, branding, market research, operations, and marketing strategy." },
+           { label: "Financials, Compliance & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: "Generate the full financial package, SA compliance, risk management, and implementation plan." }
+         ];
+      } else if (totalBatches === 3) {
+         batches = [
+           { label: "Identity, Model & Brand", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
+           { label: "Market, Marketing & Operations", sections: [...allPrompts[2].sections], instructions: allPrompts[2].instructions },
+           { label: "Financials, Compliance & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: allPrompts[3].instructions + " " + allPrompts[4].instructions }
+         ];
+      } else if (totalBatches === 4) {
+         batches = [
+           { label: "Core Identity & Brand", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
+           allPrompts[2], allPrompts[3], allPrompts[4]
+         ];
+      } else {
+         batches = allPrompts;
+      }
+
+      let mergedData: any = { docType: type === 'businessplan' ? 'Business Plan' : 'Funding Proposal' };
+      let rollingContext = "";
+
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        
+
+        const batchProperties: any = {};
+        batch.sections.forEach(sec => {
+          batchProperties[sec] = (fullBusinessPlanSchemaProperties as any)[sec];
+        });
+
+        const batchSchema = {
+          type: Type.OBJECT,
+          properties: batchProperties
+        };
+
+        const batchPrompt = `You are a senior South African business consultant writing a ${'PREMIUM, INVESTOR-GRADE'} ${type === 'businessplan' ? 'business plan' : 'funding proposal'}.
+This document will be submitted to formal funding bodies including NYDA, SEFA, IDC, NEF, and commercial banks. 
+It must be thorough, specific, and compelling.
 
 BUSINESS IDENTITY:
 - Business Name: ${businessInfo?.name || user.businessName}
@@ -324,34 +660,63 @@ BUSINESS IDENTITY:
 - Current Employees: Lean founding team
 - Current Revenue: Pre-revenue / early revenue
 - B2B Connections: Building pipeline
-
 FINANCIAL DOCUMENT CONTEXT: ${financialDocs || 'None uploaded — use realistic SA industry benchmarks'}
 
 ${fundingSpecifics}
 
+PREVIOUSLY GENERATED SECTIONS CONTEXT (Ensure continuity):
+${rollingContext ? rollingContext : "None."}
+
+CURRENT BATCH TASK:
+Generate only the specific fields defined in the schema.
+${batch.instructions}
+
 WRITING REQUIREMENTS:
-1. Write every section in full, professional prose — no placeholder text, no "TBD", no vague filler.
-2. Maximize the detail and depth of every section. The output must be exceptionally comprehensive, mirroring the extreme depth of a 90-page premium consulting document.
-3. All financial figures must be in South African Rand (ZAR) and be internally consistent across sections.
-4. Market sizing (TAM/SAM/SOM) must include the reasoning behind the numbers.
-5. Competitor analysis must name at least 3 realistic competitors in the South African market and explain positioning extensively.
-6. The go-to-market milestones must be quarterly and span 12 months with rich tactical steps.
-7. Risk mitigation must cover at least 6 specific business risks with concrete responses.
-8. The conclusion must be a direct, persuasive call to action addressed to the funder.
-9. Focus the executive summary tightly around the requested funding need.
-10. Expand wildly on every array or list; provide as many examples, items, and team members as realistically logical.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: prompt,
-        config: { 
-          responseMimeType: 'application/json',
-          responseSchema: businessPlanSchema,
-          maxOutputTokens: 8192
+1. Write every string field in full, professional prose. Zero placeholders.
+2. Minimum 300 words per string field. For overview/analysis fields, minimum 500 words.
+3. All arrays must have a minimum of 6 items (financial tables: minimum 10 rows).
+4. ${'PREMIUM MODE: Match the depth of a 95-page consulting-grade document. Each section must be exhaustive.'}
+5. All financial figures must be in South African Rand (ZAR) and internally consistent across all sections.
+6. Ensure continuity with previously generated sections.
+7. Use specific South African context: reference SA laws, SA funders (NYDA, SEFA, IDC, NEF), SA market data.
+`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.5-flash',
+          contents: batchPrompt,
+          config: { 
+            responseMimeType: 'application/json',
+            responseSchema: batchSchema,
+            maxOutputTokens: 8192
+          }
+        });
+
+        let batchResult = {};
+        try {
+            batchResult = JSON.parse(response.text || '{}');
+        } catch (e) {
+            console.warn("JSON Parse failed, attempting recovery", e);
+            let text = (response.text || '').trim();
+            // simple fix for under-terminated string / object
+            const lastBrace = text.lastIndexOf('}');
+            if (lastBrace !== -1) {
+                text = text.substring(0, lastBrace + 1);
+                try { batchResult = JSON.parse(text); } catch(e2) {
+                   // extreme fallback: extract any keys we can by wrapping them ? too complex, just use empty
+                   console.warn("Extreme fallback failed", e2);
+                }
+            } else {
+                // Not even one brace?
+                if (text.startsWith('{')) { text += '}'; try { batchResult = JSON.parse(text); } catch(e3) {}}
+            }
         }
-      });
-      
-      setGeneratedBusinessPlanData({ ...JSON.parse(response.text || '{}'), docType: type === 'businessplan' ? `Business Plan: ${need.itemName}` : `Funding Proposal: ${need.itemName}` });
+        mergedData = { ...mergedData, ...batchResult };
+
+        const resultSummary = Object.keys(batchResult).map(k => `${k} section generated.`).join(" ");
+        rollingContext += `Batch ${i+1} (${batch.label}): ${resultSummary}\n`;
+      }
+
+      setGeneratedBusinessPlanData({ ...mergedData, docType: type === 'businessplan' ? `Business Plan: ${need.itemName}` : `Funding Proposal: ${need.itemName}` });
     } catch (e) {
       console.error(e);
       alert('Generation failed. Check your connection.');
