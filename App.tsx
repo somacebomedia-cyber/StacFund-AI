@@ -434,7 +434,13 @@ const App: React.FC = () => {
             className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity text-left"
           >
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 overflow-hidden flex items-center justify-center shrink-0">
-              {currentUser?.logoUrl && <img src={currentUser.logoUrl} className="w-full h-full object-cover" alt="Logo" />}
+              {currentUser?.logoUrl ? (
+                <img src={currentUser.logoUrl} className="w-full h-full object-cover" alt="Logo" />
+              ) : (
+                <div className="text-white text-xs font-bold font-mono">
+                  {(currentUser?.businessName || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold truncate">{currentUser?.businessName || 'My Account'}</p>
@@ -446,22 +452,24 @@ const App: React.FC = () => {
             <button 
               onClick={() => setIsNotificationsOpen(true)}
               title="Notifications"
-              className="relative p-2 rounded-xl hover:bg-white/10 transition-colors text-gray-500 hover:text-white"
+              className="relative p-2 rounded-xl hover:bg-[#fff]/10 transition-colors text-gray-400 hover:text-[#fff]"
             >
-              <Bell size={16} />
+              <Bell size={18} />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-[#050510]"></span>
               )}
             </button>
-            <button 
-              onClick={handleLogout}
-              title="Log Out"
-              className="p-2 rounded-xl hover:bg-red-500/10 transition-colors text-gray-500 hover:text-red-400 shrink-0"
-            >
-              <LogOut size={16} />
-            </button>
           </div>
         </div>
+
+        {/* Prominent, easily accessible Log Out Button */}
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/25 text-red-400 hover:text-red-300 font-extrabold text-xs uppercase tracking-widest transition-all duration-200 shadow-lg shadow-red-950/20"
+        >
+          <LogOut size={14} className="shrink-0" />
+          Log Out
+        </button>
       </div>
     </div>
   );

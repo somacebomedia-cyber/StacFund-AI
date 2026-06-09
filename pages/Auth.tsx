@@ -163,6 +163,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       const userCredential = await signInWithPopup(auth, provider);
       
       try {
@@ -216,7 +217,11 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       
     } catch (err: any) {
       console.error(err);
-      setError('Google Sign-In failed: ' + err.message);
+      if (err.code === 'auth/popup-closed-by-user' || err.message?.includes('popup-closed-by-user')) {
+        setError('Sign-in cancelled. The Google login window was closed before completion. Please try again.');
+      } else {
+        setError('Google Sign-In failed: ' + err.message);
+      }
       setIsLoading(false);
     }
   };
@@ -471,6 +476,9 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
                   <input 
                     required
                     type="text" 
+                    name="businessName"
+                    id="businessName"
+                    autoComplete="org"
                     placeholder="e.g., Tech Solutions" 
                     value={formData.businessName}
                     onChange={(e) => setFormData({...formData, businessName: e.target.value})}
@@ -488,6 +496,9 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
                 <input 
                   required
                   type="email" 
+                  name="email"
+                  id="email"
+                  autoComplete="email"
                   placeholder="name@company.com" 
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
@@ -506,6 +517,9 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
                 <input 
                   required
                   type="password" 
+                  name="password"
+                  id="password"
+                  autoComplete={authState === 'signup' ? 'new-password' : 'current-password'}
                   placeholder="••••••••" 
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
