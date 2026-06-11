@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Target, Bell, LayoutDashboard, Search, UserCircle, LogOut, Crown, AlertTriangle, FileText, Zap, ShieldCheck, CreditCard, ChevronRight, Menu, X, FolderOpen } from 'lucide-react';
+import { Target, Bell, LayoutDashboard, Search, UserCircle, LogOut, Crown, AlertTriangle, FileText, Zap, ShieldCheck, CreditCard, ChevronRight, Menu, X, FolderOpen, ScanLine, Presentation, Wand2, MessageCircle, Building } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db, isConfigured, hasValidFirebaseConfig } from './services/firebase';
@@ -360,6 +360,25 @@ const App: React.FC = () => {
     </button>
   );
 
+  const handleToolNavigation = (toolId: string) => {
+    setCurrentPage('tools');
+    setIsMobileMenuOpen(false);
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: toolId } }));
+    }, 150);
+  };
+
+  const SidebarSubItem = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 pl-4 pr-4 py-2.5 rounded-r-xl transition-all font-bold text-xs text-gray-400 hover:text-white hover:bg-white/5 border border-transparent group`}
+    >
+      <Icon size={16} />
+      <span className="truncate">{label}</span>
+      <ChevronRight size={14} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+    </button>
+  );
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[#050510]/95 md:bg-transparent custom-scrollbar overflow-y-auto w-full">
       <div className="p-6">
@@ -385,8 +404,8 @@ const App: React.FC = () => {
         </div>
 
         <nav className="space-y-2 mb-8">
-          <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2 mb-3">Core</div>
-          <SidebarItem icon={LayoutDashboard} label="Overview" page="dashboard" isActive={currentPage === 'dashboard'} />
+          <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2 mb-3">Mission Control</div>
+          <SidebarItem icon={LayoutDashboard} label="Launchpad" page="dashboard" isActive={currentPage === 'dashboard'} />
           <SidebarItem icon={Search} label="Funding Explorer" page="funding" isActive={currentPage === 'funding'} />
           <SidebarItem icon={FileText} label="Applications" page="applications" isActive={currentPage === 'applications'} />
           <SidebarItem icon={FolderOpen} label="Documents Vault" page="documents" isActive={currentPage === 'documents'} />
@@ -395,7 +414,16 @@ const App: React.FC = () => {
         <nav className="space-y-2 mb-8">
           <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2 mb-3">Growth Tools</div>
           <SidebarItem icon={ShieldCheck} label="Compliance & Needs" page="needs" isActive={currentPage === 'needs'} />
-          <SidebarItem icon={Zap} label="Smart Tools" page="tools" isActive={currentPage === 'tools'} />
+          <SidebarItem icon={Zap} label="Smart Tools Hub" page="tools" isActive={currentPage === 'tools'} />
+          
+          {currentPage === 'tools' && (
+            <div className="mt-1 space-y-1 border-l-2 border-white/5 ml-6 py-1">
+              <SidebarSubItem icon={ScanLine} label="Offline Form Auto-Fill" onClick={() => handleToolNavigation('digitizer')} />
+              <SidebarSubItem icon={Presentation} label="AI Pitch Deck" onClick={() => handleToolNavigation('presentation')} />
+              <SidebarSubItem icon={Wand2} label="AI Logo Generator" onClick={() => handleToolNavigation('logo')} />
+              <SidebarSubItem icon={MessageCircle} label="WhatsApp Crowdsourcer" onClick={() => handleToolNavigation('whatsapp')} />
+            </div>
+          )}
         </nav>
       </div>
 

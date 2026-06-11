@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Trash2 } from 'lucide-react';
+import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Trash2, MessageCircle } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { motion } from 'motion/react';
 import { collection, getDocs, query, where, getDoc, doc, deleteDoc } from 'firebase/firestore';
@@ -15,10 +15,10 @@ import FormDigitizer from '../components/FormDigitizer';
 import PresentationDesigner from '../components/PresentationDesigner';
 import AILogoGenerator from '../components/AILogoGenerator';
 import AdvertGenerator from '../components/AdvertGenerator';
-import BusinessRegistration from '../components/BusinessRegistration';
 import FundingNeedsTracker from '../components/FundingNeedsTracker';
 import { ApplicationTracker } from '../components/ApplicationTracker';
 import DocumentsVault from '../components/DocumentsVault';
+import { WhatsAppIngestion } from '../components/WhatsAppIngestion';
 
 interface DashboardProps {
   onCompleteProfile: () => void;
@@ -107,7 +107,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   const [showPresentationDesigner, setShowPresentationDesigner] = useState(false);
   const [showLogoGenerator, setShowLogoGenerator] = useState(false);
   const [showAdvertGenerator, setShowAdvertGenerator] = useState(false);
-  const [showBusinessRegistration, setShowBusinessRegistration] = useState(false);
+  const [showWhatsAppIngestion, setShowWhatsAppIngestion] = useState(false);
   const [initialAdvertPrompt, setInitialAdvertPrompt] = useState('');
   
   // Real Data Fetching
@@ -125,8 +125,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       } else if (tool === 'advert') {
         if (prompt) setInitialAdvertPrompt(prompt);
         setShowAdvertGenerator(true);
-      } else if (tool === 'register') {
-        setShowBusinessRegistration(true);
       } else if (tool === 'digitizer') {
         setShowFormDigitizer(true);
       } else if (tool === 'presentation') {
@@ -297,7 +295,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     }
   }, [activeTab]);
 
-  const handleToolClick = (tool: 'digitizer' | 'presentation' | 'logo' | 'register') => {
+  const handleToolClick = (tool: 'digitizer' | 'presentation' | 'logo' | 'register' | 'whatsapp') => {
     if (tool !== 'digitizer' && user?.subscriptionPlan === 'free') {
       onUpgrade();
       return;
@@ -306,7 +304,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     if (tool === 'digitizer') setShowFormDigitizer(true);
     if (tool === 'presentation') setShowPresentationDesigner(true);
     if (tool === 'logo') setShowLogoGenerator(true);
-    if (tool === 'register') setShowBusinessRegistration(true);
+    if (tool === 'whatsapp') setShowWhatsAppIngestion(true);
   };
 
   const clearAllApplications = async () => {
@@ -379,8 +377,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       {showAdvertGenerator && (
         <AdvertGenerator user={user} onClose={() => setShowAdvertGenerator(false)} initialPrompt={initialAdvertPrompt} />
       )}
-      {showBusinessRegistration && (
-        <BusinessRegistration user={user} onClose={() => setShowBusinessRegistration(false)} />
+      {showWhatsAppIngestion && (
+        <WhatsAppIngestion user={user} onClose={() => setShowWhatsAppIngestion(false)} />
       )}
 
       {isOffline && (
@@ -677,10 +675,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     </div>
                   </div>
 
-                  {/* Business Registration Card */}
+                  {/* WhatsApp Ingestion Card */}
                   <div 
-                    onClick={() => handleToolClick('register')}
-                    className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-orange-500/50 hover:bg-orange-500/5 transition-all cursor-pointer group relative overflow-hidden"
+                    onClick={() => handleToolClick('whatsapp')}
+                    className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all cursor-pointer group relative overflow-hidden"
                   >
                     {!isPaid && (
                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
@@ -689,16 +687,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                          </div>
                        </div>
                     )}
-                    <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-orange-500/20 rounded-full blur-[50px] group-hover:bg-orange-500/30 transition-all"></div>
-                    <div className="w-16 h-16 rounded-2xl bg-orange-500/10 text-orange-400 flex items-center justify-center mb-6 shadow-lg shadow-orange-500/10">
-                      <Building size={32} />
+                    <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-emerald-500/20 rounded-full blur-[50px] group-hover:bg-emerald-500/30 transition-all"></div>
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+                      <MessageCircle size={32} />
                     </div>
-                    <h4 className="text-xl font-black mb-2 group-hover:text-orange-400 transition-colors">CIPC Business Registration</h4>
+                    <h4 className="text-xl font-black mb-2 group-hover:text-emerald-400 transition-colors">WhatsApp Crowdsourcer</h4>
                     <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                      Register your company with CIPC directly through our platform. Fast, secure, and hassle-free.
+                      Extract and digitize funding posters forwarded to our verified WhatsApp bot number using Vision AI.
                     </p>
                     <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
-                       <Building size={14} className="text-orange-400" /> Official Integration
+                       <CheckCircle size={14} className="text-emerald-400" /> Database Integration
                     </div>
                   </div>
                 </div>

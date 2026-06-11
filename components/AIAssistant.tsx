@@ -636,11 +636,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
         
         {/* Hover Shine Effect */}
         {!isOpen && (
-          <motion.div 
-            animate={{ left: ['-100%', '200%'] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
-            className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
-          />
+          <div className="absolute inset-0 overflow-hidden rounded-[24px] pointer-events-none">
+            <motion.div 
+              animate={{ left: ['-100%', '200%'] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+              className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-white/30 to-transparent -skew-x-12"
+            />
+          </div>
         )}
       </motion.button>
     </div>
