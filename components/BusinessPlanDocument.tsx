@@ -15,8 +15,11 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   const handlePrint = async () => {
     if (!printRef.current) return;
     setIsExporting(true);
-    
+
     try {
+      // Yield to let DOM reflow
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Dynamically import to keep initial bundle size small
       const html2canvasLib = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
@@ -33,21 +36,41 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
       for (let i = 0; i < pages.length; i++) {
         const canvas = await html2canvasLib(pages[i], {
-          scale: 2,
+          scale: 1.5, // 1.5 instead of 2.0 prevents mobile memory crashes (iOS 15MB canvas limit)
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#3B0764',
           logging: false,
-          width: pages[i].offsetWidth,
-          height: pages[i].offsetHeight,
+          width: 794,
+          height: 1123,
+          windowWidth: 794,
+          windowHeight: 1123,
+          onclone: (clonedDoc: HTMLDocument) => {
+            const clonedPages = clonedDoc.querySelectorAll('.pdf-page');
+            clonedPages.forEach((p: Element) => {
+              (p as HTMLElement).style.width = '794px';
+              (p as HTMLElement).style.minHeight = '1123px';
+              (p as HTMLElement).style.height = '1123px';
+            });
+          },
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        // Use 0.85 quality to save RAM during the generation loop
+        const imgData = canvas.toDataURL('image/jpeg', 0.85); 
         if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
+        
+        // Dynamic height maintains exact aspect ratio if content pushes beyond 297mm
+        const pageRatio = canvas.height / canvas.width;
+        const printHeight = A4_WIDTH_MM * pageRatio;
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH_MM, printHeight);
 
-        // Yield to the browser to prevent UI freeze between pages
-        await new Promise((resolve) => setTimeout(resolve, 30));
+        // Force cleanup of the canvas to avoid Safari crashing mid-export
+        canvas.width = 0;
+        canvas.height = 0;
+
+        // Yield to the browser to prevent UI freeze and garbage collect
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
 
       const filename = `${businessInfo?.name?.replace(/\s+/g, '_') || 'Business'}_Plan.pdf`;
@@ -55,7 +78,6 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
     } catch (err) {
       console.error('PDF Export failed:', err);
-      window.print(); // fallback
     } finally {
       setIsExporting(false);
     }
@@ -235,7 +257,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
         </button>
       </div>
 
-      <div ref={printRef} className="print-container w-full max-w-[210mm] relative my-12 mx-auto flex flex-col font-sans">
+      <div ref={printRef} className="print-container w-full max-w-[210mm] relative my-12 mx-auto flex flex-col font-sans" style={{ minWidth: '794px', width: '794px' }}>
         
         {/* 1. Cover Page */}
         <PageWrapper>
