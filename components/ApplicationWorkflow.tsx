@@ -109,7 +109,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   const generateBusinessPlan = async () => {
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       const prompt = `Generate a comprehensive, professional business plan/proposal for ${formData.businessName} applying for ${opportunity.programme_name} (${opportunity.issuer_name}). 
       Funding requested: ${formData.fundingRequested}. 
       Purpose: ${formData.purpose}.

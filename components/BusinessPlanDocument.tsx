@@ -192,12 +192,12 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   );
   
   const RenderTable = ({ columns, data, columnAlignments }: any) => (
-    <div style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.20)', borderRadius: 16, padding: '16px', position: 'relative', zIndex: 1 }}>
+    <div style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.20)', borderRadius: 16, padding: '12px', position: 'relative', zIndex: 1 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', position: 'relative', zIndex: 1 }}>
         <thead>
           <tr style={{ background: 'rgba(109, 40, 217, 0.85)' }}>
             {columns.map((col: string, i: number) => (
-              <th key={i} style={{ color: 'white', fontWeight: 800, padding: '12px 16px', textAlign: columnAlignments && columnAlignments[i] ? columnAlignments[i] : 'left', fontSize: 13, letterSpacing: '0.05em' }}>
+              <th key={i} style={{ color: 'white', fontWeight: 800, padding: '8px 12px', textAlign: columnAlignments && columnAlignments[i] ? columnAlignments[i] : 'left', fontSize: 12, letterSpacing: '0.05em' }}>
                 {col}
               </th>
             ))}
@@ -207,8 +207,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
           {data.map((item: any, i: number) => (
             <tr key={i} style={{ background: i % 2 === 0 ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.80)', borderBottom: '1px solid rgba(109,40,217,0.20)' }}>
               {item.map((val: any, j: number) => (
-                <td key={j} style={{ color: '#1e1b4b', padding: '10px 16px', fontSize: 13, fontWeight: 500, textAlign: columnAlignments && columnAlignments[j] ? columnAlignments[j] : 'left' }}>
-                  {val}
+                <td key={j} style={{ color: '#1e1b4b', padding: '6px 12px', fontSize: 12, fontWeight: 500, textAlign: columnAlignments && columnAlignments[j] ? columnAlignments[j] : 'left' }}>
+                  {typeof val === 'string' && val.trim() === 'RO' ? 'R0' : val}
                 </td>
               ))}
             </tr>
@@ -217,6 +217,21 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
       </table>
     </div>
   );
+
+  const getFinancialColumns = (firstCol: string, rows: any[]) => {
+    let maxVals = 0;
+    rows?.forEach((r: any) => {
+      if (!r.isHeader && r.values && r.values.length > maxVals) {
+        maxVals = r.values.length;
+      }
+    });
+    if (maxVals === 0) maxVals = 3;
+    return [firstCol, ...Array.from({ length: maxVals }, (_, i) => `Year ${i + 1}`)];
+  };
+
+  const getFinancialAlignments = (colCount: number) => {
+    return ['left', ...Array.from({ length: colCount - 1 }, () => 'right')];
+  };
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col items-center p-4 bg-black/95 overflow-y-auto w-full custom-scrollbar">
@@ -432,9 +447,9 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
                       strokeDasharray={`${(data.viabilityScore.overall / 100) * 502} 502`}
                     />
                   </svg>
-                  <div className="flex flex-col items-center justify-center relative z-10">
-                    <span className="text-5xl font-black text-white">{data.viabilityScore.overall}</span>
-                    <span className="text-xs font-bold text-white/50 uppercase tracking-widest">/ 100</span>
+                  <div className="flex flex-col items-center justify-center relative z-10 gap-1 leading-none pt-2">
+                    <span className="text-5xl font-black text-white leading-none">{data.viabilityScore.overall}</span>
+                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest leading-none">/ 100</span>
                   </div>
                 </div>
               </div>
@@ -710,25 +725,27 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
                   <h3 className="text-sm font-black text-[#A3E635] uppercase tracking-widest mb-4">Platform Strategy</h3>
                   <div className="space-y-4">
                     {data.socialMediaStrategy.platforms.map((platform: any, i: number) => (
-                      <Card key={i} className="flex gap-4 items-start">
-                        <div className="w-12 h-12 rounded-xl bg-[rgba(255,255,255,0.2)] text-white flex items-center justify-center text-sm font-black shrink-0">
-                          {platform.name?.charAt(0)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="text-lg font-black text-white">{platform.name}</h4>
-                            <span className="text-[10px] bg-[rgba(163,230,53,0.2)] text-[#A3E635] font-bold px-2 py-0.5 rounded-full">{platform.postFrequency}</span>
+                      <Card key={i} className="flex flex-col gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.2)] text-white flex items-center justify-center text-sm font-black shrink-0">
+                            {platform.name?.charAt(0)}
                           </div>
-                          <p className="text-sm text-white/70 mb-3">{platform.audience}</p>
-                          <div className="flex flex-wrap gap-2">
-                            {platform.contentTypes?.map((type: string, j: number) => (
-                              <span key={j} className="text-xs bg-white text-[#1e1b4b] px-2 py-1 rounded-full font-bold">{type}</span>
-                            ))}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h4 className="text-base font-black text-white">{platform.name}</h4>
+                              <span className="text-[10px] bg-[rgba(163,230,53,0.2)] text-[#A3E635] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">{platform.postFrequency}</span>
+                            </div>
+                            <p className="text-xs text-white/70 mb-2">{platform.audience}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {platform.contentTypes?.map((type: string, j: number) => (
+                                <span key={j} className="text-[10px] bg-white text-[#1e1b4b] px-2 py-0.5 rounded-full font-bold">{type}</span>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-xs text-white/50">Goal</span>
-                          <p className="text-sm font-bold text-[#A3E635]">{platform.primaryGoal}</p>
+                        <div className="bg-white/5 p-2 rounded relative">
+                          <span className="text-[10px] uppercase tracking-widest text-white/50 block mb-0.5">Goal</span>
+                          <p className="text-xs font-bold text-[#A3E635] leading-relaxed">{platform.primaryGoal}</p>
                         </div>
                       </Card>
                     ))}
@@ -975,12 +992,16 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <SectionHeading number="16.1" title="Profit & Loss Statement" />
             <div className="flex-1 relative z-10">
               <RenderTable 
-                columns={['Line Item', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']}
-                data={data.financialStatements.profitLoss.map((row: any) => [
-                  row.label,
-                  ...(row.values || [])
-                ])}
-                columnAlignments={['left','right','right','right','right','right']}
+                columns={getFinancialColumns('Line Item', data.financialStatements.profitLoss)}
+                data={data.financialStatements.profitLoss.map((row: any) => {
+                  const maxVals = getFinancialColumns('Line Item', data.financialStatements.profitLoss).length - 1;
+                  const vals = row.values || [];
+                  return [
+                    row.label,
+                    ...Array.from({ length: maxVals }, (_, i) => vals[i] ?? '')
+                  ];
+                })}
+                columnAlignments={getFinancialAlignments(getFinancialColumns('Line Item', data.financialStatements.profitLoss).length)}
               />
             </div>
             <ContactFooter />
@@ -994,12 +1015,16 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <SectionHeading number="16.2" title="Balance Sheet" />
             <div className="flex-1 relative z-10">
               <RenderTable 
-                columns={['Item', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']}
-                data={data.financialStatements.balanceSheet.map((row: any) => [
-                  row.label,
-                  ...(row.isHeader ? ['','','','',''] : (row.values || []))
-                ])}
-                columnAlignments={['left','right','right','right','right','right']}
+                columns={getFinancialColumns('Item', data.financialStatements.balanceSheet)}
+                data={data.financialStatements.balanceSheet.map((row: any) => {
+                  const maxVals = getFinancialColumns('Item', data.financialStatements.balanceSheet).length - 1;
+                  const vals = row.values || [];
+                  return [
+                    row.label,
+                    ...(row.isHeader ? Array(maxVals).fill('') : Array.from({ length: maxVals }, (_, i) => vals[i] ?? ''))
+                  ];
+                })}
+                columnAlignments={getFinancialAlignments(getFinancialColumns('Item', data.financialStatements.balanceSheet).length)}
               />
             </div>
             <ContactFooter />
@@ -1013,12 +1038,16 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <SectionHeading number="16.3" title="Cash Flow Statement" />
             <div className="flex-1 relative z-10">
               <RenderTable 
-                columns={['Activity', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']}
-                data={data.financialStatements.cashFlow.map((row: any) => [
-                  row.label,
-                  ...(row.values || [])
-                ])}
-                columnAlignments={['left','right','right','right','right','right']}
+                columns={getFinancialColumns('Activity', data.financialStatements.cashFlow)}
+                data={data.financialStatements.cashFlow.map((row: any) => {
+                  const maxVals = getFinancialColumns('Activity', data.financialStatements.cashFlow).length - 1;
+                  const vals = row.values || [];
+                  return [
+                    row.label,
+                    ...Array.from({ length: maxVals }, (_, i) => vals[i] ?? '')
+                  ];
+                })}
+                columnAlignments={getFinancialAlignments(getFinancialColumns('Activity', data.financialStatements.cashFlow).length)}
               />
             </div>
             <ContactFooter />

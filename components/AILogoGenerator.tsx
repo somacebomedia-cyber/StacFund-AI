@@ -21,7 +21,7 @@ const AILogoGenerator: React.FC<AILogoGeneratorProps> = ({ user, onClose }) => {
     setError(null);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',

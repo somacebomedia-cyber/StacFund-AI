@@ -10,6 +10,11 @@ export function isRetryableError(error: any): boolean {
   const statusStr = String(error.status || '').toLowerCase();
   const code = String(error.code || error.statusCode || '');
 
+  // Do not retry if prepaid credits are depleted
+  if (errMsg.includes('depleted') || errMsg.includes('prepay') || errMsg.includes('billing')) {
+    return false;
+  }
+
   return (
     code.includes('503') ||
     code.includes('429') ||

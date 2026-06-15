@@ -625,7 +625,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
          },
          {
            label: "Business Model, Brand & Competitive Position",
-           sections: ['businessModel', 'swot', 'productsServices', 'businessModels', 'brandingIdentity', 'competitorPositioning'],
+           sections: ['swot', 'productsServices', 'businessModels', 'brandingIdentity', 'competitorPositioning'],
            instructions: "Elaborate deeply on revenue streams, products/services, SWOT, business models, and provide a full branding identity and competitive positioning analysis with at least 5 named competitors scored on 5 dimensions."
          },
          {
@@ -640,22 +640,17 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
          },
          {
            label: "Risk, Compliance, Implementation & Conclusion",
-           sections: ['riskMitigation', 'implementationPlan', 'conclusion', 'viabilityScore', 'saCompliance'],
+           sections: ['riskMitigation', 'saCompliance', 'implementationPlan', 'conclusion', 'viabilityScore'],
            instructions: "Detail 6+ risk mitigation strategies, a multi-phased implementation plan, strong conclusion, objective viability score, and full SA compliance requirements (CIPC, SARS, POPIA, BEE, Health & Safety)."
          }
       ];
 
       // Distribute based on totalBatches
       let batches: typeof allPrompts = [];
-      if (totalBatches === 2) {
-         batches = [
-           { label: "Business Fundamentals", sections: [...allPrompts[0].sections, ...allPrompts[1].sections, ...allPrompts[2].sections], instructions: "Generate core identity, vision, business model, branding, market research, operations, and marketing strategy." },
-           { label: "Financials, Compliance & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: "Generate the full financial package, SA compliance, risk management, and implementation plan." }
-         ];
-      } else if (totalBatches === 3) {
+      if (totalBatches <= 3) {
          batches = [
            { label: "Identity, Model & Brand", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
-           { label: "Market, Marketing & Operations", sections: [...allPrompts[2].sections], instructions: allPrompts[2].instructions },
+           allPrompts[2],
            { label: "Financials, Compliance & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: allPrompts[3].instructions + " " + allPrompts[4].instructions }
          ];
       } else if (totalBatches === 4) {
@@ -672,11 +667,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
 
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
-        setBatchProgress({ current: i + 1, total: totalBatches, label: batch.label });
+        setBatchProgress({ current: i + 1, total: batches.length, label: batch.label });
 
         const batchProperties: any = {};
         batch.sections.forEach(sec => {
-          batchProperties[sec] = (fullBusinessPlanSchemaProperties as any)[sec];
+          const prop = (fullBusinessPlanSchemaProperties as any)[sec];
+          if (prop !== undefined) {
+            batchProperties[sec] = prop;
+          } else {
+            console.warn(`⚠️ Schema missing for section: "${sec}" — Gemini will skip this field. Add it to fullBusinessPlanSchemaProperties.`);
+          }
         });
 
         const batchSchema = {
@@ -730,7 +730,7 @@ WRITING REQUIREMENTS:
           config: { 
             responseMimeType: 'application/json',
             responseSchema: batchSchema,
-            maxOutputTokens: 8192
+            maxOutputTokens: 32768
           }
         });
 

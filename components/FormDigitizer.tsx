@@ -41,7 +41,7 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
 
   const analyzeForm = async (base64Image: string) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       const profileData = localStorage.getItem(`stacfund_profile_${user?.id}`);
       const docsData = localStorage.getItem('stacfund_documents');
       

@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import axios from "axios";
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
@@ -35,6 +36,40 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Proxy for Gemini API
+  app.use(
+    '/api/gemini',
+    createProxyMiddleware({
+      target: 'https://generativelanguage.googleapis.com',
+      changeOrigin: true,
+      pathRewrite: (path) => {
+        // Remove base path and strip key parameter if present
+        let newPath = path.replace(/^\/api\/gemini/, '');
+        if (newPath.includes('key=')) {
+          newPath = newPath.replace(/[?&]key=[^&]+/, '');
+          // Fix hanging ? if it's the only param
+          newPath = newPath.replace(/\?$/, '');
+        }
+        return newPath;
+      },
+      on: {
+        proxyReq: (proxyReq, req: any) => {
+          if (process.env.GEMINI_API_KEY) {
+            proxyReq.setHeader('x-goog-api-key', process.env.GEMINI_API_KEY);
+          }
+          proxyReq.setHeader('user-agent', 'aistudio-build');
+          
+          // Re-stream body because express.json() consumed it
+          if (req.body && Object.keys(req.body).length > 0) {
+            const bodyData = JSON.stringify(req.body);
+            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+            proxyReq.write(bodyData);
+          }
+        },
+      },
+    })
+  );
 
   // API route to initialize a Paystack transaction
   app.post("/api/paystack/initialize", async (req, res) => {

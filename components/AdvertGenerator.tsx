@@ -22,7 +22,7 @@ const AdvertGenerator: React.FC<AdvertGeneratorProps> = ({ user, onClose, initia
     setError(null);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       
       // We will simulate video generation using text generation that outputs a complex visual description 
       // or placeholder. Or actually, the schema could be video if we use Veo-2.0 but let's mock it for now

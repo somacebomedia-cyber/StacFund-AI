@@ -48,7 +48,7 @@ export const WhatsAppIngestion: React.FC<WhatsAppIngestionProps> = ({ user, onCl
     // Here we'll simulate the AI call with dummy data reflecting the poster the user showed.
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       // We do a mock prompt just to show interaction, but return static JSON for the demo
       // because we cannot read the exact physical file safely here without the real image payload.
       await new Promise(res => setTimeout(res, 2000));
