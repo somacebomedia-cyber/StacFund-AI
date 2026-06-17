@@ -36,7 +36,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
       for (let i = 0; i < pages.length; i++) {
         const canvas = await html2canvasLib(pages[i], {
-          scale: 1.5, // 1.5 instead of 2.0 prevents mobile memory crashes (iOS 15MB canvas limit)
+          scale: 2, 
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#3B0764',
@@ -233,6 +233,17 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
     return ['left', ...Array.from({ length: colCount - 1 }, () => 'right')];
   };
 
+  const renderText = (text: string | undefined) => {
+    if (!text) return null;
+    return (
+      <>
+        {text.split(/(?:\\n\\n|\n\n+)/).map((para, i) => (
+          para.trim() && <p key={i} className="mb-3">{para.trim().replace(/\\n/g, '\n')}</p>
+        ))}
+      </>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-[200] flex flex-col items-center p-4 bg-black/95 overflow-y-auto w-full custom-scrollbar">
       <style>{`
@@ -311,7 +322,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
           <LogoHeader />
           <h2 className="relative z-10 text-white mb-8 text-4xl font-black border-b border-white/20 pb-4">Table of Contents</h2>
           <Card className="flex-1 overflow-auto">
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3">
               {[
                 { num: '01', title: 'Executive Summary' },
                 { num: '02', title: 'Vision & Mission' },
@@ -338,9 +349,9 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
               ].map((item) => (
                 <div key={item.num} className="flex flex-col">
                   <div className="flex justify-between text-white border-b border-white/10 pb-2">
-                    <div className="flex items-center gap-4">
-                      <span className="font-bold text-[#A3E635] w-6">{item.num}.</span>
-                      <span className="font-medium text-lg">{item.title}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-[#A3E635] w-5 text-sm">{item.num}.</span>
+                      <span className="font-medium text-base">{item.title}</span>
                     </div>
                   </div>
                 </div>
@@ -365,10 +376,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
                    "{businessInfo.description || data.executiveSummary?.substring(0, 150) + '...'}"
                 </p>
             </Card>
-            <div className="relative z-10 flex-1 text-white/90 leading-relaxed space-y-4 text-justify">
-               {data.executiveSummary?.split('\n').map((paragraph: string, i: number) => (
-                   paragraph.trim() && <p key={i}>{paragraph}</p>
-               ))}
+            <div className="relative z-10 flex-1 text-white/90 leading-relaxed text-justify">
+               {renderText(data.executiveSummary)}
             </div>
             <ContactFooter />
           </PageWrapper>
@@ -408,20 +417,16 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
               {data.problemStatement && (
                 <Card style={{ borderLeft: '4px solid #F87171' }}>
                   <h3 className="text-xl font-bold text-[#F87171] mb-4">The Problem</h3>
-                  <div className="text-white/90 leading-relaxed space-y-3">
-                    {data.problemStatement?.split('\n').map((p: string, i: number) =>
-                      p.trim() && <p key={i}>{p}</p>
-                    )}
+                  <div className="text-white/90 leading-relaxed">
+                    {renderText(data.problemStatement)}
                   </div>
                 </Card>
               )}
               {data.solutionOverview && (
                 <Card style={{ borderLeft: '4px solid #A3E635' }}>
                   <h3 className="text-xl font-bold text-[#A3E635] mb-4">The Solution</h3>
-                  <div className="text-white/90 leading-relaxed space-y-3">
-                    {data.solutionOverview?.split('\n').map((p: string, i: number) =>
-                      p.trim() && <p key={i}>{p}</p>
-                    )}
+                  <div className="text-white/90 leading-relaxed">
+                    {renderText(data.solutionOverview)}
                   </div>
                 </Card>
               )}
@@ -535,10 +540,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
                 {data.marketResearch.industryAnalysis && (
                   <Card>
                     <h3 className="text-base font-bold text-[#A3E635] mb-3">Industry Analysis</h3>
-                    <div className="text-white/80 text-sm leading-relaxed space-y-3">
-                      {data.marketResearch.industryAnalysis?.split('\n').map((p: string, i: number) =>
-                        p.trim() && <p key={i}>{p}</p>
-                      )}
+                    <div className="text-white/80 text-sm leading-relaxed">
+                      {renderText(data.marketResearch.industryAnalysis)}
                     </div>
                   </Card>
                 )}
@@ -568,10 +571,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <div className="flex-1 relative z-10 flex flex-col gap-6">
               {data.competitorPositioning.summary && (
                 <Card>
-                  <div className="text-white/90 leading-relaxed text-sm space-y-3">
-                    {data.competitorPositioning.summary.split('\n').map((p: string, i: number) =>
-                      p.trim() && <p key={i}>{p}</p>
-                    )}
+                  <div className="text-white/90 leading-relaxed text-sm">
+                    {renderText(data.competitorPositioning.summary)}
                   </div>
                 </Card>
               )}
@@ -673,9 +674,9 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <SectionHeading number="9" title="Go-To-Market Strategy" />
             <div className="relative z-10 flex-col flex flex-1">
               <Card className="mb-6">
-                 {data.goToMarket.strategy?.split('\n').map((paragraph: string, i: number) => (
-                    paragraph.trim() && <p key={i} className="mb-4 text-white/90 text-sm">{paragraph}</p>
-                 ))}
+                 <div className="text-white/90 text-sm leading-relaxed">
+                   {renderText(data.goToMarket.strategy)}
+                 </div>
               </Card>
               <div className="grid grid-cols-2 gap-6">
                 <Card>
@@ -713,10 +714,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <div className="flex-1 relative z-10 flex flex-col gap-6">
               {data.socialMediaStrategy.overview && (
                 <Card>
-                  <div className="text-sm text-white/90 leading-relaxed space-y-3">
-                    {data.socialMediaStrategy.overview.split('\n').map((p: string, i: number) =>
-                      p.trim() && <p key={i}>{p}</p>
-                    )}
+                  <div className="text-sm text-white/90 leading-relaxed">
+                    {renderText(data.socialMediaStrategy.overview)}
                   </div>
                 </Card>
               )}
@@ -765,10 +764,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <div className="flex-1 relative z-10 flex flex-col gap-6">
               {data.seoStrategy.overview && (
                 <Card>
-                  <div className="text-sm text-white/90 leading-relaxed space-y-3">
-                    {data.seoStrategy.overview.split('\n').map((p: string, i: number) =>
-                      p.trim() && <p key={i}>{p}</p>
-                    )}
+                  <div className="text-sm text-white/90 leading-relaxed">
+                    {renderText(data.seoStrategy.overview)}
                   </div>
                 </Card>
               )}
@@ -797,10 +794,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <div className="flex-1 relative z-10 flex flex-col gap-6">
               {data.operationsPlan.overview && (
                 <Card>
-                  <div className="text-white/90 leading-relaxed text-sm space-y-3">
-                     {data.operationsPlan.overview?.split('\n').map((paragraph: string, i: number) => (
-                        paragraph.trim() && <p key={i}>{paragraph}</p>
-                     ))}
+                  <div className="text-white/90 leading-relaxed text-sm">
+                     {renderText(data.operationsPlan.overview)}
                   </div>
                 </Card>
               )}
@@ -939,7 +934,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
                <div className="flex gap-6 shrink-0 h-auto">
                   <Card className="w-1/2 flex flex-col" style={{ background: 'rgba(163,230,53,0.15)', borderColor: '#A3E635' }}>
                      <p className="text-xs text-[#A3E635] font-bold uppercase tracking-widest mb-3 shrink-0">Funding Required</p>
-                     <p className="text-4xl font-black text-white mb-4 break-words shrink-0">{data.financialPlan.fundingRequirement}</p>
+                     <p className="text-2xl font-bold text-white mb-4 break-words shrink-0">{data.financialPlan.fundingRequirement}</p>
                      <div className="w-full h-[1px] bg-white/20 mb-4 shrink-0"></div>
                      <p className="text-white/90 font-medium leading-relaxed text-sm">{data.financialPlan.fundingPurpose}</p>
                   </Card>
@@ -1107,10 +1102,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
               <div className="mt-8 relative z-10 w-full mb-6">
                 <Card>
                   <h3 className="text-xl font-bold text-[#A3E635] mb-4 shrink-0">Competitor Analysis</h3>
-                  <div className="text-white/90 leading-relaxed text-sm space-y-3 text-justify">
-                    {data.marketResearch.competitorAnalysis?.split('\n').map((paragraph: string, i: number) => (
-                       paragraph.trim() && <p key={i}>{paragraph}</p>
-                    ))}
+                  <div className="text-white/90 leading-relaxed text-sm text-justify">
+                    {renderText(data.marketResearch.competitorAnalysis)}
                   </div>
                 </Card>
               </div>
@@ -1154,10 +1147,8 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
             <div className="relative z-10 flex-1 flex flex-col gap-6">
               {data.saCompliance.overview && (
                 <Card>
-                  <div className="text-sm text-white/90 leading-relaxed space-y-3">
-                    {data.saCompliance.overview.split('\n').map((p: string, i: number) =>
-                      p.trim() && <p key={i}>{p}</p>
-                    )}
+                  <div className="text-sm text-white/90 leading-relaxed">
+                    {renderText(data.saCompliance.overview)}
                   </div>
                 </Card>
               )}
@@ -1291,9 +1282,9 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
               </div>
               <SectionHeading number="22" title="Conclusion" />
               <Card>
-                {data.conclusion?.split('\n').map((p: string, i: number) => (
-                  p.trim() && <p key={i} className="text-white/90 leading-relaxed mb-4 text-lg">{p}</p>
-                ))}
+                <div className="text-white/90 leading-relaxed text-lg">
+                  {renderText(data.conclusion)}
+                </div>
               </Card>
             </div>
             <ContactFooter />
