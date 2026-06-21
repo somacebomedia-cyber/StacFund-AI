@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc 
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { AppDocument, User } from '../types';
 import BusinessPlanDocument from '../components/BusinessPlanDocument';
+import confetti from 'canvas-confetti';
 
 interface ProfileFormProps {
   onBack: () => void;
@@ -774,6 +775,12 @@ WRITING REQUIREMENTS:
     const userDocRef = doc(db, 'users', user.id);
     try {
       await setDoc(userDocRef, { profile: businessInfo, ownerInfo: ownerInfo }, { merge: true });
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#A855F7', '#10B981', '#3B82F6']
+      });
       alert('Profile information updated successfully!');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);

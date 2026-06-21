@@ -778,6 +778,58 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           </button>
         </motion.div>
 
+        {/* Tracked Logos Marquee */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.4, duration: 1 }}
+          className="w-full overflow-hidden mt-16 mb-8 relative border-y border-white/5 py-8"
+        >
+          <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[#0a0a1a] to-transparent z-10" />
+          <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[#0a0a1a] to-transparent z-10" />
+          
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] mb-6">Tracking Real-Time Opportunities From</p>
+          
+          <div className="flex gap-12 items-center w-max animate-[scroll_40s_linear_infinite]">
+            {[
+               { name: 'NYDA', url: 'https://logo.clearbit.com/nyda.gov.za' },
+               { name: 'IDC', url: 'https://logo.clearbit.com/idc.co.za' },
+               { name: 'SEFA', url: 'https://logo.clearbit.com/sefa.org.za' },
+               { name: 'NEF', url: 'https://logo.clearbit.com/nefcorp.co.za' },
+               { name: 'the dtic', url: 'https://logo.clearbit.com/thedtic.gov.za' },
+               { name: 'Seda', url: 'https://logo.clearbit.com/seda.org.za' },
+               { name: 'ECDC', url: 'https://logo.clearbit.com/ecdc.co.za' },
+               { name: 'TIA', url: 'https://logo.clearbit.com/tia.org.za' },
+               { name: 'GEP', url: 'https://logo.clearbit.com/gep.co.za' },
+               { name: 'FNB', url: 'https://logo.clearbit.com/fnb.co.za' },
+               // Duplicated for seamless scrolling
+               { name: 'NYDA', url: 'https://logo.clearbit.com/nyda.gov.za' },
+               { name: 'IDC', url: 'https://logo.clearbit.com/idc.co.za' },
+               { name: 'SEFA', url: 'https://logo.clearbit.com/sefa.org.za' },
+               { name: 'NEF', url: 'https://logo.clearbit.com/nefcorp.co.za' },
+               { name: 'the dtic', url: 'https://logo.clearbit.com/thedtic.gov.za' },
+               { name: 'Seda', url: 'https://logo.clearbit.com/seda.org.za' },
+               { name: 'ECDC', url: 'https://logo.clearbit.com/ecdc.co.za' },
+               { name: 'TIA', url: 'https://logo.clearbit.com/tia.org.za' },
+               { name: 'GEP', url: 'https://logo.clearbit.com/gep.co.za' },
+               { name: 'FNB', url: 'https://logo.clearbit.com/fnb.co.za' }
+            ].map((img, i) => (
+              <div key={i} className="flex flex-col items-center gap-2 opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0">
+                <div className="h-10 w-24 flex items-center justify-center">
+                  <img src={img.url} alt={img.name} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <style>{`
+            @keyframes scroll {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(calc(-50% - 1.5rem)); }
+            }
+          `}</style>
+        </motion.div>
+
         {/* Search bar */}
         <motion.div
           initial={{ y: 40, opacity: 0 }}

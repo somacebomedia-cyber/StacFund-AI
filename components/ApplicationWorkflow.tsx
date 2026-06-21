@@ -5,6 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import { db } from '../services/firebase';
 import { addDoc, collection, updateDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../services/firebase';
+import confetti from 'canvas-confetti';
 
 interface ApplicationWorkflowProps {
   opportunity: FundingOpportunityDb;
@@ -265,6 +266,12 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       }
       
       setIsDirectSubmitting(false);
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#A855F7', '#10B981', '#3B82F6', '#F59E0B']
+      });
       onComplete();
     } catch (error) {
       setIsDirectSubmitting(false);
@@ -320,6 +327,12 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       }
       
       setIsLoading(false);
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#A855F7', '#10B981', '#3B82F6', '#F59E0B']
+      });
       onComplete();
     } catch (error) {
       setIsLoading(false);

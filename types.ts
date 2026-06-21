@@ -75,6 +75,7 @@ export interface FundingOpportunity {
   id: string;
   title: string;
   provider: string;
+  logoUrl?: string;
   type: FundingType;
   description: string;
   range: string;

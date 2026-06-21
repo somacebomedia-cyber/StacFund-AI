@@ -613,7 +613,8 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
          batches = [
            { label: "Identity, Model & Brand", sections: [...allPrompts[0].sections, ...allPrompts[1].sections], instructions: allPrompts[0].instructions + " " + allPrompts[1].instructions },
            allPrompts[2],
-           { label: "Financials, Compliance & Implementation", sections: [...allPrompts[3].sections, ...allPrompts[4].sections], instructions: allPrompts[3].instructions + " " + allPrompts[4].instructions }
+           allPrompts[3], // Financial Deep Dive — own call now
+           allPrompts[4]  // Risk, Compliance, Implementation, Conclusion — own call now
          ];
       } else if (totalBatches === 4) {
          batches = [
@@ -673,13 +674,14 @@ Generate only the specific fields defined in the schema.
 ${batch.instructions}
 
 WRITING REQUIREMENTS:
-1. Write every string field in full, professional prose. Zero placeholders.
-2. Minimum 300 words per string field. For overview/analysis fields, minimum 500 words.
-3. All arrays must have a minimum of 6 items (financial tables: minimum 10 rows).
-4. ${'PREMIUM MODE: Match the depth of a 95-page consulting-grade document. Each section must be exhaustive.'}
-5. All financial figures must be in South African Rand (ZAR) and internally consistent across all sections.
-6. Ensure continuity with previously generated sections.
-7. Use specific South African context: reference SA laws, SA funders (NYDA, SEFA, IDC, NEF), SA market data.
+1. Write substantive narrative fields (executive summary, overviews, summaries, conclusion, descriptions) in full, professional prose. Zero placeholders.
+2. Narrative/overview fields: minimum 300 words. Deep analysis fields: minimum 500 words.
+3. SHORT structured fields — individual array items like "tasks", "initiatives", "risk", "impact", "mitigation", "notes" — must be 1–3 concise sentences each, NOT essays. Depth belongs in narrative fields, not repeated in every array item.
+4. All arrays must have a minimum of 6 items (financial tables: minimum 10 rows).
+5. ${'PREMIUM MODE: Match the depth of a 95-page consulting-grade document. Each narrative section must be exhaustive — but structured array items still stay concise per rule 3.'}
+6. All financial figures must be in South African Rand (ZAR) and internally consistent across all sections.
+7. Ensure continuity with previously generated sections.
+8. Use specific South African context: reference SA laws, SA funders (NYDA, SEFA, IDC, NEF), SA market data.
 `;
 
         const response = await ai.models.generateContent({
@@ -688,7 +690,7 @@ WRITING REQUIREMENTS:
           config: { 
             responseMimeType: 'application/json',
             responseSchema: batchSchema,
-            maxOutputTokens: 32768
+            maxOutputTokens: 65536
           }
         });
 
@@ -711,6 +713,10 @@ WRITING REQUIREMENTS:
                 if (text.startsWith('{')) { text += '}'; try { batchResult = JSON.parse(text); } catch(e3) {}}
             }
         }
+        
+        console.log(`Batch ${i+1} (${batch.label}) — keys received:`, Object.keys(batchResult));
+        console.log(`Batch ${i+1} raw response length:`, (response.text || '').length, 'chars');
+
         mergedData = { ...mergedData, ...batchResult };
 
         const resultSummary = Object.keys(batchResult).map(k => `${k} section generated.`).join(" ");
