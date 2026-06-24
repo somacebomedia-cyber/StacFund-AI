@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Clapperboard, Loader2, PlaySquare, Download, Sparkles } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
+import { handleGeminiError } from '../services/geminiError';
 import { User } from '../types';
 
 interface AdvertGeneratorProps {
@@ -57,7 +58,8 @@ const AdvertGenerator: React.FC<AdvertGeneratorProps> = ({ user, onClose, initia
       }
 
     } catch (err) {
-      console.error('Failed to generate advert:', err);
+      
+      handleGeminiError(err);
       setError('Failed to generate advert. Please try again.');
     } finally {
       setIsGenerating(false);

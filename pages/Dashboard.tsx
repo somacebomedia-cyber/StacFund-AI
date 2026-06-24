@@ -229,7 +229,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       const data = JSON.parse(text);
       setReadiness(data);
     } catch (e) {
-      console.error(e);
+      
       handleGeminiError(e);
     } finally {
       setIsLoadingReadiness(false);
@@ -282,7 +282,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       const matches = JSON.parse(text);
       setAiMatches(matches);
     } catch (error) {
-      console.error('AI Matching failed:', error);
+      
       handleGeminiError(error);
     } finally {
       setIsLoadingAI(false);
@@ -393,9 +393,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-1 space-y-8">
-          {/* Welcome Card */}
-          <div className="glass-panel rounded-3xl p-8 relative overflow-hidden group">
+          {/* Welcome Card & Level Tracker */}
+          <div className="glass-panel rounded-3xl p-8 relative overflow-hidden group flex flex-col gap-6">
             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 blur-[60px] group-hover:bg-purple-600/20 transition-all"></div>
+            
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative z-10">
               <div>
                 <h2 className="text-3xl font-black mb-1">Welcome back{user ? `, ${user.email.split('@')[0]}` : ''}! 👋</h2>
@@ -407,6 +408,57 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 onUpdate={onAvatarUpdate}
               />
             </div>
+
+            {/* Founder Level Tracker */}
+            {(() => {
+              let points = 0;
+              if (hasProfile) points += 100;
+              points += docCount * 20;
+              applications.forEach(app => {
+                if (app.status === ApplicationStatus.DRAFT) points += 30;
+                else if (app.status === ApplicationStatus.SUBMITTED) points += 80;
+                else if (app.status === ApplicationStatus.UNDER_REVIEW) points += 100;
+                else if (app.status === ApplicationStatus.APPROVED) points += 300;
+                else if (app.status === ApplicationStatus.REJECTED) points += 50;
+              });
+
+              const getFounderLevel = (p: number) => {
+                if (p >= 1000) return { name: 'Galactic Titan', min: 1000, max: 2000, icon: '🌟' };
+                if (p >= 500) return { name: 'Stellar Commander', min: 500, max: 1000, icon: '🚀' };
+                if (p >= 250) return { name: 'Lunar Explorer', min: 250, max: 500, icon: '🛰️' };
+                if (p >= 100) return { name: 'Orbital Pioneer', min: 100, max: 250, icon: '🛸' };
+                return { name: 'Space Cadet', min: 0, max: 100, icon: '👨‍🚀' };
+              };
+
+              const level = getFounderLevel(points);
+              const progressPercentage = Math.min(100, Math.max(0, ((points - level.min) / (level.max - level.min)) * 100));
+
+              return (
+                <div className="mt-2 pt-6 border-t border-white/5 relative z-10">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Founder Level</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{level.icon}</span>
+                        <h3 className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
+                          {level.name}
+                        </h3>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold">{points} <span className="text-gray-500 font-normal">XP</span></p>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{level.max - points} XP to next rank</p>
+                    </div>
+                  </div>
+                  <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-1000 ease-out rounded-full"
+                      style={{ width: `${progressPercentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Quick Stats Grid */}

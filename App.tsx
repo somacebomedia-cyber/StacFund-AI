@@ -52,6 +52,7 @@ const App: React.FC = () => {
           msg.includes('depleted') ||
           msg.includes('quota')
         ) {
+          event.preventDefault(); // Stop standard error reporting
           setQuotaError(error.message || "Your prepayment credits are depleted. Please manage your project and billing in Google AI Studio.");
         }
       }

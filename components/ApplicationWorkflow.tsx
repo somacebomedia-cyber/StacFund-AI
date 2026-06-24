@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, FileText, Download, Loader2, ArrowRight, ArrowLeft, FileSignature, Briefcase, ShieldCheck, FileCheck, Upload, Wand2, Sparkles, Building, Hash, Phone, Banknote, HelpCircle, Check, Send, Zap } from 'lucide-react';
 import { FundingOpportunityDb, User, ApplicationStatus, AppDocument } from '../types';
 import { GoogleGenAI } from '@google/genai';
+import { handleGeminiError } from '../services/geminiError';
 import { db } from '../services/firebase';
 import { addDoc, collection, updateDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../services/firebase';
@@ -124,7 +125,8 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       setBusinessPlan(response.text || 'Failed to generate business plan.');
       setStep(3);
     } catch (error) {
-      console.error('Failed to generate plan:', error);
+      
+      handleGeminiError(error);
       alert('Failed to generate business plan. Please try again.');
     } finally {
       setIsLoading(false);

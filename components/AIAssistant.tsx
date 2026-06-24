@@ -453,7 +453,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
       }
 
     } catch (error) {
-      console.error('Chat error:', error);
+      
       handleGeminiError(error);
       setMessages(prev => [...prev, { role: 'model', text: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment." }]);
     } finally {

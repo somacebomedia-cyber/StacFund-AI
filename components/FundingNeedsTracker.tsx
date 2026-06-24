@@ -3,8 +3,10 @@ import { Camera, Laptop, HelpCircle, Upload, X, Loader2, PenTool, BarChart3, Che
 import { GoogleGenAI, Type } from '@google/genai';
 import { doc, getDoc, collection, getDocs, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
+import { handleGeminiError } from '../services/geminiError';
 import { User, AppDocument } from '../types';
 import BusinessPlanDocument from './BusinessPlanDocument';
+import PitchDeckDocument from './PitchDeckDocument';
 
 interface FundingNeedsTrackerProps {
   user: User | null;
@@ -33,6 +35,7 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
   
   const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
   const [generatedBusinessPlanData, setGeneratedBusinessPlanData] = useState<any | null>(null);
+  const [generatedPitchDeckData, setGeneratedPitchDeckData] = useState<any | null>(null);
 
   const [editingLinkFor, setEditingLinkFor] = useState<string | null>(null);
   const [tempLink, setTempLink] = useState('');
@@ -178,7 +181,8 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
         
         setNeeds(needs.map(n => n.id === needId ? { ...n, ...updateData } : n));
       } catch (error) {
-        console.error("Failed to upload quotation", error);
+        
+        handleGeminiError(error);
         alert("Failed to upload quotation");
       } finally {
         setUploadingQuotationFor(null);
@@ -190,6 +194,154 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
         setUploadingQuotationFor(null);
     };
     reader.readAsDataURL(file);
+  };
+
+  const pitchDeckSchema = {
+    type: Type.OBJECT,
+    properties: {
+      tagline: { type: Type.STRING, description: "Max 12 words. Cover slide hook." },
+      hook: { type: Type.STRING, description: "One sentence funding ask, e.g. 'Raising R500,000 to scale production.'" },
+      problem: { type: Type.STRING, description: "Max 60 words. Punchy, no fluff." },
+      solution: { type: Type.STRING, description: "Max 60 words. Punchy, no fluff." },
+      viabilityScore: {
+        type: Type.OBJECT,
+        properties: {
+          overall: { type: Type.NUMBER },
+          marketOpportunity: { type: Type.NUMBER },
+          teamStrength: { type: Type.NUMBER },
+          financialViability: { type: Type.NUMBER },
+          socialImpact: { type: Type.NUMBER },
+          competitivePosition: { type: Type.NUMBER },
+          reasoning: { type: Type.STRING, description: "Max 30 words." }
+        }
+      },
+      marketSize: {
+        type: Type.OBJECT,
+        properties: {
+          tam: { type: Type.STRING, description: "Max 15 words, lead with ZAR figure." },
+          sam: { type: Type.STRING, description: "Max 15 words, lead with ZAR figure." },
+          som: { type: Type.STRING, description: "Max 15 words, lead with ZAR figure." }
+        }
+      },
+      topProducts: {
+        type: Type.ARRAY,
+        description: "Exactly the top 3 products/services.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            description: { type: Type.STRING, description: "Max 25 words." },
+            price: { type: Type.STRING, description: "Short value only, e.g. 'R450/month'." }
+          }
+        }
+      },
+      businessModel: {
+        type: Type.OBJECT,
+        properties: {
+          primaryRevenueStream: { type: Type.STRING, description: "Max 25 words." },
+          secondaryRevenueStream: { type: Type.STRING, description: "Max 25 words. Leave blank if single-stream." }
+        }
+      },
+      competitors: {
+        type: Type.ARRAY,
+        description: "Top 4-5 competitors only.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            productQuality: { type: Type.NUMBER, description: "1-10" },
+            pricing: { type: Type.NUMBER, description: "1-10, 10=most expensive" },
+            innovation: { type: Type.NUMBER, description: "1-10" },
+            keyWeakness: { type: Type.STRING, description: "Max 12 words." }
+          }
+        }
+      },
+      goToMarket: {
+        type: Type.OBJECT,
+        properties: {
+          channels: { type: Type.ARRAY, items: { type: Type.STRING, description: "Max 10 words each." }, description: "Top 3-4 channels only." },
+          headlineMilestone: { type: Type.STRING, description: "Max 20 words." }
+        }
+      },
+      team: {
+        type: Type.ARRAY,
+        description: "Top 2-3 key people only.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            role: { type: Type.STRING },
+            oneLiner: { type: Type.STRING, description: "Max 15 words." }
+          }
+        }
+      },
+      theAsk: {
+        type: Type.OBJECT,
+        properties: {
+          fundingAmount: { type: Type.STRING, description: "Short value only, e.g. 'R500,000'." },
+          useOfFunds: {
+            type: Type.ARRAY,
+            description: "Top 4 categories only.",
+            items: {
+              type: Type.OBJECT,
+              properties: { category: { type: Type.STRING }, amount: { type: Type.STRING } }
+            }
+          },
+          revenueSnapshot: {
+            type: Type.OBJECT,
+            properties: { y1: { type: Type.STRING }, y2: { type: Type.STRING }, y3: { type: Type.STRING } }
+          }
+        }
+      },
+      closingStatement: { type: Type.STRING, description: "Max 40 words. Confident closing CTA." }
+    }
+  };
+
+  const handleGeneratePitchDeck = async (need: FundingNeed) => {
+    if (user?.subscriptionPlan === 'free') { onUpgrade(); return; }
+    if (!user || (!businessInfo?.name && !user.businessName)) { alert('Please fill in your business name in your profile before generating a document.'); return; }
+
+    setIsGeneratingProposal(true);
+    setGeneratedPitchDeckData(null);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+
+      const prompt = `You are a senior South African pitch consultant writing content for a 12-slide investor pitch deck for a live presentation.
+
+BUSINESS IDENTITY:
+- Business Name: ${businessInfo?.name || user.businessName}
+- Industry: ${businessInfo?.industry || 'General Services'}
+- Description: ${businessInfo?.description || 'A growing South African enterprise.'}
+- Products & Services: ${businessInfo?.productsServices || 'Standard industry offerings.'}
+
+FUNDING SPECIFICS (CRITICAL - THIS PROPOSAL IS SPECIFICALLY FOR THIS NEED):
+- Item Needed: ${need.itemName}
+- Amount Requested: R${need.estimatedCost.toLocaleString()}
+- Purpose of Funding: ${need.reason || 'To acquire ' + need.itemName + ' for business operations.'}
+- Business Impact: Essential equipment for growth and operational efficiency
+- Expected Revenue Impact/ROI: Immediate improvement in service delivery
+
+WRITING REQUIREMENTS:
+1. Every field has a strict word/sentence limit in its schema description — respect it exactly. This is a slide deck, not a document. Be punchy, confident, concise.
+2. All financial figures in ZAR.
+3. Brief SA context where relevant (NYDA, SEFA, IDC, NEF) — one mention max, not throughout.
+`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json', responseSchema: pitchDeckSchema, maxOutputTokens: 8192 }
+      });
+
+      const deckData = JSON.parse(response.text || '{}');
+      // No productImages in FundingNeedsTracker currently, so pass empty array
+      setGeneratedPitchDeckData({ ...deckData, productImages: [], docType: "Pitch Deck: " + need.itemName });
+    } catch (e) {
+      handleGeminiError(e);
+      alert('Pitch deck generation failed.');
+    } finally {
+      setIsGeneratingProposal(false);
+    }
   };
 
   const handleGenerateProposal = async (type: 'proposal' | 'businessplan', need: FundingNeed) => {
@@ -725,7 +877,8 @@ WRITING REQUIREMENTS:
 
       setGeneratedBusinessPlanData({ ...mergedData, docType: type === 'businessplan' ? `Business Plan: ${need.itemName}` : `Funding Proposal: ${need.itemName}` });
     } catch (e) {
-      console.error(e);
+      
+      handleGeminiError(e);
       alert('Generation failed. Check your connection.');
     } finally {
       setIsGeneratingProposal(false);
@@ -902,7 +1055,7 @@ WRITING REQUIREMENTS:
                    <div className="w-full lg:w-72 space-y-3">
                       <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Generate Document</p>
                       <button 
-                        onClick={() => handleGenerateProposal('proposal', need)}
+                        onClick={() => handleGeneratePitchDeck(need)}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-cyan-500/10 hover:border-cyan-500/30 transition-all text-left"
                       >
@@ -955,6 +1108,15 @@ WRITING REQUIREMENTS:
            businessInfo={{...businessInfo, ...ownerInfo}}
            title={generatedBusinessPlanData.docType}
            onClose={() => setGeneratedBusinessPlanData(null)}
+        />
+      )}
+
+      {generatedPitchDeckData && (
+        <PitchDeckDocument
+           data={generatedPitchDeckData}
+           businessInfo={{...businessInfo, ...ownerInfo}}
+           title="Pitch Deck"
+           onClose={() => setGeneratedPitchDeckData(null)}
         />
       )}
       

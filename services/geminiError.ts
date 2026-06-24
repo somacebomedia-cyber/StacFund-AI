@@ -11,8 +11,8 @@ export function isQuotaError(error: any): boolean {
 }
 
 export function handleGeminiError(error: any) {
-  console.error("Gemini API Error caught:", error);
   if (isQuotaError(error)) {
+    console.warn("Gemini Quota Error caught. Show UI warning.");
     const customEvent = new CustomEvent('gemini_quota_error', {
       detail: {
         message: error.message || "Your prepayment credits are depleted on AI Studio. Please manage your projects and billing.",
@@ -20,5 +20,7 @@ export function handleGeminiError(error: any) {
       }
     });
     window.dispatchEvent(customEvent);
+  } else {
+    console.error("Gemini API Error caught:", error);
   }
 }

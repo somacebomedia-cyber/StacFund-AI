@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Wand2, Loader2, Download, Image as ImageIcon, Check, RefreshCw } from 'lucide-react';
 import { User } from '../types';
 import { GoogleGenAI } from '@google/genai';
+import { handleGeminiError } from '../services/geminiError';
 
 interface AILogoGeneratorProps {
   user: User | null;
@@ -50,7 +51,8 @@ const AILogoGenerator: React.FC<AILogoGeneratorProps> = ({ user, onClose }) => {
       }
 
     } catch (err) {
-      console.error('Failed to generate logo:', err);
+      
+      handleGeminiError(err);
       setError('Failed to generate logo. Please try again.');
     } finally {
       setIsGenerating(false);

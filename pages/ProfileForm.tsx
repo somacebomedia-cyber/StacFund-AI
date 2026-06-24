@@ -4,8 +4,11 @@ import { ArrowLeft, Save, Building2, User as UserIcon, FileText, Upload, X, File
 import { GoogleGenAI, Type } from '@google/genai';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
+import { handleGeminiError } from '../services/geminiError';
+import { uploadImage } from '../services/storage';
 import { AppDocument, User } from '../types';
 import BusinessPlanDocument from '../components/BusinessPlanDocument';
+import PitchDeckDocument from '../components/PitchDeckDocument';
 import confetti from 'canvas-confetti';
 
 interface ProfileFormProps {
@@ -25,7 +28,27 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
   const [isScanning, setIsScanning] = useState<string | null>(null);
   const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
   const [generatedBusinessPlanData, setGeneratedBusinessPlanData] = useState<any | null>(null);
-  const [configModal, setConfigModal] = useState<{ type: 'proposal' | 'businessplan', amount: string, purpose: string, impact: string, roi: string, premiumOutput: boolean } | null>(null);
+  const [generatedPitchDeckData, setGeneratedPitchDeckData] = useState<any | null>(null);
+  const [configModal, setConfigModal] = useState<{ type: 'proposal' | 'businessplan' | 'pitchdeck', amount: string, purpose: string, impact: string, roi: string, premiumOutput: boolean, productImages: string[] } | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleProductImageUpload = async (files: FileList | null) => {
+    if (!files || !user || !configModal) return;
+    setIsUploadingImage(true);
+    try {
+      const uploads = await Promise.all(
+        Array.from(files).map(file =>
+          uploadImage(file, `users/${user.id}/funding-images/${Date.now()}_${file.name}`)
+        )
+      );
+      setConfigModal(prev => prev ? { ...prev, productImages: [...(prev.productImages || []), ...uploads] } : prev);
+    } catch (e) {
+      console.error(e);
+      alert('Image upload failed. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number, label: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
@@ -122,7 +145,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
         alert(`AI Scan Successful: Information extracted from ${docName} and saved to your profile!`);
       }
     } catch (e) {
-      console.error(e);
+      
+      handleGeminiError(e);
       alert('AI Scan failed. Please try again.');
     } finally {
       setIsScanning(null);
@@ -168,7 +192,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
         alert('AI Vault Scan finished, but could not deduce relevant business information.');
       }
     } catch (e) {
-      console.error(e);
+      
+      handleGeminiError(e);
       alert('AI Scan failed. Please try again.');
     } finally {
       setIsSaving(false);
@@ -215,10 +240,158 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
         alert('AI Vault Scan finished, but could not deduce relevant owner information.');
       }
     } catch (e) {
-      console.error(e);
+      
+      handleGeminiError(e);
       alert('AI Scan failed. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const pitchDeckSchema = {
+    type: Type.OBJECT,
+    properties: {
+      tagline: { type: Type.STRING, description: "Max 12 words. Cover slide hook." },
+      hook: { type: Type.STRING, description: "One sentence funding ask, e.g. 'Raising R500,000 to scale production.'" },
+      problem: { type: Type.STRING, description: "Max 60 words. Punchy, no fluff." },
+      solution: { type: Type.STRING, description: "Max 60 words. Punchy, no fluff." },
+      viabilityScore: {
+        type: Type.OBJECT,
+        properties: {
+          overall: { type: Type.NUMBER },
+          marketOpportunity: { type: Type.NUMBER },
+          teamStrength: { type: Type.NUMBER },
+          financialViability: { type: Type.NUMBER },
+          socialImpact: { type: Type.NUMBER },
+          competitivePosition: { type: Type.NUMBER },
+          reasoning: { type: Type.STRING, description: "Max 30 words." }
+        }
+      },
+      marketSize: {
+        type: Type.OBJECT,
+        properties: {
+          tam: { type: Type.STRING, description: "Max 15 words, lead with ZAR figure." },
+          sam: { type: Type.STRING, description: "Max 15 words, lead with ZAR figure." },
+          som: { type: Type.STRING, description: "Max 15 words, lead with ZAR figure." }
+        }
+      },
+      topProducts: {
+        type: Type.ARRAY,
+        description: "Exactly the top 3 products/services.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            description: { type: Type.STRING, description: "Max 25 words." },
+            price: { type: Type.STRING, description: "Short value only, e.g. 'R450/month'." }
+          }
+        }
+      },
+      businessModel: {
+        type: Type.OBJECT,
+        properties: {
+          primaryRevenueStream: { type: Type.STRING, description: "Max 25 words." },
+          secondaryRevenueStream: { type: Type.STRING, description: "Max 25 words. Leave blank if single-stream." }
+        }
+      },
+      competitors: {
+        type: Type.ARRAY,
+        description: "Top 4-5 competitors only.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            productQuality: { type: Type.NUMBER, description: "1-10" },
+            pricing: { type: Type.NUMBER, description: "1-10, 10=most expensive" },
+            innovation: { type: Type.NUMBER, description: "1-10" },
+            keyWeakness: { type: Type.STRING, description: "Max 12 words." }
+          }
+        }
+      },
+      goToMarket: {
+        type: Type.OBJECT,
+        properties: {
+          channels: { type: Type.ARRAY, items: { type: Type.STRING, description: "Max 10 words each." }, description: "Top 3-4 channels only." },
+          headlineMilestone: { type: Type.STRING, description: "Max 20 words." }
+        }
+      },
+      team: {
+        type: Type.ARRAY,
+        description: "Top 2-3 key people only.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            role: { type: Type.STRING },
+            oneLiner: { type: Type.STRING, description: "Max 15 words." }
+          }
+        }
+      },
+      theAsk: {
+        type: Type.OBJECT,
+        properties: {
+          fundingAmount: { type: Type.STRING, description: "Short value only, e.g. 'R500,000'." },
+          useOfFunds: {
+            type: Type.ARRAY,
+            description: "Top 4 categories only.",
+            items: {
+              type: Type.OBJECT,
+              properties: { category: { type: Type.STRING }, amount: { type: Type.STRING } }
+            }
+          },
+          revenueSnapshot: {
+            type: Type.OBJECT,
+            properties: { y1: { type: Type.STRING }, y2: { type: Type.STRING }, y3: { type: Type.STRING } }
+          }
+        }
+      },
+      closingStatement: { type: Type.STRING, description: "Max 40 words. Confident closing CTA." }
+    }
+  };
+
+  const handleGeneratePitchDeck = async (config: { amount: string, purpose: string, impact: string, roi: string, productImages: string[] }) => {
+    if (user?.subscriptionPlan === 'free') { onUpgrade(); return; }
+    if (!user || !businessInfo.name) { alert('Please fill in your business name before generating a document.'); return; }
+
+    setIsGeneratingProposal(true);
+    setGeneratedPitchDeckData(null);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      const prompt = `You are a senior South African pitch consultant writing content for a 12-slide investor pitch deck for a live presentation.
+
+BUSINESS IDENTITY:
+- Business Name: ${businessInfo.name}
+- Industry: ${businessInfo.industry || 'General Services'}
+- Description: ${businessInfo.description || 'A growing South African enterprise.'}
+- Products & Services: ${businessInfo.productsServices || 'Standard industry offerings.'}
+
+FUNDING SPECIFICS:
+- Amount Requested: ${config.amount || 'Not explicitly stated'}
+- Purpose: ${config.purpose || 'General business development'}
+- Business Impact: ${config.impact || 'Growth and expansion'}
+- Expected ROI: ${config.roi || 'Positive return'}
+
+WRITING REQUIREMENTS:
+1. Every field has a strict word/sentence limit in its schema description — respect it exactly. This is a slide deck, not a document. Be punchy, confident, concise.
+2. All financial figures in ZAR.
+3. Brief SA context where relevant (NYDA, SEFA, IDC, NEF) — one mention max, not throughout.
+`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json', responseSchema: pitchDeckSchema, maxOutputTokens: 8192 }
+      });
+
+      const deckData = JSON.parse(response.text || '{}');
+      setGeneratedPitchDeckData({ ...deckData, productImages: config.productImages, docType: 'Pitch Deck' });
+    } catch (e) {
+      
+      handleGeminiError(e);
+      alert('Pitch deck generation failed.');
+    } finally {
+      setIsGeneratingProposal(false);
     }
   };
 
@@ -760,7 +933,8 @@ WRITING REQUIREMENTS:
 
       setGeneratedBusinessPlanData(mergedData);
     } catch (e) {
-      console.error(e);
+      
+      handleGeminiError(e);
       alert('Generation failed. Check your connection.');
     } finally {
       setIsGeneratingProposal(false);
@@ -1119,7 +1293,7 @@ WRITING REQUIREMENTS:
                       <button 
                         onClick={() => {
                            if (!isPaid) onUpgrade();
-                           else setConfigModal({ type: 'proposal', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false });
+                           else setConfigModal({ type: 'proposal', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false, productImages: [] });
                         }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-cyan-500/10 hover:border-cyan-500/30 transition-all group relative overflow-hidden"
@@ -1138,7 +1312,7 @@ WRITING REQUIREMENTS:
                       <button 
                         onClick={() => {
                            if (!isPaid) onUpgrade();
-                           else setConfigModal({ type: 'businessplan', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false });
+                           else setConfigModal({ type: 'businessplan', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false, productImages: [] });
                         }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all group relative overflow-hidden"
@@ -1157,6 +1331,28 @@ WRITING REQUIREMENTS:
                         </div>
                         {isGeneratingProposal ? <Loader2 size={16} className="animate-spin text-indigo-400" /> : <ChevronRight size={16} className="text-gray-600 group-hover:text-indigo-400" />}
                       </button>
+                      <button 
+                        onClick={() => {
+                           if (!isPaid) onUpgrade();
+                           else setConfigModal({ type: 'pitchdeck', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false, productImages: [] });
+                        }}
+                        disabled={isGeneratingProposal}
+                        className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all group relative overflow-hidden"
+                      >
+                         {!isPaid && (
+                           <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                             <Lock size={14} className="text-white" />
+                           </div>
+                         )}
+                        <div className="flex items-center gap-3">
+                          <BarChart3 size={18} className="text-emerald-400" />
+                          <div className="text-left">
+                            <span className="text-xs font-bold block">Pitch Deck</span>
+                            <span className="text-[8px] uppercase tracking-tighter text-emerald-400 font-black">12-Slide Investor Presentation</span>
+                          </div>
+                        </div>
+                        {isGeneratingProposal ? <Loader2 size={16} className="animate-spin text-emerald-400" /> : <ChevronRight size={16} className="text-gray-600 group-hover:text-emerald-400" />}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1169,6 +1365,14 @@ WRITING REQUIREMENTS:
                      businessInfo={{...businessInfo, ownerInfo}}
                      title={generatedBusinessPlanData.docType}
                      onClose={() => setGeneratedBusinessPlanData(null)}
+                  />
+                )}
+                {generatedPitchDeckData && (
+                  <PitchDeckDocument
+                     data={generatedPitchDeckData}
+                     businessInfo={{...businessInfo, ownerInfo}}
+                     title="Pitch Deck"
+                     onClose={() => setGeneratedPitchDeckData(null)}
                   />
                 )}
 
@@ -1329,6 +1533,27 @@ WRITING REQUIREMENTS:
                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Expected Revenue Impact (ROI)?</label>
                 <input type="text" value={configModal.roi} onChange={e => setConfigModal({...configModal, roi: e.target.value})} placeholder="e.g., Increase monthly revenue by 40%" className="w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-cyan-500 focus:outline-none" />
               </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Product / Equipment Photos (Optional)</label>
+                <div className="flex flex-wrap gap-3 mb-3">
+                  {configModal.productImages && configModal.productImages.map((url, i) => (
+                    <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/10 group">
+                      <img src={url} alt="Product" className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => setConfigModal({ ...configModal, productImages: configModal.productImages.filter((_, idx) => idx !== i) })}
+                        className="absolute top-1 right-1 w-5 h-5 bg-black/70 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={12} className="text-white" />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="w-20 h-20 rounded-xl border-2 border-dashed border-white/15 flex items-center justify-center cursor-pointer hover:border-cyan-500/50 hover:bg-white/5 transition-all">
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleProductImageUpload(e.target.files)} />
+                    {isUploadingImage ? <Loader2 size={18} className="animate-spin text-cyan-400" /> : <Upload size={18} className="text-gray-500" />}
+                  </label>
+                </div>
+                <p className="text-[10px] text-gray-500">These appear on your pitch deck's Products and Ask slides.</p>
+              </div>
             </div>
 
             <label className="flex items-center gap-3 mt-6 p-4 rounded-xl border border-purple-500/30 bg-purple-500/10 cursor-pointer hover:bg-purple-500/20 transition-all">
@@ -1349,7 +1574,11 @@ WRITING REQUIREMENTS:
                 const type = configModal.type;
                 const config = { ...configModal };
                 setConfigModal(null);
-                handleGenerateProposal(type, config);
+                if (type === 'pitchdeck') {
+                  handleGeneratePitchDeck(config);
+                } else {
+                  handleGenerateProposal(type, config);
+                }
               }}
               disabled={!configModal.amount || !configModal.purpose}
               className="w-full mt-8 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-black py-4 rounded-xl flex justify-center items-center gap-2"

@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Upload, X, Loader2, CheckCircle2, AlertTriangle, FileText, ChevronRight, Sparkles, Copy, ScanLine } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
+import { handleGeminiError } from '../services/geminiError';
 import { User } from '../types';
 
 interface FormDigitizerProps {
@@ -105,7 +106,8 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
       setStep('results');
 
     } catch (error) {
-      console.error("Analysis failed", error);
+      
+      handleGeminiError(error);
       alert("Could not analyze the form. Please ensure the image is clear.");
       setStep('upload');
     }

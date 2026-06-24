@@ -4,6 +4,7 @@ import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, Chevron
 import { GoogleGenAI, Type } from '@google/genai';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { handleGeminiError } from '../services/geminiError';
 import { User, AppDocument } from '../types';
 
 interface PresentationDesignerProps {
@@ -196,7 +197,8 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
       });
 
     } catch (error) {
-      console.error(error);
+      
+      handleGeminiError(error);
       alert('Failed to generate presentation. Please try again.');
       setStep('select');
     }
@@ -234,7 +236,8 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
         setSlides(prev => prev.map((s, i) => i === index ? { ...s, imageData: imageUrl, isGeneratingImage: false } : s));
       }
     } catch (e) {
-      console.error("Image gen failed", e);
+      
+      handleGeminiError(e);
       setSlides(prev => prev.map((s, i) => i === index ? { ...s, isGeneratingImage: false } : s));
     }
   };
