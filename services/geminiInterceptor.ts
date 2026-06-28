@@ -35,7 +35,7 @@ export function isRetryableError(error: any): boolean {
 export function canFallbackToLite(modelName: string): boolean {
   if (!modelName) return false;
   const lower = modelName.toLowerCase();
-  // We can fall back from gemini-3.5-flash or gemini-2.5-flash to gemini-3.1-flash-lite
+  // We can fall back from gemini-2.5-flash or gemini-2.5-flash to gemini-3.1-flash-lite
   return (lower.includes('3.5-flash') || lower.includes('2.5-flash')) && !lower.includes('image');
 }
 
@@ -53,7 +53,7 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
       if (typeof rawModels.generateContent === 'function') {
         wrapper.generateContent = async function (params: any, ...args: any[]) {
           let lastError: any = null;
-          let currentModel = params?.model || 'gemini-3.5-flash';
+          let currentModel = params?.model || 'gemini-2.5-flash';
           let retryCount = 0;
           const maxRetries = 3;
 
@@ -92,7 +92,7 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
       if (typeof rawModels.generateContentStream === 'function') {
         wrapper.generateContentStream = async function (params: any, ...args: any[]) {
           let lastError: any = null;
-          let currentModel = params?.model || 'gemini-3.5-flash';
+          let currentModel = params?.model || 'gemini-2.5-flash';
           let retryCount = 0;
           const maxRetries = 3;
 

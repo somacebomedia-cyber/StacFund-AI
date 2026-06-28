@@ -9,7 +9,7 @@ import { uploadImage } from '../services/storage';
 import { AppDocument, User } from '../types';
 import BusinessPlanDocument from '../components/BusinessPlanDocument';
 import PitchDeckDocument from '../components/PitchDeckDocument';
-import confetti from 'canvas-confetti';
+import { triggerConfetti } from '../utils/confettiHelper';
 
 interface ProfileFormProps {
   onBack: () => void;
@@ -30,6 +30,41 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
   const [generatedBusinessPlanData, setGeneratedBusinessPlanData] = useState<any | null>(null);
   const [generatedPitchDeckData, setGeneratedPitchDeckData] = useState<any | null>(null);
   const [configModal, setConfigModal] = useState<{ type: 'proposal' | 'businessplan' | 'pitchdeck', amount: string, purpose: string, impact: string, roi: string, premiumOutput: boolean, productImages: string[] } | null>(null);
+
+  useEffect(() => {
+    if (configModal) {
+      localStorage.setItem('stacfund_questionnaire', JSON.stringify({
+        amount: configModal.amount,
+        purpose: configModal.purpose,
+        impact: configModal.impact,
+        roi: configModal.roi,
+        premiumOutput: configModal.premiumOutput,
+        productImages: configModal.productImages
+      }));
+    }
+  }, [configModal]);
+
+  const openQuestionnaire = (type: 'proposal' | 'businessplan' | 'pitchdeck') => {
+    const saved = localStorage.getItem('stacfund_questionnaire');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setConfigModal({
+          type,
+          amount: parsed.amount || '',
+          purpose: parsed.purpose || '',
+          impact: parsed.impact || '',
+          roi: parsed.roi || '',
+          premiumOutput: parsed.premiumOutput || false,
+          productImages: parsed.productImages || []
+        });
+        return;
+      } catch (e) {
+        console.error('Error parsing saved questionnaire:', e);
+      }
+    }
+    setConfigModal({ type, amount: '', purpose: '', impact: '', roi: '', premiumOutput: false, productImages: [] });
+  };
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const handleProductImageUpload = async (files: FileList | null) => {
@@ -113,12 +148,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     if (!user) return;
     setIsScanning(docId);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       const prompt = `Based on the document name "${docName}", suggest a realistic registration number, a relevant business industry, and a business description for a South African company. 
       Return a JSON object with "registration", "industry", and "description".`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
@@ -163,12 +198,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     setIsSaving(true);
     try {
       const docNames = documents.map(d => d.name).join(", ");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       const prompt = `Based on these uploaded document filenames: ${docNames}, infer and extract business profile information. 
       Return a JSON object with any of these fields you can logically deduce: "name" (Business Name), "registration" (Registration Number), "industry" (Industry), and "description" (Business Description). Be creative but realistic based on the clues in the names! If there is no specific reg number, invent a realistic South African one.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
@@ -210,12 +245,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     setIsSaving(true);
     try {
       const docNames = documents.map(d => d.name).join(", ");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       const prompt = `Based on these uploaded document filenames: ${docNames}, infer and extract business owner profile information. 
       Return a JSON object with any of these fields you can logically deduce: "name" (Full Name), "idNumber" (South African ID Number), "race" (African, Coloured, Indian, White, Other), "gender" (Male, Female, Other), and "age". Be creative but realistic based on the clues in the names! If there is no specific ID number, invent a realistic 13-digit South African one.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
@@ -356,7 +391,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     setGeneratedPitchDeckData(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
 
       const prompt = `You are a senior South African pitch consultant writing content for a 12-slide investor pitch deck for a live presentation.
 
@@ -378,9 +413,28 @@ WRITING REQUIREMENTS:
 3. Brief SA context where relevant (NYDA, SEFA, IDC, NEF) — one mention max, not throughout.
 `;
 
+      const promptParts: any[] = [{ text: prompt }];
+
+      // Attach user documents (up to 5 to prevent max payload issues)
+      documents.slice(0, 5).forEach(doc => {
+        if (doc.content) {
+          const match = doc.content.match(/^data:(.+);base64,(.+)$/);
+          if (match) {
+            promptParts.push({ text: `\n--- START DOCUMENT: ${doc.name} ---\n` });
+            promptParts.push({
+              inlineData: {
+                mimeType: match[1],
+                data: match[2]
+              }
+            });
+            promptParts.push({ text: `\n--- END DOCUMENT: ${doc.name} ---\nExtract any relevant facts, lists, or financial data from this document to accurately ground the pitch deck.` });
+          }
+        }
+      });
+
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
+        model: 'gemini-1.5-pro',
+        contents: promptParts,
         config: { responseMimeType: 'application/json', responseSchema: pitchDeckSchema, maxOutputTokens: 8192 }
       });
 
@@ -433,7 +487,7 @@ WRITING REQUIREMENTS:
     else if (cleanedAmount >= 50000) totalBatches = 3;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       
       const fullBusinessPlanSchemaProperties = {
           executiveSummary: {
@@ -592,6 +646,17 @@ WRITING REQUIREMENTS:
                 advantages: { type: Type.ARRAY, items: { type: Type.STRING } },
                 challenges: { type: Type.ARRAY, items: { type: Type.STRING } }
               }
+            }
+          },
+          financialAssumptions: {
+            type: Type.OBJECT,
+            properties: {
+              initialRevenue: { type: Type.NUMBER, description: "Year 1 Revenue in ZAR" },
+              revenueGrowthRateY2: { type: Type.NUMBER, description: "Percentage, e.g. 15 for 15%" },
+              revenueGrowthRateY3: { type: Type.NUMBER, description: "Percentage" },
+              cogsPercent: { type: Type.NUMBER, description: "Cost of Goods Sold as % of revenue" },
+              operatingExpensesPercent: { type: Type.NUMBER, description: "OPEX as % of revenue" },
+              taxRate: { type: Type.NUMBER, description: "e.g. 27 for 27%" }
             }
           },
           financialStatements: {
@@ -809,8 +874,8 @@ WRITING REQUIREMENTS:
          },
          {
            label: "Financial Deep Dive",
-           sections: ['financialPlan', 'financialStatements'],
-           instructions: "Generate investor-grade financials: P&L, Balance Sheet, Cash Flow (minimum 8 rows each), funding requirements, 3-year revenue projections with assumptions. All figures in ZAR."
+           sections: ['financialPlan', 'financialAssumptions'],
+           instructions: "Generate investor-grade financial assumptions including initial revenue, growth rates, and cost structures. All figures in ZAR."
          },
          {
            label: "Risk, Compliance, Implementation & Conclusion",
@@ -898,9 +963,28 @@ WRITING REQUIREMENTS:
 7. Use specific South African context: reference SA laws, SA funders (NYDA, SEFA, IDC, NEF), SA market data.
 `;
 
+        const promptParts: any[] = [{ text: batchPrompt }];
+
+        // Attach user documents (up to 5 to prevent max payload issues)
+        documents.slice(0, 5).forEach(doc => {
+          if (doc.content) {
+            const match = doc.content.match(/^data:(.+);base64,(.+)$/);
+            if (match) {
+              promptParts.push({ text: `\n--- START DOCUMENT: ${doc.name} ---\n` });
+              promptParts.push({
+                inlineData: {
+                  mimeType: match[1],
+                  data: match[2]
+                }
+              });
+              promptParts.push({ text: `\n--- END DOCUMENT: ${doc.name} ---\nExtract any relevant quotes, facts, lists, or financial data from this document to accurately ground the generated business plan.` });
+            }
+          }
+        });
+
         const response = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
-          contents: batchPrompt,
+          model: 'gemini-1.5-pro',
+          contents: promptParts,
           config: { 
             responseMimeType: 'application/json',
             responseSchema: batchSchema,
@@ -931,6 +1015,14 @@ WRITING REQUIREMENTS:
         rollingContext += `Batch ${i+1} (${batch.label}): ${resultSummary}\n`;
       }
 
+      if (mergedData.financialAssumptions) {
+        const { generateFinancialStatements } = await import('../utils/financials');
+        mergedData.financialStatements = generateFinancialStatements({
+           ...mergedData.financialAssumptions,
+           fundingAmount: parseInt(config.amount.replace(/[^0-9]/g, '') || '0', 10) || 500000
+        });
+      }
+
       setGeneratedBusinessPlanData(mergedData);
     } catch (e) {
       
@@ -949,7 +1041,7 @@ WRITING REQUIREMENTS:
     const userDocRef = doc(db, 'users', user.id);
     try {
       await setDoc(userDocRef, { profile: businessInfo, ownerInfo: ownerInfo }, { merge: true });
-      confetti({
+      triggerConfetti({
         particleCount: 80,
         spread: 60,
         origin: { y: 0.6 },
@@ -1293,7 +1385,7 @@ WRITING REQUIREMENTS:
                       <button 
                         onClick={() => {
                            if (!isPaid) onUpgrade();
-                           else setConfigModal({ type: 'proposal', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false, productImages: [] });
+                           else openQuestionnaire('proposal');
                         }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-cyan-500/10 hover:border-cyan-500/30 transition-all group relative overflow-hidden"
@@ -1312,7 +1404,7 @@ WRITING REQUIREMENTS:
                       <button 
                         onClick={() => {
                            if (!isPaid) onUpgrade();
-                           else setConfigModal({ type: 'businessplan', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false, productImages: [] });
+                           else openQuestionnaire('businessplan');
                         }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all group relative overflow-hidden"
@@ -1334,7 +1426,7 @@ WRITING REQUIREMENTS:
                       <button 
                         onClick={() => {
                            if (!isPaid) onUpgrade();
-                           else setConfigModal({ type: 'pitchdeck', amount: '', purpose: '', impact: '', roi: '', premiumOutput: false, productImages: [] });
+                           else openQuestionnaire('pitchdeck');
                         }}
                         disabled={isGeneratingProposal}
                         className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all group relative overflow-hidden"
@@ -1506,7 +1598,7 @@ WRITING REQUIREMENTS:
 
       {configModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#111827] border border-white/10 p-8 rounded-3xl w-full max-w-lg shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-[#111827] border border-white/10 p-6 md:p-8 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
             <button 
               onClick={() => setConfigModal(null)}
               className="absolute top-6 right-6 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white"

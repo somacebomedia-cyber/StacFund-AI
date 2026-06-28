@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Image as ImageIcon } from 'lucide-react';
 import { motion } from 'motion/react';
-import { updateDoc, doc } from 'firebase/firestore';
+import { updateDoc, setDoc, doc } from 'firebase/firestore';
 import { db, auth, hasValidFirebaseConfig } from '../services/firebase';
 
 interface GlassAvatarProps {
@@ -70,7 +70,7 @@ const GlassAvatar: React.FC<GlassAvatarProps> = ({ initialLogoUrl, onUpdate, bus
       const user = auth.currentUser;
       if (user && hasValidFirebaseConfig()) {
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { logoUrl: dataUrl });
+        await setDoc(userRef, { logoUrl: dataUrl }, { merge: true });
       }
     } catch (error) {
       console.error('Error uploading image:', error);

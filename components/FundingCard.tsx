@@ -10,45 +10,27 @@ interface InstitutionLogoProps {
 
 const InstitutionLogo: React.FC<InstitutionLogoProps> = ({ opportunity, isNew }) => {
   const [fallbackStage, setFallbackStage] = useState(0);
-  
   const domain = useMemo(() => {
     try {
-      if (opportunity.source_url) return new URL(opportunity.source_url).hostname;
-      if (opportunity.application_url) return new URL(opportunity.application_url).hostname;
-    } catch {
-      return null;
-    }
+      if (opportunity.source_url) return new URL(opportunity.source_url).hostname.replace('www.', '');
+      if (opportunity.application_url) return new URL(opportunity.application_url).hostname.replace('www.', '');
+    } catch { return null; }
     return null;
   }, [opportunity.source_url, opportunity.application_url]);
 
   const logoUrl = useMemo(() => {
-    if (fallbackStage === 0 && opportunity.logo_url) {
-      return opportunity.logo_url;
-    }
-    if (fallbackStage <= 1 && domain) {
-      return `https://logo.clearbit.com/${domain}`;
-    }
+    if (fallbackStage === 0) return `/assets/logos/${opportunity.opportunity_id}.png`;
+    if (fallbackStage === 1 && opportunity.logo_url) return opportunity.logo_url;
+    if (fallbackStage === 2 && domain) return `https://logo.clearbit.com/${domain}`;
     return null;
-  }, [opportunity.logo_url, domain, fallbackStage]);
+  }, [opportunity.opportunity_id, opportunity.logo_url, domain, fallbackStage]);
 
   return (
-    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-bold bg-white/5 transition-transform group-hover:scale-110 overflow-hidden shrink-0 ${isNew ? 'shadow-[0_0_15px_rgba(168,85,247,0.2)]' : ''}`}>
+    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold bg-white/5 overflow-hidden shrink-0 ${isNew ? 'shadow-[0_0_15px_rgba(168,85,247,0.2)]' : ''}`}>
       {logoUrl ? (
-        <img 
-          src={logoUrl} 
-          alt={`${opportunity.issuer_name} logo`}
-          className="w-full h-full object-contain bg-white"
-          onError={() => setFallbackStage(prev => prev + 1)}
-          referrerPolicy="no-referrer"
-        />
+        <img src={logoUrl} alt={`${opportunity.issuer_name} logo`} className="w-full h-full object-contain bg-white p-1" onError={() => setFallbackStage(prev => prev + 1)} referrerPolicy="no-referrer" />
       ) : (
-        <>
-          {opportunity.funding_type === FundingType.GRANT && <span className="text-emerald-400">$</span>}
-          {opportunity.funding_type === FundingType.EQUITY && <span className="text-purple-400">#</span>}
-          {opportunity.funding_type === FundingType.LOAN && <span className="text-blue-400">%</span>}
-          {opportunity.funding_type === FundingType.COMPETITION && <span className="text-amber-400">★</span>}
-          {(!opportunity.funding_type || ![FundingType.GRANT, FundingType.EQUITY, FundingType.LOAN, FundingType.COMPETITION].includes(opportunity.funding_type as FundingType)) && <span className="text-gray-400">?</span>}
-        </>
+        <span className="text-gray-400 font-black text-lg">{opportunity.issuer_name.substring(0, 2).toUpperCase()}</span>
       )}
     </div>
   );

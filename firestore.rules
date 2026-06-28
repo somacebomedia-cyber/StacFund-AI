@@ -1,12 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Phase 3: Primitive Definitions
     function isSignedIn() {
       return request.auth != null && request.auth.uid != null;
     }
@@ -14,56 +12,9 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
-    function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    // Entity Validations
-    function isValidUser(data) {
-      return data.businessName is string 
-        && data.businessName.size() <= 100
-        && data.subscriptionPlan in ['free', 'pro', 'business'];
-    }
-
-    function isValidApplication(data) {
-      return data.opportunityId is string && data.opportunityId.size() <= 128
-        && data.status in ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'];
-    }
-
-    function isValidUserBusinessProfile(data, userId) {
-      return data.user_id == userId && data.business_status is string && data.business_status.size() <= 100;
-    }
-    
-    function isValidDocument(data) {
-      return data.name is string && data.name.size() <= 200
-        && data.type is string && data.type.size() <= 50;
-    }
-
-    function isValidFundingNeed(data) {
-      return data.itemName is string && data.itemName.size() <= 200
-        && data.estimatedCost is number
-        && data.status in ['pending', 'applied', 'received'];
-    }
 
     match /user_business_profiles/{userId} {
-      allow get: if isOwner(userId) && isValidId(userId);
-      allow create: if isOwner(userId) && isValidId(userId) && isValidUserBusinessProfile(incoming(), userId);
-      allow update: if isOwner(userId) && isValidId(userId) && isValidUserBusinessProfile(incoming(), userId)
-        && incoming().diff(existing()).affectedKeys().hasOnly([
-            'business_status', 'entity_type', 'industry', 'location', 
-            'revenue_band', 'staff_count', 'has_bank_account', 
-            'has_sars_tax', 'has_cipc_registration', 'age', 'documents_ready'
-        ]);
-      allow delete: if isOwner(userId) && isValidId(userId);
+      allow read, write: if isOwner(userId);
     }
 
     match /funding_opportunities/{opportunityId} {
@@ -76,51 +27,27 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // User Profile
     match /users/{userId} {
-      allow get: if isOwner(userId) && isValidId(userId);
-      allow list: if true;
-      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['businessName'])
-        && incoming().subscriptionPlan == existing().subscriptionPlan; // Client cannot update subscription plan
+      allow read, write: if isOwner(userId);
       
-
-      // Subcollections
       match /applications/{appId} {
-        allow list: if isOwner(userId);
-        allow get: if isOwner(userId) && isValidId(appId);
-        allow create: if isOwner(userId) && isValidId(appId) && isValidApplication(incoming());
-        allow update: if isOwner(userId) && isValidId(appId) && isValidApplication(incoming())
-          && incoming().diff(existing()).affectedKeys().hasOnly(['opportunityTitle', 'status', 'data', 'provider', 'date', 'type']);
-        allow delete: if isOwner(userId) && isValidId(appId);
+        allow read, write: if isOwner(userId);
       }
 
       match /documents/{docId} {
-        allow list: if isOwner(userId);
-        allow get: if isOwner(userId) && isValidId(docId);
-        allow create: if isOwner(userId) && isValidId(docId) && isValidDocument(incoming());
-        allow update: if isOwner(userId) && isValidId(docId) && isValidDocument(incoming())
-          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type', 'size', 'updatedAt']);
-        allow delete: if isOwner(userId) && isValidId(docId);
+        allow read, write: if isOwner(userId);
+      }
+      
+      match /documents/{docId}/chunks/{chunkId} {
+        allow read, write: if isOwner(userId);
       }
 
       match /funding_needs/{needId} {
-        allow list: if isOwner(userId);
-        allow get: if isOwner(userId) && isValidId(needId);
-        allow create: if isOwner(userId) && isValidId(needId) && isValidFundingNeed(incoming());
-        allow update: if isOwner(userId) && isValidId(needId) && isValidFundingNeed(incoming())
-          && incoming().diff(existing()).affectedKeys().hasOnly(['itemName', 'estimatedCost', 'reason', 'status', 'appliedTo', 'productLink', 'quotationDocId', 'quotationDocName']);
-        allow delete: if isOwner(userId) && isValidId(needId);
+        allow read, write: if isOwner(userId);
       }
 
       match /notifications/{notifId} {
-        allow list: if isOwner(userId);
-        allow get: if isOwner(userId) && isValidId(notifId);
-        allow create: if isOwner(userId) && isValidId(notifId);
-        allow update: if isOwner(userId) && isValidId(notifId)
-          && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
-        allow delete: if isOwner(userId) && isValidId(notifId);
+        allow read, write: if isOwner(userId);
       }
     }
   }

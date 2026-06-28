@@ -128,7 +128,51 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
   const [slides, setSlides] = useState<Slide[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [theme, setTheme] = useState(THEMES[0]);
+  const [presentonTemplate, setPresentonTemplate] = useState('stacfund-template');
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [syncingBrand, setSyncingBrand] = useState(false);
+
+  const handleBrandSync = async () => {
+    const url = prompt("Enter your website URL (e.g., https://example.com) to extract brand colors:");
+    if (!url) return;
+    
+    setSyncingBrand(true);
+    try {
+      const res = await fetch('/api/brand-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Create a custom theme based on the extracted colors
+        const customTheme = {
+          id: 'custom-brand',
+          name: 'Custom Brand',
+          bg: `bg-[#0a0a1a]`, // dark background base
+          accent: `text-[${data.primaryColor}]`,
+          border: `border-[${data.primaryColor}]/30`,
+          font: data.font || 'font-sans',
+          graphColor: data.primaryColor
+        };
+        // Add to themes and set as active
+        if (!THEMES.find(t => t.id === 'custom-brand')) {
+          THEMES.push(customTheme);
+        } else {
+          const index = THEMES.findIndex(t => t.id === 'custom-brand');
+          THEMES[index] = customTheme;
+        }
+        setTheme(customTheme);
+        alert(`Successfully synced brand colors from ${url}`);
+      } else {
+        alert('Failed to extract brand colors.');
+      }
+    } catch (e) {
+      alert('Error connecting to brand sync service.');
+    } finally {
+      setSyncingBrand(false);
+    }
+  };
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -165,7 +209,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -215,25 +259,23 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
       if (slide.type === 'data') stylePrompt += " Create a clean, modern infographic chart visualization on a dark background.";
       if (slide.type === 'cover') stylePrompt += " Heroic, cinematic composition, minimalist.";
       
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [{ text: `${slide.visualPrompt || slide.title}. ${stylePrompt}` }]
+      const response = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-002',
+        prompt: `${slide.visualPrompt || slide.title}. ${stylePrompt}`,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: '16:9'
         }
       });
 
       let imageUrl = null;
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            break;
-          }
-        }
+      if (response.generatedImages?.[0]?.image?.imageBytes) {
+         imageUrl = `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
       }
 
       if (imageUrl) {
-        setSlides(prev => prev.map((s, i) => i === index ? { ...s, imageData: imageUrl, isGeneratingImage: false } : s));
+        setSlides(prev => prev.map((s, i) => i === index ? { ...s, imageData: imageUrl as string, isGeneratingImage: false } : s));
       }
     } catch (e) {
       
@@ -352,17 +394,25 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
                 <h3 className="text-lg font-black mb-4 flex items-center gap-2">
                   <Palette size={18} className="text-cyan-400" /> Theme
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 mb-4">
                   {THEMES.map(t => (
                     <button
                       key={t.id}
                       onClick={() => setTheme(t)}
                       className={`w-10 h-10 rounded-full border-2 transition-all ${t.id === theme.id ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                      style={{ backgroundColor: t.id === 'modern' ? '#0a0a1a' : t.id === 'eco' ? '#051a05' : '#1a051a' }}
+                      style={{ backgroundColor: t.id === 'modern' ? '#0a0a1a' : t.id === 'eco' ? '#051a05' : t.id === 'custom-brand' ? t.graphColor : '#1a051a' }}
                       title={t.name}
                     />
                   ))}
                 </div>
+                <button
+                  onClick={handleBrandSync}
+                  disabled={syncingBrand}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm text-cyan-400 border border-cyan-500/30 transition-colors"
+                >
+                  {syncingBrand ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                  {syncingBrand ? 'Syncing...' : 'Brand Sync (URL)'}
+                </button>
               </div>
 
               <div className="flex-1">
@@ -393,6 +443,59 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
               </div>
 
               <div className="mt-8 pt-8 border-t border-white/10">
+                <div className="mb-4">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Professional PPTX Theme</label>
+                  <select 
+                    value={presentonTemplate}
+                    onChange={(e) => setPresentonTemplate(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white font-medium focus:border-purple-500 transition-colors"
+                  >
+                    <option value="stacfund-template">StacFund Investor (Default)</option>
+                    <option value="mint-blue">Mint Blue</option>
+                    <option value="edge-yellow">Edge Yellow</option>
+                    <option value="light-rose">Light Rose</option>
+                    <option value="professional-blue">Professional Blue</option>
+                  </select>
+                </div>
+                <button 
+                  onClick={async () => {
+                    try {
+                      // We need to fetch the original document content for this presentation
+                      const doc = documents.find(d => d.name === slides[0]?.title) || documents[0];
+                      if (!doc) {
+                        alert("Could not find source document for this presentation.");
+                        return;
+                      }
+
+                      const response = await fetch("/api/presenton/generate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          businessPlan: doc.content || doc.name,
+                          template: presentonTemplate,
+                          deckType: "Investor Pitch Deck"
+                        })
+                      });
+
+                      if (!response.ok) throw new Error("Failed to generate professional deck");
+                      
+                      const result = await response.json();
+                      if (result.downloadUrl) {
+                        window.open(result.downloadUrl, "_blank");
+                      } else if (result.pptxUrl) {
+                        window.open(result.pptxUrl, "_blank");
+                      } else {
+                         alert("Deck generated, but no download URL returned.");
+                      }
+                    } catch (error) {
+                      console.error(error);
+                      alert("Error connecting to Presenton service. Make sure it is running.");
+                    }
+                  }}
+                  className="w-full mb-3 py-4 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-600/20"
+                >
+                  <Sparkles size={18} /> Export Professional PPTX
+                </button>
                 <button 
                   onClick={handlePrint}
                   className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-cyan-500/20"

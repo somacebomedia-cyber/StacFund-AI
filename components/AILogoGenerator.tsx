@@ -24,26 +24,21 @@ const AILogoGenerator: React.FC<AILogoGeneratorProps> = ({ user, onClose }) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            {
-              text: `A professional, clean, modern logo for a business named "${user?.businessName || 'My Business'}". ${prompt}. minimalist, vector style, white background, high quality, corporate identity.`,
-            },
-          ],
-        },
+      const response = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-001',
+        prompt: `A professional, clean, modern logo for a business named "${user?.businessName || 'My Business'}". ${prompt}. minimalist, vector style, white background, high quality, corporate identity.`,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: "image/png"
+        }
       });
 
       let foundImage = false;
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          const base64EncodeString = part.inlineData.data;
-          const imageUrl = `data:image/png;base64,${base64EncodeString}`;
-          setGeneratedLogoUrl(imageUrl);
-          foundImage = true;
-          break;
-        }
+      const base64Image = response.generatedImages?.[0]?.image?.imageBytes;
+      if (base64Image) {
+        const imageUrl = `data:image/png;base64,${base64Image}`;
+        setGeneratedLogoUrl(imageUrl);
+        foundImage = true;
       }
 
       if (!foundImage) {

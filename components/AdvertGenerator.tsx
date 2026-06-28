@@ -31,26 +31,21 @@ const AdvertGenerator: React.FC<AdvertGeneratorProps> = ({ user, onClose, initia
       // But we CAN use gemini-2.5-flash-image to generate an advert poster (still image) or mock the video loader!
       
       // Let's generate a High-Quality "Advert Poster" as a substitute for Veo in this lightweight browser UI:
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            {
-              text: `Cinematic, hyper-realistic product advert poster for a business named "${user?.businessName || 'Business'}". Product details: ${prompt}. dramatic lighting, commercial photography, 4k, award-winning composition, marketing asset.`,
-            },
-          ],
-        },
+      const response = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-001',
+        prompt: `Cinematic, hyper-realistic product advert poster for a business named "${user?.businessName || 'Business'}". Product details: ${prompt}. dramatic lighting, commercial photography, 4k, award-winning composition, marketing asset.`,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: "image/png"
+        }
       });
 
       let foundImage = false;
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          const base64EncodeString = part.inlineData.data;
-          const imageUrl = `data:image/png;base64,${base64EncodeString}`;
-          setGeneratedVideoUrl(imageUrl);
-          foundImage = true;
-          break;
-        }
+      const base64Image = response.generatedImages?.[0]?.image?.imageBytes;
+      if (base64Image) {
+        const imageUrl = `data:image/png;base64,${base64Image}`;
+        setGeneratedVideoUrl(imageUrl);
+        foundImage = true;
       }
 
       if (!foundImage) {

@@ -6,7 +6,8 @@ import { handleGeminiError } from '../services/geminiError';
 import { db } from '../services/firebase';
 import { addDoc, collection, updateDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../services/firebase';
-import confetti from 'canvas-confetti';
+import { triggerConfetti } from '../utils/confettiHelper';
+import GammaPitchLayout from './templates/GammaPitchLayout';
 
 interface ApplicationWorkflowProps {
   opportunity: FundingOpportunityDb;
@@ -34,6 +35,9 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   
   const [isDirectSubmitting, setIsDirectSubmitting] = useState(false);
   const [directSubmitStatus, setDirectSubmitStatus] = useState('');
+  
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     businessName: user.businessName || '',
@@ -112,17 +116,21 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
     setIsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
-      const prompt = `Generate a comprehensive, professional business plan/proposal for ${formData.businessName} applying for ${opportunity.programme_name} (${opportunity.issuer_name}). 
-      Funding requested: ${formData.fundingRequested}. 
-      Purpose: ${formData.purpose}.
-      Make it structured with Executive Summary, Market Opportunity, Use of Funds, and Team. Format it beautifully using Markdown.`;
+      const prompt = `Generate flawless JSON for ${formData.businessName}. Schema: { "executiveSummary": "string", "financialPlan": { "fundingRequirement": "R48,996", "useOfFunds": [{"category": "Printers", "amount": "R3,999"}] }, "conclusion": "string" }`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
       });
       
-      setBusinessPlan(response.text || 'Failed to generate business plan.');
+      const parsed = JSON.parse(response.text || '{}');
+      setBusinessPlan(parsed);
+      
+      // AUTO-OPEN GAMMA VISUAL PITCH DECK FIRST
+      setPreviewData(parsed);
+      setIsPreviewOpen(true);
+      
       setStep(3);
     } catch (error) {
       
@@ -268,7 +276,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       }
       
       setIsDirectSubmitting(false);
-      confetti({
+      triggerConfetti({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
@@ -329,7 +337,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       }
       
       setIsLoading(false);
-      confetti({
+      triggerConfetti({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
@@ -345,6 +353,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
       <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={onClose}></div>
+      {isPreviewOpen && <GammaPitchLayout data={previewData} businessInfo={formData} onClose={() => setIsPreviewOpen(false)} />}
       
       <div className="relative bg-[#0a0a1a] border border-white/10 rounded-[2rem] w-full max-w-5xl h-[90vh] flex flex-col md:flex-row shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
         

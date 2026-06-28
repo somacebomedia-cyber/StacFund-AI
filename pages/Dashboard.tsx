@@ -19,6 +19,25 @@ import FundingNeedsTracker from '../components/FundingNeedsTracker';
 import { ApplicationTracker } from '../components/ApplicationTracker';
 import DocumentsVault from '../components/DocumentsVault';
 import { WhatsAppIngestion } from '../components/WhatsAppIngestion';
+import { triggerConfetti } from '../utils/confettiHelper';
+
+const XPCoin: React.FC<{ styleClass: string; index: number }> = ({ styleClass, index }) => (
+  <motion.div
+    initial={{ scale: 0, rotateY: 720, y: -50, x: -50, opacity: 0 }}
+    animate={{ scale: 1, rotateY: 0, y: 0, x: 0, opacity: 1 }}
+    transition={{ 
+      type: 'spring', 
+      damping: 12, 
+      mass: 0.8, 
+      stiffness: 100,
+      delay: index * 0.1
+    }}
+    className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-br ${styleClass} border flex items-center justify-center shadow-lg relative`}
+  >
+    <div className="absolute inset-0 rounded-full border-t-2 border-white/40" />
+    <span className="text-[6px] sm:text-[8px] font-black text-white drop-shadow-md">XP</span>
+  </motion.div>
+);
 
 interface DashboardProps {
   onCompleteProfile: () => void;
@@ -110,6 +129,34 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   const [showWhatsAppIngestion, setShowWhatsAppIngestion] = useState(false);
   const [initialAdvertPrompt, setInitialAdvertPrompt] = useState('');
   
+  const [prevTotalCoins, setPrevTotalCoins] = useState(-1);
+
+  let points = 0;
+  if (hasProfile) points += 100;
+  points += docCount * 20;
+  applications.forEach(app => {
+    if (app.status === ApplicationStatus.DRAFT) points += 30;
+    else if (app.status === ApplicationStatus.SUBMITTED) points += 80;
+    else if (app.status === ApplicationStatus.UNDER_REVIEW) points += 100;
+    else if (app.status === ApplicationStatus.APPROVED) points += 300;
+    else if (app.status === ApplicationStatus.REJECTED) points += 50;
+  });
+
+  useEffect(() => {
+    const currentTotalCoins = Math.floor(points / 20);
+    if (prevTotalCoins !== -1 && currentTotalCoins > prevTotalCoins) {
+      triggerConfetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        zIndex: 1000
+      });
+    }
+    if (currentTotalCoins !== prevTotalCoins) {
+      setPrevTotalCoins(currentTotalCoins);
+    }
+  }, [points, prevTotalCoins]);
+
   // Real Data Fetching
   useEffect(() => {
     const handleOpenAiTool = (event: any) => {
@@ -204,13 +251,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     if (isOffline) return;
     setIsLoadingReadiness(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       const prompt = `Analyze this business profile and document count (${docs} docs uploaded). 
       Profile: ${profileStr}. 
       Return a JSON object with "score" (0-100) representing funding readiness and "tips" (array of 3 short strings) to improve it.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { 
           responseMimeType: 'application/json',
@@ -248,7 +295,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         ownerInfo: userDoc.data().ownerInfo || {}
       }) : '';
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       
       const prompt = `
         You are a business funding expert. Analyze:
@@ -258,7 +305,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { 
           responseMimeType: 'application/json',
@@ -411,27 +458,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
 
             {/* Founder Level Tracker */}
             {(() => {
-              let points = 0;
-              if (hasProfile) points += 100;
-              points += docCount * 20;
-              applications.forEach(app => {
-                if (app.status === ApplicationStatus.DRAFT) points += 30;
-                else if (app.status === ApplicationStatus.SUBMITTED) points += 80;
-                else if (app.status === ApplicationStatus.UNDER_REVIEW) points += 100;
-                else if (app.status === ApplicationStatus.APPROVED) points += 300;
-                else if (app.status === ApplicationStatus.REJECTED) points += 50;
-              });
-
               const getFounderLevel = (p: number) => {
-                if (p >= 1000) return { name: 'Galactic Titan', min: 1000, max: 2000, icon: '🌟' };
-                if (p >= 500) return { name: 'Stellar Commander', min: 500, max: 1000, icon: '🚀' };
-                if (p >= 250) return { name: 'Lunar Explorer', min: 250, max: 500, icon: '🛰️' };
-                if (p >= 100) return { name: 'Orbital Pioneer', min: 100, max: 250, icon: '🛸' };
-                return { name: 'Space Cadet', min: 0, max: 100, icon: '👨‍🚀' };
+                if (p >= 1000) return { name: 'Galactic Titan', min: 1000, max: 2000, icon: '🌟', coinStyle: 'from-cyan-300 to-cyan-500 border-cyan-100 shadow-[0_0_8px_#22d3ee]' };
+                if (p >= 500) return { name: 'Stellar Commander', min: 500, max: 1000, icon: '🚀', coinStyle: 'from-blue-200 to-purple-400 border-white shadow-[0_0_8px_#d8b4fe]' };
+                if (p >= 250) return { name: 'Lunar Explorer', min: 250, max: 500, icon: '🛰️', coinStyle: 'from-yellow-300 to-yellow-500 border-yellow-200 shadow-[0_0_8px_#facc15]' };
+                if (p >= 100) return { name: 'Orbital Pioneer', min: 100, max: 250, icon: '🛸', coinStyle: 'from-gray-300 to-gray-400 border-gray-100 shadow-[0_0_8px_#9ca3af]' };
+                return { name: 'Space Cadet', min: 0, max: 100, icon: '👨‍🚀', coinStyle: 'from-amber-600 to-amber-700 border-amber-400 shadow-[0_0_8px_#d97706]' };
               };
 
               const level = getFounderLevel(points);
               const progressPercentage = Math.min(100, Math.max(0, ((points - level.min) / (level.max - level.min)) * 100));
+              
+              const currentLevelPoints = points - level.min;
+              const coinCount = Math.floor(currentLevelPoints / 20);
+              const coinsToDisplay = Array.from({ length: coinCount }).map((_, i) => i);
 
               return (
                 <div className="mt-2 pt-6 border-t border-white/5 relative z-10">
@@ -445,8 +485,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                         </h3>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">{points} <span className="text-gray-500 font-normal">XP</span></p>
+                    <div className="text-right flex flex-col items-end">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="flex -space-x-2">
+                          {coinsToDisplay.map(i => (
+                            <XPCoin key={i} index={i} styleClass={level.coinStyle} />
+                          ))}
+                        </div>
+                        <p className="text-sm font-bold">{points} <span className="text-gray-500 font-normal">XP</span></p>
+                      </div>
                       <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{level.max - points} XP to next rank</p>
                     </div>
                   </div>

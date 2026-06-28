@@ -141,7 +141,7 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
         // Use Gemini to extract item name and price
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
         const response = await ai.models.generateContent({
-             model: 'gemini-3.5-flash',
+             model: 'gemini-2.5-flash',
              contents: [
                 {
                    role: 'user',
@@ -328,7 +328,7 @@ WRITING REQUIREMENTS:
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json', responseSchema: pitchDeckSchema, maxOutputTokens: 8192 }
       });
@@ -837,7 +837,7 @@ WRITING REQUIREMENTS:
 `;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
+          model: 'gemini-2.5-flash',
           contents: batchPrompt,
           config: { 
             responseMimeType: 'application/json',

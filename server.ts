@@ -130,10 +130,10 @@ async function startServer() {
          
          // Securely update the user's subscription in Firestore
          if (db) {
-            await db.collection("users").doc(userId).update({
+            await db.collection("users").doc(userId).set({
               subscriptionPlan: plan,
               billingCycle: cycle || 'monthly'
-            });
+            }, { merge: true });
             console.log(`Updated subscription for user ${userId} to ${plan}`);
             res.json({ ...verificationData, firestoreUpdated: true });
          } else {
@@ -146,6 +146,88 @@ async function startServer() {
     } catch (error: any) {
       console.error("Paystack verify error:", error.response?.data || error.message);
       res.status(500).json({ error: "Failed to verify payment", details: error.response?.data });
+    }
+  });
+
+  // API route for Brand Sync (extract colors/fonts from URL)
+  app.post("/api/brand-sync", async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ error: "URL is required" });
+      
+      const response = await axios.get(url, { timeout: 5000 });
+      const html = response.data;
+      
+      // Basic extraction of colors
+      const hexRegex = /#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})\b/g;
+      const matches = html.match(hexRegex) || [];
+      const colors = [...new Set(matches)].slice(0, 5); // top 5 colors
+      
+      res.json({
+        primaryColor: colors[0] || '#4F46E5', // fallback indigo
+        secondaryColor: colors[1] || '#06b6d4',
+        accentColor: colors[2] || '#a855f7',
+        font: 'font-sans'
+      });
+    } catch (error: any) {
+      console.error("Brand sync error:", error.message);
+      res.status(500).json({ error: "Failed to sync brand", details: error.message });
+    }
+  });
+
+  // Presenton API proxy route
+  app.post("/api/presenton/generate", async (req, res) => {
+    try {
+      const { businessPlan, template, deckType } = req.body;
+
+      if (!businessPlan) {
+        return res.status(400).json({
+          error: "businessPlan is required"
+        });
+      }
+
+      const presentonUrl = process.env.PRESENTON_URL || "http://localhost:5000";
+
+      const prompt = `
+Create a professional investor pitch deck.
+
+Deck Type:
+${deckType || "Investor Pitch Deck"}
+
+Use this business plan:
+
+${businessPlan}
+
+Include these slides:
+
+1. Cover
+2. Problem
+3. Solution
+4. Market Opportunity
+5. Business Model
+6. Funding Request
+7. Financial Projections
+8. Social Impact
+9. Team
+10. Closing
+`;
+
+      const response = await axios.post(
+        `${presentonUrl}/api/generate`,
+        {
+          prompt,
+          template: template || "stacfund-template"
+        }
+      );
+
+      res.json(response.data);
+
+    } catch (error: any) {
+      console.error("Presenton generation error:", error.response?.data || error.message);
+      res.status(500).json({
+        error: "Failed to generate presentation",
+        details: error.response?.data
+      });
     }
   });
 

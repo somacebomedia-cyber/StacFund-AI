@@ -49,10 +49,10 @@ export interface FundingOpportunityDb {
   typical_duration_days?: number;
   preparation_checklist?: string[];
   common_rejection_reasons?: string[];
-  contact_email: string;
-  contact_phone: string;
+  contact_email?: string;
+  contact_phone?: string;
   last_verified_at: string;
-  verification_notes: string;
+  verification_notes?: string;
   confidence_score: number;
 }
 
@@ -106,6 +106,7 @@ export interface AppDocument {
   uploadDate: string;
   category: string;
   content?: string;
+  hasChunks?: boolean;
 }
 
 export interface Achievement {

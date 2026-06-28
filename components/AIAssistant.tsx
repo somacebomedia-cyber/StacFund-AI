@@ -294,46 +294,46 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
         const functionResponses = [];
         
         for (const fc of response.functionCalls) {
-          let result = "Action performed successfully.";
+          let result: any = { success: true };
           
           if (fc.name === 'update_business_profile') {
             if (user) {
               try {
                 await setDoc(doc(db, 'users', user.id), { profile: fc.args }, { merge: true });
                 if (onProfileUpdate) onProfileUpdate();
-                result = `Profile updated with: ${Object.keys(fc.args).join(', ')}`;
+                result = { success: true, detail: `Profile updated with: ${Object.keys(fc.args).join(', ')}` };
               } catch (e) {
-                result = `Failed to update profile: ${e}`;
+                result = { success: false, detail: `Failed to update profile: ${e}` };
               }
             } else {
-              result = 'User not logged in.';
+              result = { success: false, detail: 'User not logged in.' };
             }
           } 
           else if (fc.name === 'navigate_to_page') {
             if (onNavigate) onNavigate(fc.args.page as string);
-            result = `Navigated user to ${fc.args.page}`;
+            result = { success: true, detail: `Navigated user to ${fc.args.page}` };
           }
           else if (fc.name === 'filter_marketplace') {
             if (onNavigate) onNavigate('marketplace');
             window.dispatchEvent(new CustomEvent('update_marketplace_filter', { 
               detail: { search: fc.args.search || '', category: fc.args.category || 'All' } 
             }));
-            result = `Filtered marketplace for: ${fc.args.search || 'anything'} ${fc.args.category ? `in category ${fc.args.category}` : ''}`;
+            result = { success: true, detail: `Filtered marketplace for: ${fc.args.search || 'anything'} ${fc.args.category ? `in category ${fc.args.category}` : ''}` };
           }
           else if (fc.name === 'generate_logo') {
             if (onNavigate) onNavigate('dashboard');
             window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'logo' } }));
-            result = `Navigated to dashboard and opened Logo Generator popup.`;
+            result = { success: true, detail: `Navigated to dashboard and opened Logo Generator popup.` };
           }
           else if (fc.name === 'register_business') {
             if (onNavigate) onNavigate('dashboard');
             window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'register' } }));
-            result = `Navigated to dashboard and opened Business Registration popup.`;
+            result = { success: true, detail: `Navigated to dashboard and opened Business Registration popup.` };
           }
           else if (fc.name === 'create_video_advert') {
             if (onNavigate) onNavigate('dashboard');
             window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'advert', prompt: fc.args.prompt } }));
-            result = `Started generating a Video Advert for the user context with prompt: ${fc.args.prompt}`;
+            result = { success: true, detail: `Started generating a Video Advert for the user context with prompt: ${fc.args.prompt}` };
           }
           else if (fc.name === 'read_document') {
              if (user) {
@@ -342,15 +342,15 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                  const docSnap = await getDocs(docsRef);
                  const foundDoc = docSnap.docs.map(doc => ({id: doc.id, ...doc.data()})).find((d: any) => d.name?.toLowerCase().includes(String(fc.args.titleKeyword).toLowerCase()));
                  if (foundDoc) {
-                   result = `Found document "${(foundDoc as any).name}" (ID: ${(foundDoc as any).id}). Content: ${(foundDoc as any).content || 'No text content available'}`;
+                   result = { success: true, detail: `Found document "${(foundDoc as any).name}" (ID: ${(foundDoc as any).id}). Content: ${(foundDoc as any).content || 'No text content available'}` };
                  } else {
-                   result = `No document found containing keyword "${fc.args.titleKeyword}". Available documents: ${docSnap.docs.map(d=>d.data().name).join(', ')}`;
+                   result = { success: true, detail: `No document found containing keyword "${fc.args.titleKeyword}". Available documents: ${docSnap.docs.map(d=>d.data().name).join(', ')}` };
                  }
                } catch (e) {
-                 result = `Failed to read documents from database: ${e}`;
+                 result = { success: false, detail: `Failed to read documents from database: ${e}` };
                }
              } else {
-               result = `User not logged in.`;
+               result = { success: false, detail: `User not logged in.` };
              }
           }
           else if (fc.name === 'edit_document') {
@@ -363,26 +363,26 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                    const oldContent = existingDoc.data().content || '';
                    const updatedContent = fc.args.action === 'append' ? oldContent + '\n\n' + fc.args.newContent : fc.args.newContent;
                    await updateDoc(dRef, { content: updatedContent, updatedAt: new Date().toISOString() });
-                   result = `Successfully updated document ${fc.args.docId} (${fc.args.action}ed).`;
+                   result = { success: true, detail: `Successfully updated document ${fc.args.docId} (${fc.args.action}ed).` };
                  } else {
-                   result = `Document with ID ${fc.args.docId} not found.`;
+                   result = { success: false, detail: `Document with ID ${fc.args.docId} not found.` };
                  }
                } catch(e) {
-                 result = `Failed to update document: ${e}`;
+                 result = { success: false, detail: `Failed to update document: ${e}` };
                }
              } else {
-               result = `User not logged in.`;
+               result = { success: false, detail: `User not logged in.` };
              }
           }
           else if (fc.name === 'open_form_digitizer') {
             if (onNavigate) onNavigate('dashboard');
             window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'digitizer' } }));
-            result = `Navigated to dashboard and opened Form Digitizer popup.`;
+            result = { success: true, detail: `Navigated to dashboard and opened Form Digitizer popup.` };
           }
           else if (fc.name === 'open_presentation_designer') {
             if (onNavigate) onNavigate('dashboard');
             window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'presentation' } }));
-            result = `Navigated to dashboard and opened AI Pitch Deck Designer popup.`;
+            result = { success: true, detail: `Navigated to dashboard and opened AI Pitch Deck Designer popup.` };
           }
           else if (fc.name === 'get_applications') {
             if (user) {
@@ -390,12 +390,12 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                 const appsRef = collection(db, 'users', user.id, 'applications');
                 const appSnap = await getDocs(appsRef);
                 const apps = appSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                result = `User has ${apps.length} applications: ${JSON.stringify(apps)}`;
+                result = { success: true, detail: `User has ${apps.length} applications: ${JSON.stringify(apps)}` };
               } catch (e) {
-                result = `Failed to fetch applications: ${e}`;
+                result = { success: false, detail: `Failed to fetch applications: ${e}` };
               }
             } else {
-              result = 'User not logged in.';
+              result = { success: false, detail: 'User not logged in.' };
             }
           }
           else if (fc.name === 'clear_applications') {
@@ -405,13 +405,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                 const appSnap = await getDocs(appsRef);
                 const deletePromises = appSnap.docs.map(document => deleteDoc(doc(db, 'users', user.id, 'applications', document.id)));
                 await Promise.all(deletePromises);
-                result = `Successfully cleared all ${appSnap.docs.length} applications.`;
+                result = { success: true, detail: `Successfully cleared all ${appSnap.docs.length} applications.` };
                 if (onNavigate) onNavigate('dashboard'); // Trigger re-render or navigation to see changes
               } catch (e) {
-                result = `Failed to clear applications: ${e}`;
+                result = { success: false, detail: `Failed to clear applications: ${e}` };
               }
             } else {
-              result = 'User not logged in.';
+              result = { success: false, detail: 'User not logged in.' };
             }
           }
           else if (fc.name === 'list_documents') {
@@ -420,34 +420,27 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                 const docsRef = collection(db, 'users', user.id, 'documents');
                 const docSnap = await getDocs(docsRef);
                 const docs = docSnap.docs.map(doc => ({id: doc.id, name: doc.data().name}));
-                result = `User has ${docs.length} documents: ${JSON.stringify(docs)}`;
+                result = { success: true, detail: `User has ${docs.length} documents: ${JSON.stringify(docs)}` };
               } catch (e) {
-                result = `Failed to list documents: ${e}`;
+                result = { success: false, detail: `Failed to list documents: ${e}` };
               }
             } else {
-              result = `User not logged in.`;
+              result = { success: false, detail: `User not logged in.` };
             }
           }
           else if (fc.name === 'open_dashboard_tab') {
             if (onNavigate) onNavigate('dashboard');
             window.dispatchEvent(new CustomEvent('update_dashboard_tab', { detail: { tab: fc.args.tab } }));
-            result = `Navigated to Dashboard and opened the '${fc.args.tab}' tab.`;
+            result = { success: true, detail: `Navigated to Dashboard and opened the '${fc.args.tab}' tab.` };
           }
 
-          functionResponses.push({
-            id: fc.id,
-            name: fc.name,
-            response: { result }
-          });
+          functionResponses.push({ functionResponse: { name: fc.name, response: result } });
         }
 
         // Send tool results back to get final conversational response
-        const finalResponse = await sessionChat.sendMessage({
-          message: "The actions were performed.", // Internal trigger
-          // In actual API usage, we send functionResponses. For this wrapper, we can follow up.
-        });
+        const finalResponse = await sessionChat.sendMessage({ message: functionResponses as any });
         
-        setMessages(prev => [...prev, { role: 'model', text: finalResponse.text || "I've handled that for you!" }]);
+        setMessages(prev => [...prev, { role: 'model', text: finalResponse.text || "Done!" }]);
       } else {
         setMessages(prev => [...prev, { role: 'model', text: response.text || "How else can I help?" }]);
       }
