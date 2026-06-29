@@ -19,9 +19,9 @@ const InstitutionLogo: React.FC<InstitutionLogoProps> = ({ opportunity, isNew })
   }, [opportunity.source_url, opportunity.application_url]);
 
   const logoUrl = useMemo(() => {
-    if (fallbackStage === 0) return `/assets/logos/${opportunity.opportunity_id}.png`;
-    if (fallbackStage === 1 && opportunity.logo_url) return opportunity.logo_url;
-    if (fallbackStage === 2 && domain) return `https://logo.clearbit.com/${domain}`;
+    if (fallbackStage === 0 && opportunity.logo_url) return opportunity.logo_url;
+    if (fallbackStage === 1 && domain) return `https://logo.clearbit.com/${domain}`;
+    if (fallbackStage === 2) return `/assets/logos/${opportunity.opportunity_id}.png`;
     return null;
   }, [opportunity.opportunity_id, opportunity.logo_url, domain, fallbackStage]);
 

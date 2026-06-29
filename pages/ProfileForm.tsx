@@ -5,7 +5,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { handleGeminiError } from '../services/geminiError';
-import { uploadImage } from '../services/storage';
+import { uploadImage, uploadDocument } from '../services/storage';
 import { AppDocument, User } from '../types';
 import BusinessPlanDocument from '../components/BusinessPlanDocument';
 import PitchDeckDocument from '../components/PitchDeckDocument';
@@ -1060,17 +1060,25 @@ WRITING REQUIREMENTS:
     
     const docsRef = collection(db, 'users', user.id, 'documents');
     
-    // In a real app we'd upload to Firebase Storage here.
-    // For this prototype, we save metadata to Firestore.
     try {
       const promises = Array.from(files).map(async (file) => {
+          let downloadUrl = null;
+          let uploadFailed = false;
+          try {
+            downloadUrl = await uploadDocument(file, `users/${user.id}/documents/${Date.now()}_${file.name}`);
+          } catch (e) {
+            console.error('Failed to upload file to storage', e);
+            uploadFailed = true;
+          }
           const newDoc = {
               userId: user.id,
               name: file.name,
               type: file.type || 'application/octet-stream',
               size: file.size,
               uploadDate: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-              category: 'General'
+              category: 'General',
+              url: downloadUrl,
+              uploadFailed
           };
           const ref = await addDoc(docsRef, newDoc);
           return { id: ref.id, ...newDoc } as AppDocument;

@@ -1,4 +1,14 @@
 // Replaced with base64 conversion to bypass Firebase Storage completely and avoid limits/rules issues.
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { app } from './firebase';
+
+export const uploadDocument = async (file: File, path: string): Promise<string> => {
+  const storage = getStorage(app);
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+};
+
 export const uploadImage = async (file: File, path: string): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

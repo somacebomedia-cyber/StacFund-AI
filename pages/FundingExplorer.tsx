@@ -73,7 +73,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
         const querySnapshot = await getDocs(collection(db, 'funding_opportunities'));
         let ops: FundingOpportunityDb[] = [];
         
-        let existingIds = new Set<string>();
+        const existingIds = new Set<string>();
         querySnapshot.forEach((docSnap) => {
           ops.push(docSnap.data() as FundingOpportunityDb);
           existingIds.add(docSnap.id);
@@ -151,7 +151,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
 
   // Compute what to display based on mode
   useEffect(() => {
-     let filtered = opportunities.filter(item => {
+     const filtered = opportunities.filter(item => {
         const progName = item.programme_name || '';
         const eligSumm = item.eligibility_summary || '';
         

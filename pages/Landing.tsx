@@ -450,7 +450,7 @@ const ExtensiveFeatures = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+      <div className="flex overflow-x-auto snap-x snap-mandatory pb-8 gap-6 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-8 md:overflow-visible hide-scrollbar">
         {features.map((feature, i) => {
           const delay = i * 0.1;
           return (
@@ -460,7 +460,7 @@ const ExtensiveFeatures = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.6, delay, ease: "easeOut" }}
-              className="relative flex flex-col justify-between p-5 md:p-6 rounded-[1.75rem] shadow-2xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 group min-h-[300px] md:min-h-[320px]"
+              className="shrink-0 w-[85vw] md:w-auto snap-center relative flex flex-col justify-between p-5 md:p-6 rounded-[1.75rem] shadow-2xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 group min-h-[300px] md:min-h-[320px]"
               style={{
                 backgroundColor: feature.hex, // Canva panel style
                 border: '1px solid rgba(255,255,255,0.2)',
@@ -683,7 +683,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 relative">
+          <div className="flex overflow-x-auto snap-x snap-mandatory pb-8 gap-6 md:grid md:grid-cols-3 md:overflow-visible hide-scrollbar relative">
             {/* Connecting lines for desktop */}
             <div className="hidden md:block absolute top-[60px] left-[20%] right-[20%] h-[2px] bg-gradient-to-r from-purple-500/0 via-purple-500/20 to-purple-500/0 pointer-events-none" />
             
@@ -714,7 +714,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
                 key={i}
                 whileHover={{ y: -8, scale: 1.02 }}
                 transition={{ type: 'spring', stiffness: 300 }}
-                className="relative glass-panel rounded-3xl p-8 text-left group overflow-hidden border border-white/5 bg-white/[0.02]"
+                className="shrink-0 w-[85vw] md:w-auto snap-center relative glass-panel rounded-3xl p-8 text-left group overflow-hidden border border-white/5 bg-white/[0.02]"
               >
                 {/* Background oversized step number */}
                 <div className="absolute -top-4 -right-4 text-8xl font-black text-white/[0.02] pointer-events-none group-hover:text-white/[0.04] transition-colors duration-500">
@@ -792,27 +792,27 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           
           <div className="flex gap-12 items-center w-max animate-[scroll_40s_linear_infinite]">
             {[
-               { name: 'NYDA', url: 'https://logo.clearbit.com/nyda.gov.za' },
-               { name: 'IDC', url: 'https://logo.clearbit.com/idc.co.za' },
-               { name: 'SEFA', url: 'https://logo.clearbit.com/sefa.org.za' },
-               { name: 'NEF', url: 'https://logo.clearbit.com/nefcorp.co.za' },
-               { name: 'the dtic', url: 'https://logo.clearbit.com/thedtic.gov.za' },
-               { name: 'Seda', url: 'https://logo.clearbit.com/seda.org.za' },
-               { name: 'ECDC', url: 'https://logo.clearbit.com/ecdc.co.za' },
-               { name: 'TIA', url: 'https://logo.clearbit.com/tia.org.za' },
-               { name: 'GEP', url: 'https://logo.clearbit.com/gep.co.za' },
-               { name: 'FNB', url: 'https://logo.clearbit.com/fnb.co.za' },
+               { name: 'NYDA', url: '/assets/logos/hero/nyda.svg' },
+               { name: 'IDC', url: '/assets/logos/hero/idc.svg' },
+               { name: 'SEFA', url: '/assets/logos/hero/sefa.svg' },
+               { name: 'NEF', url: '/assets/logos/hero/nef.svg' },
+               { name: 'the dtic', url: '/assets/logos/hero/dtic.svg' },
+               { name: 'Seda', url: '/assets/logos/hero/seda.svg' },
+               { name: 'ECDC', url: '/assets/logos/hero/ecdc.png' },
+               { name: 'TIA', url: '/assets/logos/hero/tia.svg' },
+               { name: 'GEP', url: '/assets/logos/hero/gep.svg' },
+               { name: 'FNB', url: '/assets/logos/hero/fnb.png' },
                // Duplicated for seamless scrolling
-               { name: 'NYDA', url: 'https://logo.clearbit.com/nyda.gov.za' },
-               { name: 'IDC', url: 'https://logo.clearbit.com/idc.co.za' },
-               { name: 'SEFA', url: 'https://logo.clearbit.com/sefa.org.za' },
-               { name: 'NEF', url: 'https://logo.clearbit.com/nefcorp.co.za' },
-               { name: 'the dtic', url: 'https://logo.clearbit.com/thedtic.gov.za' },
-               { name: 'Seda', url: 'https://logo.clearbit.com/seda.org.za' },
-               { name: 'ECDC', url: 'https://logo.clearbit.com/ecdc.co.za' },
-               { name: 'TIA', url: 'https://logo.clearbit.com/tia.org.za' },
-               { name: 'GEP', url: 'https://logo.clearbit.com/gep.co.za' },
-               { name: 'FNB', url: 'https://logo.clearbit.com/fnb.co.za' }
+               { name: 'NYDA', url: '/assets/logos/hero/nyda.svg' },
+               { name: 'IDC', url: '/assets/logos/hero/idc.svg' },
+               { name: 'SEFA', url: '/assets/logos/hero/sefa.svg' },
+               { name: 'NEF', url: '/assets/logos/hero/nef.svg' },
+               { name: 'the dtic', url: '/assets/logos/hero/dtic.svg' },
+               { name: 'Seda', url: '/assets/logos/hero/seda.svg' },
+               { name: 'ECDC', url: '/assets/logos/hero/ecdc.png' },
+               { name: 'TIA', url: '/assets/logos/hero/tia.svg' },
+               { name: 'GEP', url: '/assets/logos/hero/gep.svg' },
+               { name: 'FNB', url: '/assets/logos/hero/fnb.png' }
             ].map((img, i) => (
               <div key={i} className="flex flex-col items-center gap-2 opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0">
                 <div className="h-10 w-24 flex items-center justify-center">

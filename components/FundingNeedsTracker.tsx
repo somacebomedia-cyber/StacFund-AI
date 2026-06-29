@@ -164,7 +164,7 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
         });
         
         const extracted = JSON.parse(response.text || '{}');
-        let updateData: any = { 
+        const updateData: any = { 
           quotationDocId: docRef.id,
           quotationDocName: newDoc.name
         };
@@ -372,7 +372,7 @@ WRITING REQUIREMENTS:
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
       
-      let totalBatches = 5;
+      const totalBatches = 5;
 
       const fullBusinessPlanSchemaProperties = {
           executiveSummary: {

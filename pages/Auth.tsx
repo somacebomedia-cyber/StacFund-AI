@@ -1,5 +1,4 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Target, Mail, Lock, Building2, ArrowRight, Loader2, CheckCircle2, Inbox, AlertTriangle, Zap, ShieldCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -16,9 +15,8 @@ type AuthState = 'login' | 'signup' | 'verification_pending' | 'verified_success
 
 const StacFundLogo = ({ size = 40 }: { size?: number }) => (
   <img 
-    src="https://plain-apac-prod-public.komododecks.com/202605/18/MVQzOoGi4sCDyhKzfhaM/image.png" 
+    src="/assets/logos/stacfund-logo.png" 
     alt="StacFund Logo" 
-    referrerPolicy="no-referrer"
     style={{ width: size, height: size, objectFit: 'contain' }}
   />
 );
@@ -35,6 +33,17 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
     password: '',
     businessName: ''
   });
+
+  // FIX (2026-06-28): the verification poll loop in simulateVerification()
+  // had no way to stop itself if this component unmounted mid-poll (e.g.
+  // the user taps "Return Home" while waiting). It would keep calling
+  // auth.currentUser?.reload() every 3s for up to 5 minutes regardless.
+  // This ref flips to true on unmount, and the loop checks it before every
+  // step so it stops promptly instead of running invisibly in the background.
+  const cancelledRef = useRef(false);
+  useEffect(() => {
+    return () => { cancelledRef.current = true; };
+  }, []);
 
   // Background stars for space theme
   const stars = useMemo(() => Array.from({ length: 40 }).map((_, i) => ({
@@ -65,7 +74,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
     try {
       const demoEmail = `demo.founder.${Math.floor(Math.random() * 10000)}@stacfund.test`;
       const demoPass = "demo123456";
-      let userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
+      const userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
       const uid = userCredential.user.uid;
 
       await setDoc(doc(db, 'users', uid), {
@@ -74,6 +83,12 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
         subscriptionPlan: 'pro',
         billingCycle: 'yearly',
         createdAt: new Date(),
+        // Tag for cleanup cron — demo accounts older than 7 days can be deleted
+        isDemoAccount: true,
+        demoCreatedAt: new Date(),
+        // Demo accounts skip onboarding since they have pre-populated profile
+        onboardingComplete: true,
+        authProvider: 'demo',
         profile: {
             name: 'NeoTech Industries (Demo)',
             registration: '2023/458921/07',
@@ -165,41 +180,44 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       const userCredential = await signInWithPopup(auth, provider);
-      
+
       try {
         const uid = userCredential.user.uid;
         const userDocRef = doc(db, 'users', uid);
         const statsRef = doc(db, 'metadata', 'stats');
-        
+
         await runTransaction(db, async (transaction) => {
           const userDoc = await transaction.get(userDocRef);
-          
+
           if (!userDoc.exists()) {
             const statsDoc = await transaction.get(statsRef);
             let userCount = 1;
             if (statsDoc.exists()) {
               userCount = (statsDoc.data().userCount || 0) + 1;
             }
-            
+
             transaction.set(statsRef, { userCount }, { merge: true });
-            
+
             transaction.set(userDocRef, {
               businessName: userCredential.user.displayName || 'My Business',
               email: userCredential.user.email,
               createdAt: new Date(),
               subscriptionPlan: 'free',
-              signupNumber: userCount
+              signupNumber: userCount,
+              // New users must complete onboarding before reaching the dashboard
+              onboardingComplete: false,
+              authProvider: 'google',
             });
-            
+
             if (userCount <= 1000) {
               const notifRef = doc(collection(db, 'users', uid, 'notifications'));
-              
+
               const getOrdinal = (n: number) => {
                 const s = ["th", "st", "nd", "rd"];
                 const v = n % 100;
                 return (v >= 11 && v <= 13) ? "th" : (s[n % 10] || "th");
               };
-              
+
               transaction.set(notifRef, {
                 userId: uid,
                 title: '🎉 Beta User Achievement Unlocked!',
@@ -213,8 +231,30 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
         });
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, `users/${userCredential.user.uid}`);
+        // CRITICAL: If the Firestore transaction failed, we have an orphaned
+        // auth user with no profile doc. Delete the auth user so they can
+        // retry cleanly instead of being stuck in limbo.
+        try {
+          await userCredential.user.delete();
+          setError('Sign-up failed during profile creation. Please try again.');
+        } catch (deleteErr) {
+          console.error('Failed to clean up orphaned auth user:', deleteErr);
+          setError('Sign-up partially failed. Please contact support.');
+        }
+        setIsLoading(false);
+        return;
       }
-      
+
+      // Google accounts are usually pre-verified, but enforce the flag anyway.
+      // If for some reason emailVerified is false, route to verification screen.
+      if (!userCredential.user.emailVerified) {
+        setPendingUserEmail(userCredential.user.email || '');
+        setAuthState('verification_pending');
+        // Trigger immediate sendEmailVerification for Google users
+        try { await sendEmailVerification(userCredential.user); } catch {}
+        setIsLoading(false);
+      }
+      // Otherwise onAuthStateChanged in App.tsx will pick them up automatically.
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/popup-closed-by-user' || err.message?.includes('popup-closed-by-user')) {
@@ -272,7 +312,10 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
             email: formData.email,
             createdAt: new Date(),
             subscriptionPlan: 'free',
-            signupNumber: userCount
+            signupNumber: userCount,
+            // New signups must complete onboarding before reaching the dashboard
+            onboardingComplete: false,
+            authProvider: 'password',
           });
           
           if (userCount <= 1000) {
@@ -296,6 +339,15 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
         });
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, `users/${userCredential.user.uid}`);
+        // Rollback orphaned auth user so they can retry cleanly
+        try {
+          await userCredential.user.delete();
+          setError('Sign-up failed during profile creation. Please try again.');
+        } catch (deleteErr) {
+          console.error('Failed to clean up orphaned auth user:', deleteErr);
+          setError('Sign-up partially failed. Please contact support.');
+        }
+        setIsLoading(false);
         return;
       }
       
@@ -315,43 +367,121 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
   };
 
   const simulateVerification = async () => {
+    // Real email verification check — replaces the old fake 1-second delay.
+    // Polls firebaseUser.reload() every 3 seconds (up to 5 minutes) and
+    // advances only when emailVerified flips to true. If the user closes the
+    // tab, App.tsx's onAuthStateChanged will re-detect the unverified state
+    // on next load and route them back here.
+    //
+    // FIX (2026-06-28): this loop had no cancellation — if the component
+    // unmounted mid-poll (user navigates away), it kept calling
+    // auth.currentUser?.reload() every 3s for up to 5 minutes in the
+    // background. It now checks cancelledRef before every step and bails
+    // out immediately once the component is gone.
+    if (!hasValidFirebaseConfig()) {
+      // Dev/preview mode without Firebase — simulate success after a beat
+      setIsLoading(true);
+      await new Promise(r => setTimeout(r, 1000));
+      if (cancelledRef.current) return;
+      setAuthState('verified_success');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const maxAttempts = 100; // 100 × 3s = 5 min
+    for (let i = 0; i < maxAttempts; i++) {
+      if (cancelledRef.current) return; // unmounted — stop polling
+      try {
+        await auth.currentUser?.reload();
+        if (cancelledRef.current) return;
+        if (auth.currentUser?.emailVerified) {
+          setAuthState('verified_success');
+          setIsLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('Reload failed, retrying:', e);
+      }
+      await new Promise(r => setTimeout(r, 3000));
+    }
+    if (cancelledRef.current) return;
+    // Timed out — let them through anyway but log it
+    console.warn('Email verification polling timed out after 5 minutes.');
     setAuthState('verified_success');
     setIsLoading(false);
   };
 
-  const proceedToDashboard = () => {
-      if (!hasValidFirebaseConfig()) {
-        const u: User = {
-            id: 'demo-user-preview',
-            email: formData.email || 'demo@stacfund.test',
-            businessName: formData.businessName || 'My Business',
-            isVerified: true,
-            subscriptionPlan: 'free'
-        };
-        onAuthSuccess(u);
-        return;
-      }
-
+  // Resend verification email (shown after 30s of waiting)
+  const [canResend, setCanResend] = useState(false);
+  const resendVerificationEmail = async () => {
+    try {
       if (auth.currentUser) {
+        await sendEmailVerification(auth.currentUser);
+        setCanResend(false);
+        // Re-arm after 60s
+        setTimeout(() => setCanResend(true), 60000);
+      }
+    } catch (e: any) {
+      console.error('Resend failed:', e);
+      setError('Could not resend verification email: ' + e.message);
+    }
+  };
+
+  const proceedToDashboard = async () => {
+    if (!hasValidFirebaseConfig()) {
+      const u: User = {
+          id: 'demo-user-preview',
+          email: formData.email || 'demo@stacfund.test',
+          businessName: formData.businessName || 'My Business',
+          isVerified: true,
+          subscriptionPlan: 'free',
+          onboardingComplete: false, // New local-preview users go through onboarding
+      };
+      onAuthSuccess(u);
+      return;
+    }
+
+    if (auth.currentUser) {
+        // Fetch the full user doc so we have signupNumber, onboardingComplete,
+        // logoUrl, subscriptionPlan etc. Avoids the "Loading..." flash in App.tsx
+        try {
+          const userDocRef = doc(db, 'users', auth.currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          const data = userDoc.exists() ? userDoc.data() : {};
+          const u: User = {
+              id: auth.currentUser.uid,
+              email: auth.currentUser.email || '',
+              businessName: data.businessName || formData.businessName || 'My Business',
+              logoUrl: data.logoUrl,
+              isVerified: auth.currentUser.emailVerified,
+              subscriptionPlan: data.subscriptionPlan || 'free',
+              billingCycle: data.billingCycle,
+              onboardingComplete: data.onboardingComplete === true,
+              signupNumber: data.signupNumber,
+          };
+          onAuthSuccess(u);
+        } catch (e) {
+          // Fallback to minimal user object if fetch fails
+          console.warn('Failed to fetch user doc on proceedToDashboard:', e);
           const u: User = {
               id: auth.currentUser.uid,
               email: auth.currentUser.email || '',
               businessName: formData.businessName,
-              isVerified: true,
-              subscriptionPlan: 'free'
+              isVerified: auth.currentUser.emailVerified,
+              subscriptionPlan: 'free',
+              onboardingComplete: false,
           };
           onAuthSuccess(u);
-      }
+        }
+    }
   };
 
   if (authState === 'verification_pending') {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-space-auth relative overflow-hidden text-white">
-        {/* <div className="absolute inset-0 bg-[#050510]/60 backdrop-blur-[2px]" /> */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(139,92,246,0.15),transparent_50%)]" />
-        <motion.div 
+        <motion.div
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           className="w-full max-w-md relative z-10 glass-panel rounded-[2rem] p-10 border border-white/10 shadow-2xl text-center"
@@ -365,17 +495,34 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
             <Inbox size={40} className="text-purple-400 relative z-10" />
           </div>
           <h2 className="text-3xl font-black mb-4 tracking-tight">Check Your Email</h2>
-          <p className="text-gray-400 mb-8 text-sm leading-relaxed">
-            We've sent a verification link to <span className="text-white font-bold">{pendingUserEmail}</span>. 
+          <p className="text-gray-400 mb-2 text-sm leading-relaxed">
+            We've sent a verification link to <span className="text-white font-bold">{pendingUserEmail}</span>.
           </p>
-          
-          <div className="space-y-4">
-            <button 
+          <p className="text-gray-500 mb-8 text-xs leading-relaxed">
+            Click the link in the email, then tap the button below. We'll check automatically every few seconds.
+          </p>
+
+          {isLoading && (
+            <div className="mb-4 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center gap-2 text-xs text-purple-300">
+              <Loader2 size={14} className="animate-spin" />
+              <span className="font-bold">Waiting for verification…</span>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <button
               onClick={simulateVerification}
               disabled={isLoading}
               className="w-full bg-white text-black font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-gray-200 active:scale-[0.98] disabled:opacity-50 shadow-xl"
             >
               {isLoading ? <Loader2 size={20} className="animate-spin" /> : 'I have verified my email'}
+            </button>
+            <button
+              onClick={resendVerificationEmail}
+              disabled={isLoading || !canResend}
+              className="w-full text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest py-2 transition-colors disabled:opacity-30"
+            >
+              {canResend ? 'Resend verification email' : 'Resend available in 60s'}
             </button>
           </div>
         </motion.div>
@@ -418,7 +565,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden text-white" 
-      style={{ backgroundImage: "linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510' }}>
+      style={{ backgroundImage: "linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/assets/images/astronaut-bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510' }}>
       {/* Cinematic Background */}
       <div className="absolute inset-0 z-0">
       </div>

@@ -13,6 +13,7 @@ import AIAssistant from './components/AIAssistant';
 import PricingModal from './components/PricingModal';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationsPanel from './components/NotificationsPanel';
+import OnboardingWizard from './components/OnboardingWizard';
 import { User, AppNotification } from './types';
 
 type Page = 'landing' | 'dashboard' | 'applications' | 'tools' | 'needs' | 'documents' | 'funding' | 'profile' | 'pricing' | 'auth';
@@ -341,6 +342,19 @@ const App: React.FC = () => {
     return (
       <>
         {renderPage()}
+        <InstallPrompt />
+      </>
+    );
+  }
+
+  if (currentUser && currentUser.onboardingComplete === false) {
+    return (
+      <>
+        <OnboardingWizard 
+          user={currentUser} 
+          onComplete={() => setCurrentUser({ ...currentUser, onboardingComplete: true })}
+          onSkip={() => setCurrentUser({ ...currentUser, onboardingComplete: true })}
+        />
         <InstallPrompt />
       </>
     );
