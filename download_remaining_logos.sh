@@ -1,0 +1,9 @@
+curl -sL "https://www.nyda.gov.za/Portals/0/logonew.fw6859.png" -o public/assets/logos/hero/nyda.png
+curl -sL "https://www.idc.co.za/wp-content/uploads/2018/06/idc-logo-400.png" -o public/assets/logos/hero/idc.png
+curl -sL "https://www.sefa.org.za/content/images/sefa-logo.png" -o public/assets/logos/hero/sefa.png
+curl -sL "https://www.nefcorp.co.za/wp-content/uploads/2018/04/NEF_Logo_2018.png" -o public/assets/logos/hero/nef.png
+curl -sL "https://www.thedtic.gov.za/wp-content/uploads/2019/12/dtic_logo.jpg" -o public/assets/logos/hero/dtic.jpg
+curl -sL "https://seda.org.za/wp-content/uploads/2023/11/seda_logo_1.png" -o public/assets/logos/hero/seda.png
+curl -sL "https://static.wixstatic.com/media/ee01a9_fc5abf752f5f4840b3b8a8b4c79e2a03~mv2.png" -o public/assets/logos/hero/ecdc.png
+curl -sL "https://www.tia.org.za/storage/2023/12/tia-logo-1.png" -o public/assets/logos/hero/tia.png
+curl -sL "https://www.gep.co.za/wp-content/uploads/2019/03/gep-logo-square2.png" -o public/assets/logos/hero/gep.png

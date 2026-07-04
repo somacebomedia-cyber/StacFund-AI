@@ -1,0 +1,10 @@
+curl -sL "https://www.google.com/s2/favicons?domain=businesspartners.co.za&sz=256" -o public/assets/logos/hero/businesspartners.png
+curl -sL "https://www.google.com/s2/favicons?domain=landbank.co.za&sz=256" -o public/assets/logos/hero/landbank.png
+curl -sL "https://www.google.com/s2/favicons?domain=dbsa.org&sz=256" -o public/assets/logos/hero/dbsa.png
+curl -sL "https://www.google.com/s2/favicons?domain=ithala.co.za&sz=256" -o public/assets/logos/hero/ithala.png
+curl -sL "https://www.google.com/s2/favicons?domain=casidra.co.za&sz=256" -o public/assets/logos/hero/casidra.png
+curl -sL "https://www.google.com/s2/favicons?domain=momentummetropolitan.co.za&sz=256" -o public/assets/logos/hero/momentum.png
+curl -sL "https://www.google.com/s2/favicons?domain=glencore.com&sz=256" -o public/assets/logos/hero/glencore.png
+curl -sL "https://www.google.com/s2/favicons?domain=nampak.com&sz=256" -o public/assets/logos/hero/nampak.png
+curl -sL "https://www.google.com/s2/favicons?domain=aeciworld.com&sz=256" -o public/assets/logos/hero/aeci.png
+curl -sL "https://www.google.com/s2/favicons?domain=lewisgroup.co.za&sz=256" -o public/assets/logos/hero/lewis.png

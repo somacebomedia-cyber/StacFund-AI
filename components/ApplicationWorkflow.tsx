@@ -158,9 +158,9 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       logoUrl = opportunity.logo_url;
     } else if (opportunity.source_url) {
       try {
-        logoUrl = `https://logo.clearbit.com/${new URL(opportunity.source_url).hostname}`;
+        logoUrl = `https://www.google.com/s2/favicons?domain=${new URL(opportunity.source_url).hostname}&sz=128`;
       } catch (e) {
-        console.warn('Error parsing source_url for clearbit logo:', e);
+        console.warn('Error parsing source_url for logo:', e);
       }
     }
 

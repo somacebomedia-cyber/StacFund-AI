@@ -208,7 +208,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
         let domain = null;
         if (opportunity.source_url) domain = new URL(opportunity.source_url).hostname;
         else if (opportunity.application_url) domain = new URL(opportunity.application_url).hostname;
-        if (domain) logoUrl = `https://logo.clearbit.com/${domain}`;
+        if (domain) logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
       } catch (e) {
         // ignore
       }

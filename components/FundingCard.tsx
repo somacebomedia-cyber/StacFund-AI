@@ -20,7 +20,7 @@ const InstitutionLogo: React.FC<InstitutionLogoProps> = ({ opportunity, isNew })
 
   const logoUrl = useMemo(() => {
     if (fallbackStage === 0 && opportunity.logo_url) return opportunity.logo_url;
-    if (fallbackStage === 1 && domain) return `https://logo.clearbit.com/${domain}`;
+    if (fallbackStage === 1 && domain) return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
     if (fallbackStage === 2) return `/assets/logos/${opportunity.opportunity_id}.png`;
     return null;
   }, [opportunity.opportunity_id, opportunity.logo_url, domain, fallbackStage]);

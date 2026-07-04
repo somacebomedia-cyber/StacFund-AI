@@ -375,7 +375,6 @@ const ExtensiveFeatures = () => {
     },
     {
       title: "Precision Grant Matching",
-      description: "Our AI scans NYDA, SEFA, IDC, and private funds daily, matching them precisely against your business profile, stage, and revenue.",
       icon: <Radar size={32} className="text-blue-400" />,
       glow: "rgba(59, 130, 246, 0.15)",
       border: "border-blue-500/20",
@@ -450,7 +449,7 @@ const ExtensiveFeatures = () => {
         </p>
       </div>
 
-      <div className="flex overflow-x-auto snap-x snap-mandatory pb-8 gap-6 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-8 md:overflow-visible hide-scrollbar">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {features.map((feature, i) => {
           const delay = i * 0.1;
           return (
@@ -460,7 +459,7 @@ const ExtensiveFeatures = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.6, delay, ease: "easeOut" }}
-              className="shrink-0 w-[85vw] md:w-auto snap-center relative flex flex-col justify-between p-5 md:p-6 rounded-[1.75rem] shadow-2xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 group min-h-[300px] md:min-h-[320px]"
+              className="relative flex flex-col justify-between p-4 md:p-6 rounded-[1.5rem] shadow-2xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 group min-h-[220px] md:min-h-[300px]"
               style={{
                 backgroundColor: feature.hex, // Canva panel style
                 border: '1px solid rgba(255,255,255,0.2)',
@@ -468,21 +467,21 @@ const ExtensiveFeatures = () => {
               }}
             >
                {/* Ambient pattern or gradient overlay to make it look even more polished */}
-               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-black/20 pointer-events-none rounded-[1.75rem]" />
-               <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none mix-blend-overlay rounded-[1.75rem]" />
+               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-black/20 pointer-events-none rounded-[1.5rem]" />
+               <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none mix-blend-overlay rounded-[1.5rem]" />
 
                <div className="relative z-10 w-full flex flex-col h-full justify-between font-sans">
                   {/* Top row with Icon and interactive Phone mockup */}
                   <div className="flex items-start justify-between relative mb-2">
                      <div 
-                       className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-black/10 backdrop-blur-md border border-white/30 text-white shadow-xl relative z-25"
+                       className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl flex items-center justify-center bg-black/10 backdrop-blur-md border border-white/30 text-white shadow-xl relative z-25"
                        style={{ boxShadow: "inset 0 0 12px " + feature.glow }}
                       >
-                       {React.cloneElement(feature.icon, { size: 20 })}
+                       {React.cloneElement(feature.icon, { size: undefined, className: "w-5 h-5 md:w-6 md:h-6" })}
                      </div>
                      
-                     <div className="absolute -top-3 -right-6 z-50 group cursor-pointer" title="Click to interact with phone">
-                        <div className="scale-[0.52] origin-top-right">
+                     <div className="absolute -top-1 -right-2 md:-top-3 md:-right-6 z-50 group cursor-pointer" title="Click to interact with phone">
+                        <div className="scale-[0.4] md:scale-[0.52] origin-top-right">
                            <IPhone17MockupInteractive feature={feature} i={i} colorHex={feature.hex} frameHex={feature.frameHex} />
                         </div>
                         {/* Interaction hint */}
@@ -494,10 +493,10 @@ const ExtensiveFeatures = () => {
                   
                   {/* Bottom title and description */}
                   <div className="text-left mt-auto">
-                    <h3 className="text-xl md:text-2xl font-black mb-1.5 tracking-tight text-white drop-shadow-md">
+                    <h3 className="text-[14px] leading-tight md:text-2xl font-black mb-1.5 md:mb-1.5 tracking-tight text-white drop-shadow-md">
                        {feature.title}
                     </h3>
-                    <p className="text-xs md:text-sm text-white/90 leading-relaxed font-semibold drop-shadow-sm">
+                    <p className="text-[10px] md:text-sm text-white/90 leading-snug md:leading-relaxed font-semibold drop-shadow-sm">
                        {feature.description}
                     </p>
                   </div>
@@ -622,7 +621,6 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             transition={{ delay: 0.6 }}
             className="text-gray-200 text-lg md:text-xl font-medium max-w-2xl mx-auto leading-relaxed mb-14 drop-shadow-md"
           >
-            Get your business ready before the window opens. We track NYDA, SEFA, and CDSP grants so you can prepare your documents and apply stress-free. <br />
             <span className="text-purple-300 font-bold">Stumbling onto funding is a distribution failure—we fix that.</span>
           </motion.p>
         </div>
@@ -665,8 +663,62 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           ))}
         </motion.div>
 
-        {/* ── How It Works (The Anti-Hustle Workflow) ── */}
-        <motion.div
+      {/* Tracked Logos Marquee */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.4, duration: 1 }}
+        className="w-full overflow-hidden mt-20 mb-8 relative border-y border-white/5 py-8 z-10"
+      >
+        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[#0a0a1a] to-transparent z-10" />
+        <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[#0a0a1a] to-transparent z-10" />
+        
+        <p className="text-xs text-center font-bold text-gray-500 uppercase tracking-[0.2em] mb-6">Tracking Real-Time Opportunities From</p>
+        
+        <div className="flex gap-12 items-center w-max animate-[scroll_40s_linear_infinite]">
+          {[
+             { name: 'NYDA', url: '/assets/logos/hero/nyda.png' },
+             { name: 'IDC', url: '/assets/logos/hero/idc.png' },
+             { name: 'the dtic', url: '/assets/logos/hero/dtic.jpg' },
+             { name: 'ECDC', url: '/assets/logos/hero/ecdc.png' },
+             { name: 'TIA', url: '/assets/logos/hero/tia.png' },
+             { name: 'GEP', url: '/assets/logos/hero/gep.png' },
+             { name: 'FNB', url: '/assets/logos/hero/fnb.svg' },
+             { name: 'Standard Bank', url: '/assets/logos/hero/standardbank.png' },
+             { name: 'Nedbank', url: '/assets/logos/hero/nedbank.svg' },
+             { name: 'Build it', url: '/assets/logos/hero/buildit.png' },
+             { name: 'Cashbuild', url: '/assets/logos/hero/cashbuild.svg' },
+             // Duplicated for seamless scrolling
+             { name: 'NYDA', url: '/assets/logos/hero/nyda.png' },
+             { name: 'IDC', url: '/assets/logos/hero/idc.png' },
+             { name: 'the dtic', url: '/assets/logos/hero/dtic.jpg' },
+             { name: 'ECDC', url: '/assets/logos/hero/ecdc.png' },
+             { name: 'TIA', url: '/assets/logos/hero/tia.png' },
+             { name: 'GEP', url: '/assets/logos/hero/gep.png' },
+             { name: 'FNB', url: '/assets/logos/hero/fnb.svg' },
+             { name: 'Standard Bank', url: '/assets/logos/hero/standardbank.png' },
+             { name: 'Nedbank', url: '/assets/logos/hero/nedbank.svg' },
+             { name: 'Build it', url: '/assets/logos/hero/buildit.png' },
+             { name: 'Cashbuild', url: '/assets/logos/hero/cashbuild.svg' }
+          ].map((img, i) => (
+            <div key={i} className="flex flex-col items-center gap-2 transition-transform hover:scale-105">
+              <div className="h-16 w-36 md:h-20 md:w-44 flex items-center justify-center bg-white p-3 rounded-xl shadow-lg">
+                <img src={img.url} alt={img.name} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <style>{`
+          @keyframes scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(calc(-50% - 1.5rem)); }
+          }
+        `}</style>
+      </motion.div>
+
+      {/* ── How It Works (The Anti-Hustle Workflow) ── */}
+      <motion.div
           initial={{ y: 50, opacity: 0 }}
           whileInView={{ y: 0, opacity: 1 }}
           viewport={{ once: true, margin: "-50px" }}
@@ -683,7 +735,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             </p>
           </div>
 
-          <div className="flex overflow-x-auto snap-x snap-mandatory pb-8 gap-6 md:grid md:grid-cols-3 md:overflow-visible hide-scrollbar relative">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
             {/* Connecting lines for desktop */}
             <div className="hidden md:block absolute top-[60px] left-[20%] right-[20%] h-[2px] bg-gradient-to-r from-purple-500/0 via-purple-500/20 to-purple-500/0 pointer-events-none" />
             
@@ -698,7 +750,6 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
               {
                 step: '02',
                 title: "The AI Hunts For You.",
-                desc: "Stop doom-scrolling government portals. Our engine matches your exact business profile to NYDA, SEFA, and private grants you actually qualify for.",
                 icon: <Radar size={28} className="text-indigo-400" />,
                 glow: '#6366f1'
               },
@@ -714,7 +765,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
                 key={i}
                 whileHover={{ y: -8, scale: 1.02 }}
                 transition={{ type: 'spring', stiffness: 300 }}
-                className="shrink-0 w-[85vw] md:w-auto snap-center relative glass-panel rounded-3xl p-8 text-left group overflow-hidden border border-white/5 bg-white/[0.02]"
+                className="relative glass-panel rounded-3xl p-8 text-left group overflow-hidden border border-white/5 bg-white/[0.02]"
               >
                 {/* Background oversized step number */}
                 <div className="absolute -top-4 -right-4 text-8xl font-black text-white/[0.02] pointer-events-none group-hover:text-white/[0.04] transition-colors duration-500">
@@ -778,57 +829,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           </button>
         </motion.div>
 
-        {/* Tracked Logos Marquee */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.4, duration: 1 }}
-          className="w-full overflow-hidden mt-16 mb-8 relative border-y border-white/5 py-8"
-        >
-          <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[#0a0a1a] to-transparent z-10" />
-          <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[#0a0a1a] to-transparent z-10" />
-          
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] mb-6">Tracking Real-Time Opportunities From</p>
-          
-          <div className="flex gap-12 items-center w-max animate-[scroll_40s_linear_infinite]">
-            {[
-               { name: 'NYDA', url: '/assets/logos/hero/nyda.svg' },
-               { name: 'IDC', url: '/assets/logos/hero/idc.svg' },
-               { name: 'SEFA', url: '/assets/logos/hero/sefa.svg' },
-               { name: 'NEF', url: '/assets/logos/hero/nef.svg' },
-               { name: 'the dtic', url: '/assets/logos/hero/dtic.svg' },
-               { name: 'Seda', url: '/assets/logos/hero/seda.svg' },
-               { name: 'ECDC', url: '/assets/logos/hero/ecdc.png' },
-               { name: 'TIA', url: '/assets/logos/hero/tia.svg' },
-               { name: 'GEP', url: '/assets/logos/hero/gep.svg' },
-               { name: 'FNB', url: '/assets/logos/hero/fnb.png' },
-               // Duplicated for seamless scrolling
-               { name: 'NYDA', url: '/assets/logos/hero/nyda.svg' },
-               { name: 'IDC', url: '/assets/logos/hero/idc.svg' },
-               { name: 'SEFA', url: '/assets/logos/hero/sefa.svg' },
-               { name: 'NEF', url: '/assets/logos/hero/nef.svg' },
-               { name: 'the dtic', url: '/assets/logos/hero/dtic.svg' },
-               { name: 'Seda', url: '/assets/logos/hero/seda.svg' },
-               { name: 'ECDC', url: '/assets/logos/hero/ecdc.png' },
-               { name: 'TIA', url: '/assets/logos/hero/tia.svg' },
-               { name: 'GEP', url: '/assets/logos/hero/gep.svg' },
-               { name: 'FNB', url: '/assets/logos/hero/fnb.png' }
-            ].map((img, i) => (
-              <div key={i} className="flex flex-col items-center gap-2 opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0">
-                <div className="h-10 w-24 flex items-center justify-center">
-                  <img src={img.url} alt={img.name} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <style>{`
-            @keyframes scroll {
-              0% { transform: translateX(0); }
-              100% { transform: translateX(calc(-50% - 1.5rem)); }
-            }
-          `}</style>
-        </motion.div>
+
 
         {/* Search bar */}
         <motion.div

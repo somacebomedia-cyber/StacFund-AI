@@ -7,6 +7,9 @@ const TrackerLogo = ({ app }: { app: Application }) => {
 
   const domain = useMemo(() => {
     try {
+      if (app.logoUrl && app.logoUrl.includes('google.com/s2/favicons?domain=')) {
+        return app.logoUrl.split('domain=')[1].split('&')[0];
+      }
       if (app.logoUrl && app.logoUrl.includes('clearbit.com/')) {
         return app.logoUrl.split('clearbit.com/')[1].split('?')[0];
       }
@@ -21,7 +24,7 @@ const TrackerLogo = ({ app }: { app: Application }) => {
       return app.logoUrl;
     }
     if (fallbackStage <= 1 && domain) {
-      return `https://logo.clearbit.com/${domain}`;
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
     }
     return null;
   }, [app.logoUrl, domain, fallbackStage]);

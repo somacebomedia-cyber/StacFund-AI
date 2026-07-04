@@ -108,11 +108,11 @@ function fetchBuffer(url, { timeout = 8000, maxRedirects = 3 } = {}) {
 }
 
 async function tryDownload(domain) {
-  // Tier 1: Clearbit
+  // Tier 1: Google Favicons
   try {
-    const { buffer } = await fetchBuffer(`https://logo.clearbit.com/${domain}`);
+    const { buffer } = await fetchBuffer(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
     if (buffer && buffer.length > 500) {  // 500 bytes rules out empty/transparent 1x1
-      return { buffer, source: 'clearbit' };
+      return { buffer, source: 'google' };
     }
   } catch (e) { /* fall through */ }
 
