@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Trash2, MessageCircle } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
+import { createGeminiClient } from '../services/geminiClient';
 import { motion } from 'motion/react';
 import { collection, getDocs, query, where, getDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
@@ -19,7 +20,7 @@ import FundingNeedsTracker from '../components/FundingNeedsTracker';
 import { ApplicationTracker } from '../components/ApplicationTracker';
 import DocumentsVault from '../components/DocumentsVault';
 import { WhatsAppIngestion } from '../components/WhatsAppIngestion';
-import { triggerConfetti } from '../utils/confettiHelper';
+import FundingHeatmap from '../components/FundingHeatmap';
 
 const XPCoin: React.FC<{ styleClass: string; index: number }> = ({ styleClass, index }) => (
   <motion.div
@@ -148,12 +149,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   useEffect(() => {
     const currentTotalCoins = Math.floor(points / 20);
     if (prevTotalCoins !== -1 && currentTotalCoins > prevTotalCoins) {
-      triggerConfetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        zIndex: 1000
-      });
     }
     if (currentTotalCoins !== prevTotalCoins) {
       setPrevTotalCoins(currentTotalCoins);
@@ -254,7 +249,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     if (isOffline) return;
     setIsLoadingReadiness(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       const prompt = `Analyze this business profile and document count (${docs} docs uploaded). 
       Profile: ${profileStr}. 
       Return a JSON object with "score" (0-100) representing funding readiness and "tips" (array of 3 short strings) to improve it.`;
@@ -298,7 +293,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         ownerInfo: userDoc.data().ownerInfo || {}
       }) : '';
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       
       const prompt = `
         You are a business funding expert. Analyze:
@@ -531,6 +526,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     <div><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal">Browse Funding</h4><p className="text-[10px] md:text-xs text-emerald-400/80 font-bold tracking-wider mt-1 md:mt-0">Find perfect match</p></div>
                   </button>
                 </div>
+
+                <FundingHeatmap />
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">

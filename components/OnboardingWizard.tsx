@@ -7,7 +7,7 @@ import {
 import { doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../services/firebase';
-import { triggerConfetti } from '../utils/confettiHelper';
+
 import type { User } from '../types';
 
 const INDUSTRIES = [
@@ -146,7 +146,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }: Onboardin
         onboardingComplete: true,
       }, { merge: true });
 
-      triggerConfetti();
+
       onComplete();
     } catch (e) {
       console.error('[OnboardingWizard] Failed to save onboarding data:', e);

@@ -37,6 +37,7 @@ import { chromium } from 'playwright';
 import * as pdfParseModule from 'pdf-parse';
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from './geminiClient';
 import cron from 'node-cron';
 import type { Firestore } from 'firebase-admin/firestore';
 
@@ -139,7 +140,7 @@ async function extractOpportunities(text: string, instName: string) {
 
   try {
     const res = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: `${prompt}\n\nCONTENT:\n${text}`,
       config: { responseMimeType: 'application/json' },
     });

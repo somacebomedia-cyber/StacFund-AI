@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Wand2, Loader2, Download, Image as ImageIcon, Check, RefreshCw } from 'lucide-react';
 import { User } from '../types';
 import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from '../services/geminiClient';
 import { handleGeminiError } from '../services/geminiError';
 
 interface AILogoGeneratorProps {
@@ -22,7 +23,7 @@ const AILogoGenerator: React.FC<AILogoGeneratorProps> = ({ user, onClose }) => {
     setError(null);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       
       const response = await ai.models.generateImages({
         model: 'imagen-3.0-generate-001',

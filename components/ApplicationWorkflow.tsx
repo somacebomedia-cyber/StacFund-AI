@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, FileText, Download, Loader2, ArrowRight, ArrowLeft, FileSignature, Briefcase, ShieldCheck, FileCheck, Upload, Wand2, Sparkles, Building, Hash, Phone, Banknote, HelpCircle, Check, Send, Zap } from 'lucide-react';
 import { FundingOpportunityDb, User, ApplicationStatus, AppDocument } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from '../services/geminiClient';
 import { handleGeminiError } from '../services/geminiError';
 import { db } from '../services/firebase';
 import { addDoc, collection, updateDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../services/firebase';
-import { triggerConfetti } from '../utils/confettiHelper';
+
 import GammaPitchLayout from './templates/GammaPitchLayout';
 
 interface ApplicationWorkflowProps {
@@ -27,7 +27,6 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
-  const [businessPlan, setBusinessPlan] = useState('');
   const [userDocs, setUserDocs] = useState<AppDocument[]>([]);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [includeAppForm, setIncludeAppForm] = useState(true);
@@ -115,23 +114,71 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   const generateBusinessPlan = async () => {
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
-      const prompt = `Generate flawless JSON for ${formData.businessName}. Schema: { "executiveSummary": "string", "financialPlan": { "fundingRequirement": "R48,996", "useOfFunds": [{"category": "Printers", "amount": "R3,999"}] }, "conclusion": "string" }`;
+      const ai = await createGeminiClient();
+      
+      const prompt = `You are a South African business consultant writing a targeted business plan proposal.
+Generate flawless JSON for ${formData.businessName}.
+
+APPLICANT DETAILS:
+- Name: ${formData.businessName}
+- Registration: ${formData.registrationNumber || 'Not provided'}
+- Funding Requested: ${formData.fundingRequested}
+- Stated Purpose: ${formData.purpose}
+- Contact: ${formData.contactName}, ${formData.contactEmail}, ${formData.contactPhone}
+
+OPPORTUNITY CONTEXT:
+- Issuer: ${opportunity.issuer_name || 'Funder'}
+- Programme: ${opportunity.programme_name || 'Funding Programme'}
+- Type: ${opportunity.funding_type || 'Funding'}
+- Eligibility: ${opportunity.eligibility_criteria?.join('; ') || 'General requirements'}
+
+RULES:
+1. Output MUST be valid JSON only. No markdown fences, no \`\`\`json wrappers.
+2. The schema MUST match:
+{
+  "executiveSummary": "string (3-4 paragraphs)",
+  "financialPlan": {
+    "fundingRequirement": "string (the exact requested amount)",
+    "useOfFunds": [
+      { "category": "string", "amount": "string" }
+    ]
+  },
+  "conclusion": "string"
+}
+3. useOfFunds MUST contain 3-5 realistic categories derived from the stated purpose.
+4. The amounts in useOfFunds MUST sum to the requested total.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-pro',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
       
-      const parsed = JSON.parse(response.text || '{}');
-      setBusinessPlan(parsed);
+      let parsed = {};
+      try {
+        let text = (response.text || '').trim();
+        if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        parsed = JSON.parse(text || '{}');
+      } catch (e) {
+        console.warn("JSON Parse failed, attempting recovery", e);
+        let text = (response.text || '').trim();
+        if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        const lastBrace = text.lastIndexOf('}');
+        if (lastBrace !== -1) {
+            text = text.substring(0, lastBrace + 1);
+            try { parsed = JSON.parse(text); } catch(e2) {
+               console.warn("Extreme fallback failed", e2);
+               throw e2;
+            }
+        } else {
+            if (text.startsWith('{')) { text += '}'; parsed = JSON.parse(text); }
+        }
+      }
       
       // AUTO-OPEN GAMMA VISUAL PITCH DECK FIRST
       setPreviewData(parsed);
       setIsPreviewOpen(true);
       
-      setStep(3);
     } catch (error) {
       
       handleGeminiError(error);
@@ -276,12 +323,6 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       }
       
       setIsDirectSubmitting(false);
-      triggerConfetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#A855F7', '#10B981', '#3B82F6', '#F59E0B']
-      });
       onComplete();
     } catch (error) {
       setIsDirectSubmitting(false);
@@ -337,12 +378,6 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
       }
       
       setIsLoading(false);
-      triggerConfetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#A855F7', '#10B981', '#3B82F6', '#F59E0B']
-      });
       onComplete();
     } catch (error) {
       setIsLoading(false);
@@ -353,7 +388,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
       <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={onClose}></div>
-      {isPreviewOpen && <GammaPitchLayout data={previewData} businessInfo={formData} onClose={() => setIsPreviewOpen(false)} />}
+      {isPreviewOpen && <GammaPitchLayout data={previewData} businessInfo={formData} onClose={() => { setIsPreviewOpen(false); setStep(3); }} />}
       
       <div className="relative bg-[#0a0a1a] border border-white/10 rounded-[2rem] w-full max-w-5xl h-[90vh] flex flex-col md:flex-row shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
         

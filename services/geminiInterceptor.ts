@@ -17,17 +17,11 @@ export function isRetryableError(error: any): boolean {
 
   return (
     code.includes('503') ||
-    code.includes('429') ||
     statusStr.includes('unavailable') ||
-    statusStr.includes('resource_exhausted') ||
     errMsg.includes('503') ||
-    errMsg.includes('429') ||
     errMsg.includes('high demand') ||
-    errMsg.includes('temporary') ||
     errMsg.includes('try again later') ||
-    errMsg.includes('unavailable') ||
-    errMsg.includes('resource_exhausted') ||
-    errMsg.includes('quota')
+    errMsg.includes('unavailable')
   );
 }
 
@@ -35,11 +29,11 @@ export function isRetryableError(error: any): boolean {
 export function canFallbackToLite(modelName: string): boolean {
   if (!modelName) return false;
   const lower = modelName.toLowerCase();
-  // We can fall back from gemini-2.5-flash or gemini-2.5-flash to gemini-3.1-flash-lite
-  return (lower.includes('3.5-flash') || lower.includes('2.5-flash')) && !lower.includes('image');
+  // We can fall back from gemini-2.5-flash to gemini-2.5-flash-lite
+  return (lower.includes('2.5-flash') || lower.includes('2.0-flash')) && !lower.includes('image') && !lower.includes('lite');
 }
 
-const wrappedModels = new Map<any, any>();
+const wrappedModels = new WeakMap<any, any>();
 
 Object.defineProperty(GoogleGenAI.prototype, 'models', {
   get() {
@@ -70,8 +64,8 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
 
               if (isRetryableError(error)) {
                 if (canFallbackToLite(currentModel)) {
-                  console.warn(`[Gemini Interceptor] High demand detected for ${currentModel}. Falling back to gemini-3.1-flash-lite.`);
-                  currentModel = 'gemini-3.1-flash-lite';
+                  console.warn(`[Gemini Interceptor] High demand detected for ${currentModel}. Falling back to gemini-2.5-flash-lite.`);
+                  currentModel = 'gemini-2.5-flash-lite';
                 }
 
                 retryCount++;
@@ -109,8 +103,8 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
 
               if (isRetryableError(error)) {
                 if (canFallbackToLite(currentModel)) {
-                  console.warn(`[Gemini Interceptor] High demand detected for ${currentModel}. Falling back stream to gemini-3.1-flash-lite.`);
-                  currentModel = 'gemini-3.1-flash-lite';
+                  console.warn(`[Gemini Interceptor] High demand detected for ${currentModel}. Falling back stream to gemini-2.5-flash-lite.`);
+                  currentModel = 'gemini-2.5-flash-lite';
                 }
 
                 retryCount++;
@@ -145,7 +139,7 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
   }
 });
 
-const wrappedChats = new Map<any, any>();
+const wrappedChats = new WeakMap<any, any>();
 
 Object.defineProperty(GoogleGenAI.prototype, 'chats', {
   get() {
@@ -176,8 +170,8 @@ Object.defineProperty(GoogleGenAI.prototype, 'chats', {
 
                   if (isRetryableError(error)) {
                     if (canFallbackToLite(chatInstance.model)) {
-                      console.warn(`[Gemini Interceptor] High demand detected for ${chatInstance.model}. Falling back chat to gemini-3.1-flash-lite.`);
-                      chatInstance.model = 'gemini-3.1-flash-lite';
+                      console.warn(`[Gemini Interceptor] High demand detected for ${chatInstance.model}. Falling back chat to gemini-2.5-flash-lite.`);
+                      chatInstance.model = 'gemini-2.5-flash-lite';
                     }
 
                     retryCount++;
@@ -211,8 +205,8 @@ Object.defineProperty(GoogleGenAI.prototype, 'chats', {
 
                   if (isRetryableError(error)) {
                     if (canFallbackToLite(chatInstance.model)) {
-                      console.warn(`[Gemini Interceptor] High demand detected for ${chatInstance.model}. Falling back stream chat to gemini-3.1-flash-lite.`);
-                      chatInstance.model = 'gemini-3.1-flash-lite';
+                      console.warn(`[Gemini Interceptor] High demand detected for ${chatInstance.model}. Falling back stream chat to gemini-2.5-flash-lite.`);
+                      chatInstance.model = 'gemini-2.5-flash-lite';
                     }
 
                     retryCount++;

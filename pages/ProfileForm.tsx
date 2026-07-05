@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Save, Building2, User as UserIcon, FileText, Upload, X, File, CheckCircle2, Loader2, Sparkles, Wand2, Phone, MessageCircle, FileDown, BookOpen, PenTool, ChevronRight, Copy, Check, ShoppingBag, BarChart3, Package, Printer, Lock, Crown, CreditCard } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
+import { createGeminiClient } from '../services/geminiClient';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { handleGeminiError } from '../services/geminiError';
@@ -9,7 +10,6 @@ import { uploadImage, uploadDocument } from '../services/storage';
 import { AppDocument, User } from '../types';
 import BusinessPlanDocument from '../components/BusinessPlanDocument';
 import PitchDeckDocument from '../components/PitchDeckDocument';
-import { triggerConfetti } from '../utils/confettiHelper';
 
 interface ProfileFormProps {
   onBack: () => void;
@@ -148,7 +148,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     if (!user) return;
     setIsScanning(docId);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       const prompt = `Based on the document name "${docName}", suggest a realistic registration number, a relevant business industry, and a business description for a South African company. 
       Return a JSON object with "registration", "industry", and "description".`;
       
@@ -198,7 +198,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     setIsSaving(true);
     try {
       const docNames = documents.map(d => d.name).join(", ");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       const prompt = `Based on these uploaded document filenames: ${docNames}, infer and extract business profile information. 
       Return a JSON object with any of these fields you can logically deduce: "name" (Business Name), "registration" (Registration Number), "industry" (Industry), and "description" (Business Description). Be creative but realistic based on the clues in the names! If there is no specific reg number, invent a realistic South African one.`;
       
@@ -245,7 +245,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     setIsSaving(true);
     try {
       const docNames = documents.map(d => d.name).join(", ");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       const prompt = `Based on these uploaded document filenames: ${docNames}, infer and extract business owner profile information. 
       Return a JSON object with any of these fields you can logically deduce: "name" (Full Name), "idNumber" (South African ID Number), "race" (African, Coloured, Indian, White, Other), "gender" (Male, Female, Other), and "age". Be creative but realistic based on the clues in the names! If there is no specific ID number, invent a realistic 13-digit South African one.`;
       
@@ -391,7 +391,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
     setGeneratedPitchDeckData(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
 
       const prompt = `You are a senior South African pitch consultant writing content for a 12-slide investor pitch deck for a live presentation.
 
@@ -433,12 +433,14 @@ WRITING REQUIREMENTS:
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-1.5-pro',
+        model: 'gemini-2.5-pro',
         contents: promptParts,
         config: { responseMimeType: 'application/json', responseSchema: pitchDeckSchema, maxOutputTokens: 8192 }
       });
 
-      const deckData = JSON.parse(response.text || '{}');
+      let text = (response.text || '').trim();
+      if (text.startsWith('```json')) text = text.replace(/^```json\n/, '').replace(/\n```$/, '');
+      const deckData = JSON.parse(text || '{}');
       setGeneratedPitchDeckData({ ...deckData, productImages: config.productImages, docType: 'Pitch Deck' });
     } catch (e) {
       
@@ -487,7 +489,7 @@ WRITING REQUIREMENTS:
     else if (cleanedAmount >= 50000) totalBatches = 3;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       
       const fullBusinessPlanSchemaProperties = {
           executiveSummary: {
@@ -982,22 +984,45 @@ WRITING REQUIREMENTS:
           }
         });
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-1.5-pro',
-          contents: promptParts,
-          config: { 
-            responseMimeType: 'application/json',
-            responseSchema: batchSchema,
-            maxOutputTokens: 32768
+        const maxRetries = 2;
+        let retryCount = 0;
+        let response = null;
+        
+        while (retryCount <= maxRetries) {
+          try {
+            response = await ai.models.generateContent({
+              model: 'gemini-2.5-pro',
+              contents: promptParts,
+              config: { 
+                responseMimeType: 'application/json',
+                responseSchema: batchSchema,
+                maxOutputTokens: 32768
+              }
+            });
+            break;
+          } catch (e: any) {
+            console.warn(`[ProfileForm] Batch ${i + 1} failed (attempt ${retryCount + 1}/${maxRetries + 1})`, e);
+            if (e?.message?.toLowerCase().includes('quota') || e?.message?.toLowerCase().includes('429')) {
+              throw e; // Quota errors are terminal, do not retry
+            }
+            retryCount++;
+            if (retryCount <= maxRetries) {
+               await new Promise(res => setTimeout(res, Math.pow(2, retryCount) * 1000));
+            } else {
+               throw e;
+            }
           }
-        });
+        }
 
         let batchResult = {};
         try {
-            batchResult = JSON.parse(response.text || '{}');
+            let text = (response?.text || '').trim();
+            if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+            batchResult = JSON.parse(text || '{}');
         } catch (e) {
             console.warn("JSON Parse failed, attempting recovery", e);
-            let text = (response.text || '').trim();
+            let text = (response?.text || '').trim();
+            if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
             // simple fix for under-terminated string / object
             const lastBrace = text.lastIndexOf('}');
             if (lastBrace !== -1) {
@@ -1041,12 +1066,6 @@ WRITING REQUIREMENTS:
     const userDocRef = doc(db, 'users', user.id);
     try {
       await setDoc(userDocRef, { profile: businessInfo, ownerInfo: ownerInfo }, { merge: true });
-      triggerConfetti({
-        particleCount: 80,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ['#A855F7', '#10B981', '#3B82F6']
-      });
       alert('Profile information updated successfully!');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);

@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, useScroll, useTransform, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, Search, Banknote, Users, Clock, Zap, FolderUp, Radar, Rocket, ShieldCheck, FileText, Target, MessageSquare, Presentation, Brush, Megaphone, CheckCircle2, Lock, Plus, Image as ImageIcon, ThumbsUp, Send } from 'lucide-react';
 
 interface LandingProps {
@@ -510,6 +510,32 @@ const ExtensiveFeatures = () => {
 };
 
 // ─── Main Landing ──────────────────────────────────────────────────────────────
+const HERO_LOGOS = [
+  { name: 'NYDA', url: '/assets/logos/hero/nyda.svg' },
+  { name: 'IDC', url: '/assets/logos/hero/idc.svg' },
+  { name: 'the dtic', url: '/assets/logos/hero/dtic.svg' },
+  { name: 'ECDC', url: '/assets/logos/hero/ecdc.svg' },
+  { name: 'TIA', url: '/assets/logos/hero/tia.svg' },
+  { name: 'GEP', url: '/assets/logos/hero/gep.svg' },
+  { name: 'FNB', url: '/assets/logos/hero/fnb.svg' },
+  { name: 'Standard Bank', url: '/assets/logos/hero/standardbank.svg' },
+  { name: 'Nedbank', url: '/assets/logos/hero/nedbank.svg' },
+  { name: 'Build it', url: '/assets/logos/hero/buildit.svg' },
+  { name: 'Cashbuild', url: '/assets/logos/hero/cashbuild.svg' },
+  // Duplicated for seamless scrolling
+  { name: 'NYDA', url: '/assets/logos/hero/nyda.svg' },
+  { name: 'IDC', url: '/assets/logos/hero/idc.svg' },
+  { name: 'the dtic', url: '/assets/logos/hero/dtic.svg' },
+  { name: 'ECDC', url: '/assets/logos/hero/ecdc.svg' },
+  { name: 'TIA', url: '/assets/logos/hero/tia.svg' },
+  { name: 'GEP', url: '/assets/logos/hero/gep.svg' },
+  { name: 'FNB', url: '/assets/logos/hero/fnb.svg' },
+  { name: 'Standard Bank', url: '/assets/logos/hero/standardbank.svg' },
+  { name: 'Nedbank', url: '/assets/logos/hero/nedbank.svg' },
+  { name: 'Build it', url: '/assets/logos/hero/buildit.svg' },
+  { name: 'Cashbuild', url: '/assets/logos/hero/cashbuild.svg' }
+];
+
 const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFunding }) => {
   return (
     <div className="min-h-screen relative overflow-hidden text-white">
@@ -676,45 +702,20 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
         <p className="text-xs text-center font-bold text-gray-500 uppercase tracking-[0.2em] mb-6">Tracking Real-Time Opportunities From</p>
         
         <div className="flex gap-12 items-center w-max animate-[scroll_40s_linear_infinite]">
-          {[
-             { name: 'NYDA', url: '/assets/logos/hero/nyda.png' },
-             { name: 'IDC', url: '/assets/logos/hero/idc.png' },
-             { name: 'the dtic', url: '/assets/logos/hero/dtic.jpg' },
-             { name: 'ECDC', url: '/assets/logos/hero/ecdc.png' },
-             { name: 'TIA', url: '/assets/logos/hero/tia.png' },
-             { name: 'GEP', url: '/assets/logos/hero/gep.png' },
-             { name: 'FNB', url: '/assets/logos/hero/fnb.svg' },
-             { name: 'Standard Bank', url: '/assets/logos/hero/standardbank.png' },
-             { name: 'Nedbank', url: '/assets/logos/hero/nedbank.svg' },
-             { name: 'Build it', url: '/assets/logos/hero/buildit.png' },
-             { name: 'Cashbuild', url: '/assets/logos/hero/cashbuild.svg' },
-             // Duplicated for seamless scrolling
-             { name: 'NYDA', url: '/assets/logos/hero/nyda.png' },
-             { name: 'IDC', url: '/assets/logos/hero/idc.png' },
-             { name: 'the dtic', url: '/assets/logos/hero/dtic.jpg' },
-             { name: 'ECDC', url: '/assets/logos/hero/ecdc.png' },
-             { name: 'TIA', url: '/assets/logos/hero/tia.png' },
-             { name: 'GEP', url: '/assets/logos/hero/gep.png' },
-             { name: 'FNB', url: '/assets/logos/hero/fnb.svg' },
-             { name: 'Standard Bank', url: '/assets/logos/hero/standardbank.png' },
-             { name: 'Nedbank', url: '/assets/logos/hero/nedbank.svg' },
-             { name: 'Build it', url: '/assets/logos/hero/buildit.png' },
-             { name: 'Cashbuild', url: '/assets/logos/hero/cashbuild.svg' }
-          ].map((img, i) => (
+          {HERO_LOGOS.map((img, i) => (
             <div key={i} className="flex flex-col items-center gap-2 transition-transform hover:scale-105">
               <div className="h-16 w-36 md:h-20 md:w-44 flex items-center justify-center bg-white p-3 rounded-xl shadow-lg">
-                <img src={img.url} alt={img.name} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                <img 
+                  src={img.url} 
+                  alt={img.name} 
+                  className="max-h-full max-w-full object-contain" 
+                  onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                  referrerPolicy="no-referrer" 
+                />
               </div>
             </div>
           ))}
         </div>
-        
-        <style>{`
-          @keyframes scroll {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(calc(-50% - 1.5rem)); }
-          }
-        `}</style>
       </motion.div>
 
       {/* ── How It Works (The Anti-Hustle Workflow) ── */}

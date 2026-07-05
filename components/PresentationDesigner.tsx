@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Palette, Wand2, Loader2, Printer, Type as TypeIcon, PieChart } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
+import { createGeminiClient } from '../services/geminiClient';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { handleGeminiError } from '../services/geminiError';
@@ -194,7 +195,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
     setLoadingMessage('Designing presentation structure...');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       
       const prompt = `
         Create a 5-7 slide presentation structure for a business document titled "${doc.name}".
@@ -253,7 +254,7 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
     setSlides(prev => prev.map((s, i) => i === index ? { ...s, isGeneratingImage: true } : s));
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       
       let stylePrompt = `Style: High quality, professional, vector art, flat design, ${theme.name} color palette (${theme.accent} accent).`;
       if (slide.type === 'data') stylePrompt += " Create a clean, modern infographic chart visualization on a dark background.";

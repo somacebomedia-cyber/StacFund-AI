@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import axios from "axios";
 import dns from "node:dns";
@@ -120,8 +121,31 @@ function safeLookup(hostname: string, options: any, callback: any) {
 const safeHttpAgent = new http.Agent({ lookup: safeLookup as any });
 const safeHttpsAgent = new https.Agent({ lookup: safeLookup as any });
 
+
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!adminAuth) {
+    return res.status(500).json({ error: "Firebase Admin not configured" });
+  }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: "Unauthorized: Missing token" });
+  }
+  const token = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    (req as any).user = decodedToken;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: "Unauthorized: Invalid token" });
+  }
+};
+
+const geminiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
+const paystackLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
+
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
   const PORT = 3000;
 
   app.use(express.json());
@@ -133,6 +157,8 @@ async function startServer() {
   // Proxy for Gemini API
   app.use(
     '/api/gemini',
+    requireAuth,
+    geminiLimiter,
     createProxyMiddleware({
       target: 'https://generativelanguage.googleapis.com',
       changeOrigin: true,
@@ -148,6 +174,7 @@ async function startServer() {
       },
       on: {
         proxyReq: (proxyReq, req: any) => {
+          proxyReq.removeHeader('Authorization');
           if (process.env.GEMINI_API_KEY) {
             proxyReq.setHeader('x-goog-api-key', process.env.GEMINI_API_KEY);
           }
@@ -165,7 +192,7 @@ async function startServer() {
   );
 
   // API route to initialize a Paystack transaction
-  app.post("/api/paystack/initialize", async (req, res) => {
+  app.post("/api/paystack/initialize", requireAuth, paystackLimiter, async (req, res) => {
     try {
       const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
       if (!paystackSecret) {
@@ -193,7 +220,7 @@ async function startServer() {
   });
 
   // API route to verify a Paystack transaction and securely update subscription
-  app.post("/api/paystack/verify", async (req, res) => {
+  app.post("/api/paystack/verify", requireAuth, paystackLimiter, async (req, res) => {
     try {
       const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
       if (!paystackSecret) {
@@ -334,7 +361,7 @@ async function startServer() {
   // `adminAuth.verifyIdToken()`, which cryptographically validates the JWT
   // against Firebase. If the Admin SDK isn't configured, we fail CLOSED
   // (reject everything) rather than silently accepting unverified requests.
-  app.post("/api/presenton/generate", async (req, res) => {
+  app.post("/api/presenton/generate", requireAuth, async (req, res) => {
     try {
       const { businessPlan, template, deckType } = req.body;
 

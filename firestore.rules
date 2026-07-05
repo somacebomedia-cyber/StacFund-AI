@@ -19,7 +19,7 @@ service cloud.firestore {
 
     match /funding_opportunities/{opportunityId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     match /metadata/stats {

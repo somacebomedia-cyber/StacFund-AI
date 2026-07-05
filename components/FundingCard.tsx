@@ -8,8 +8,9 @@ interface InstitutionLogoProps {
   isNew: boolean;
 }
 
-const InstitutionLogo: React.FC<InstitutionLogoProps> = ({ opportunity, isNew }) => {
+const InstitutionLogo: React.FC<InstitutionLogoProps> = React.memo(({ opportunity, isNew }) => {
   const [fallbackStage, setFallbackStage] = useState(0);
+
   const domain = useMemo(() => {
     try {
       if (opportunity.source_url) return new URL(opportunity.source_url).hostname.replace('www.', '');
@@ -18,22 +19,126 @@ const InstitutionLogo: React.FC<InstitutionLogoProps> = ({ opportunity, isNew })
     return null;
   }, [opportunity.source_url, opportunity.application_url]);
 
-  const logoUrl = useMemo(() => {
-    if (fallbackStage === 0 && opportunity.logo_url) return opportunity.logo_url;
-    if (fallbackStage === 1 && domain) return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-    if (fallbackStage === 2) return `/assets/logos/${opportunity.opportunity_id}.png`;
-    return null;
-  }, [opportunity.opportunity_id, opportunity.logo_url, domain, fallbackStage]);
+  const candidates = useMemo(() => {
+    const list = [];
+    if (opportunity.logo_url) list.push(opportunity.logo_url);
+    if (domain) list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+    list.push(`/assets/logos/${opportunity.opportunity_id}.svg`);
+    list.push(`/assets/logos/${opportunity.opportunity_id}.png`);
+    return list;
+  }, [opportunity.logo_url, opportunity.opportunity_id, domain]);
+
+  const logoUrl = candidates[fallbackStage] ?? null;
+
+  useEffect(() => {
+    setFallbackStage(0);
+  }, [opportunity.opportunity_id]);
 
   return (
     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold bg-white/5 overflow-hidden shrink-0 ${isNew ? 'shadow-[0_0_15px_rgba(168,85,247,0.2)]' : ''}`}>
       {logoUrl ? (
-        <img src={logoUrl} alt={`${opportunity.issuer_name} logo`} className="w-full h-full object-contain bg-white p-1" onError={() => setFallbackStage(prev => prev + 1)} referrerPolicy="no-referrer" />
+        <img src={logoUrl} alt={`${opportunity.issuer_name} logo`} loading="lazy" width={56} height={56} className="w-full h-full object-contain bg-white p-1" onError={() => setFallbackStage(prev => Math.min(prev + 1, candidates.length))} referrerPolicy="no-referrer" />
       ) : (
-        <span className="text-gray-400 font-black text-lg">{opportunity.issuer_name.substring(0, 2).toUpperCase()}</span>
+        <span className="text-gray-400 font-black text-lg">{(opportunity.issuer_name || '?').substring(0, 2).toUpperCase()}</span>
       )}
     </div>
   );
+});
+
+const getRoadmap = (type: string | FundingType): RoadmapStep[] => {
+  const baseSteps = [
+    { id: '1', label: 'Profile Completion', isCompleted: true, description: 'Verify business details and owner info.' },
+    { id: '2', label: 'Document Verification', isCompleted: false, description: 'Upload ID, CIPC, and Tax docs.' },
+  ];
+
+  switch (type) {
+    case FundingType.GRANT:
+      return [
+        ...baseSteps,
+        { id: '3', label: 'Impact Analysis', isCompleted: false, description: 'Describe the social or economic impact.' },
+        { id: '4', label: 'Compliance Check', isCompleted: false, description: 'Verify alignment with grant mandates.' }
+      ];
+    case FundingType.LOAN:
+      return [
+        ...baseSteps,
+        { id: '3', label: 'Credit Assessment', isCompleted: false, description: 'Analyze creditworthiness and repayment.' },
+        { id: '4', label: 'Collateral Review', isCompleted: false, description: 'Verify business assets or guarantees.' }
+      ];
+    case FundingType.EQUITY:
+      return [
+        ...baseSteps,
+        { id: '3', label: 'Pitch Deck Review', isCompleted: false, description: 'Expert evaluation of business model.' },
+        { id: '4', label: 'Due Diligence', isCompleted: false, description: 'Deep dive into financials and legal.' }
+      ];
+    default:
+      return [...baseSteps, { id: '3', label: 'Submission', isCompleted: false, description: 'Final review and send.' }];
+  }
+};
+
+const getTypeColor = (type: string | FundingType) => {
+  switch (type) {
+    case FundingType.GRANT: return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+    case FundingType.EQUITY: return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+    case FundingType.LOAN: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+    case FundingType.COMPETITION: return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+    default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+  }
+};
+
+const getUrgencyIndicator = (opportunity: FundingOpportunityDb) => {
+  if (opportunity.status === 'UPCOMING') {
+    return { 
+      color: 'text-cyan-400', 
+      bg: 'bg-cyan-500/10', 
+      border: 'border-cyan-500/20',
+      label: `Expected: ${opportunity.expected_open_month || 'Soon'}` 
+    };
+  }
+  
+  if (opportunity.status === 'CLOSED') {
+    return { 
+      color: 'text-gray-500', 
+      bg: 'bg-gray-500/10', 
+      border: 'border-gray-500/20',
+      label: 'Closed' 
+    };
+  }
+
+  if (!opportunity.closing_date || opportunity.closing_date === 'Rolling' || opportunity.closing_date === 'Unknown') {
+    return { 
+      color: 'text-emerald-400', 
+      bg: 'bg-emerald-500/10', 
+      border: 'border-emerald-500/20',
+      label: '🟢 Rolling / Open' 
+    };
+  }
+
+  const closeDate = new Date(opportunity.closing_date);
+  const diffTime = closeDate.getTime() - new Date().getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 7) {
+    return { 
+      color: 'text-red-400', 
+      bg: 'bg-red-500/10', 
+      border: 'border-red-500/20',
+      label: '🔴 Late Window (Submit NOW)' 
+    };
+  } else if (diffDays <= 21) {
+    return { 
+      color: 'text-amber-400', 
+      bg: 'bg-amber-500/10', 
+      border: 'border-amber-500/20',
+      label: '🟡 Mid Window (Prepare Fast)' 
+    };
+  } else {
+    return { 
+      color: 'text-emerald-400', 
+      bg: 'bg-emerald-500/10', 
+      border: 'border-emerald-500/20',
+      label: '🟢 Early Window (Safe)' 
+    };
+  }
 };
 
 interface FundingCardProps {
@@ -48,108 +153,24 @@ const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, o
   const [showRoadmap, setShowRoadmap] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copyTimer = React.useRef<NodeJS.Timeout | null>(null);
 
-  const getRoadmap = (type: string | FundingType): RoadmapStep[] => {
-    const baseSteps = [
-      { id: '1', label: 'Profile Completion', isCompleted: true, description: 'Verify business details and owner info.' },
-      { id: '2', label: 'Document Verification', isCompleted: false, description: 'Upload ID, CIPC, and Tax docs.' },
-    ];
+  React.useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
+  }, []);
 
-    switch (type) {
-      case FundingType.GRANT:
-        return [
-          ...baseSteps,
-          { id: '3', label: 'Impact Analysis', isCompleted: false, description: 'Describe the social or economic impact.' },
-          { id: '4', label: 'Compliance Check', isCompleted: false, description: 'Verify alignment with grant mandates.' }
-        ];
-      case FundingType.LOAN:
-        return [
-          ...baseSteps,
-          { id: '3', label: 'Credit Assessment', isCompleted: false, description: 'Analyze creditworthiness and repayment.' },
-          { id: '4', label: 'Collateral Review', isCompleted: false, description: 'Verify business assets or guarantees.' }
-        ];
-      case FundingType.EQUITY:
-        return [
-          ...baseSteps,
-          { id: '3', label: 'Pitch Deck Review', isCompleted: false, description: 'Expert evaluation of business model.' },
-          { id: '4', label: 'Due Diligence', isCompleted: false, description: 'Deep dive into financials and legal.' }
-        ];
-      default:
-        return [...baseSteps, { id: '3', label: 'Submission', isCompleted: false, description: 'Final review and send.' }];
-    }
-  };
-
-  const getTypeColor = (type: string | FundingType) => {
-    switch (type) {
-      case FundingType.GRANT: return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      case FundingType.EQUITY: return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-      case FundingType.LOAN: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case FundingType.COMPETITION: return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-    }
-  };
-
-  const getUrgencyIndicator = () => {
-    if (opportunity.status === 'UPCOMING') {
-      return { 
-        color: 'text-cyan-400', 
-        bg: 'bg-cyan-500/10', 
-        border: 'border-cyan-500/20',
-        label: `Expected: ${opportunity.expected_open_month || 'Soon'}` 
-      };
-    }
-    
-    if (opportunity.status === 'CLOSED') {
-      return { 
-        color: 'text-gray-500', 
-        bg: 'bg-gray-500/10', 
-        border: 'border-gray-500/20',
-        label: 'Closed' 
-      };
-    }
-
-    if (!opportunity.closing_date || opportunity.closing_date === 'Rolling' || opportunity.closing_date === 'Unknown') {
-      return { 
-        color: 'text-emerald-400', 
-        bg: 'bg-emerald-500/10', 
-        border: 'border-emerald-500/20',
-        label: '🟢 Rolling / Open' 
-      };
-    }
-
-    const closeDate = new Date(opportunity.closing_date);
-    const diffTime = closeDate.getTime() - new Date().getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays <= 7) {
-      return { 
-        color: 'text-red-400', 
-        bg: 'bg-red-500/10', 
-        border: 'border-red-500/20',
-        label: '🔴 Late Window (Submit NOW)' 
-      };
-    } else if (diffDays <= 21) {
-      return { 
-        color: 'text-amber-400', 
-        bg: 'bg-amber-500/10', 
-        border: 'border-amber-500/20',
-        label: '🟡 Mid Window (Prepare Fast)' 
-      };
-    } else {
-      return { 
-        color: 'text-emerald-400', 
-        bg: 'bg-emerald-500/10', 
-        border: 'border-emerald-500/20',
-        label: '🟢 Early Window (Safe)' 
-      };
-    }
-  };
-
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     const link = `${window.location.origin}/?oppId=${opportunity.opportunity_id}`;
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.warn("Clipboard access denied");
+    }
   };
 
   const handleWhatsAppShare = () => {
@@ -158,9 +179,9 @@ const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, o
     window.open(url, '_blank');
   };
 
-  const steps = getRoadmap(opportunity.funding_type);
-  const isNew = new Date(opportunity.last_verified_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days
-  const urgency = getUrgencyIndicator();
+  const steps = useMemo(() => getRoadmap(opportunity.funding_type), [opportunity.funding_type]);
+  const isNew = useMemo(() => new Date(opportunity.last_verified_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), [opportunity.last_verified_at]);
+  const urgency = useMemo(() => getUrgencyIndicator(opportunity), [opportunity.status, opportunity.expected_open_month, opportunity.closing_date]);
 
   return (
     <div className={`glass-panel p-8 rounded-3xl relative overflow-hidden group transition-all ${isNew ? 'border-purple-500/40 hover:border-purple-500/60 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'border-white/5 hover:border-cyan-500/30'}`}>
@@ -381,4 +402,4 @@ const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, o
   );
 };
 
-export default FundingCard;
+export default React.memo(FundingCard);

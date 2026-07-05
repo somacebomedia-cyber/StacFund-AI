@@ -22,11 +22,12 @@ interface FundingExplorerProps {
 
 const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportunityId, resumeOpportunityId, fallbackOpportunity, onGoToDashboard, onSetActiveOpportunity, onClearResumeOpportunity, onUpgrade, onLogin }) => {
   const [mode, setMode] = useState<'DISCOVER' | 'TIMELINE' | 'MATCH_ME' | 'APPLY_READY'>('DISCOVER');
+  const [searchQueryInput, setSearchQueryInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info'}>({ show: false, message: '', type: 'success' });
   const [selectedOpp, setSelectedOpp] = useState<FundingOpportunityDb | null>(null);
   const [workflowOpp, setWorkflowOpp] = useState<FundingOpportunityDb | null>(null);
-  const [newOppAlert, setNewOppAlert] = useState<{show: boolean, count: number}>({ show: false, count: 0 });
+  const toastTimer = React.useRef<NodeJS.Timeout | null>(null);
   
   // The Encyclopedia State
   const [opportunities, setOpportunities] = useState<FundingOpportunityDb[]>([]);
@@ -34,7 +35,19 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
 
   // Profile data for Match Engine
   const [userProfile, setUserProfile] = useState<UserBusinessProfile | null>(null);
-  const [displayOpportunities, setDisplayOpportunities] = useState<{item: FundingOpportunityDb, score?: number, reason?: string}[]>([]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchQueryInput);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQueryInput]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -64,7 +77,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
       }
     };
     fetchProfile();
-  }, [user]);
+  }, [user?.id]);
 
   // Initialize Data from Firestore
   useEffect(() => {
@@ -147,10 +160,10 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
     if (storedTime) {
       setLastUpdated(storedTime);
     }
-  }, [activeOpportunityId, resumeOpportunityId, fallbackOpportunity]);
+  }, [activeOpportunityId, resumeOpportunityId, fallbackOpportunity?.id]);
 
   // Compute what to display based on mode
-  useEffect(() => {
+  const displayOpportunities = React.useMemo(() => {
      const filtered = opportunities.filter(item => {
         const progName = item.programme_name || '';
         const eligSumm = item.eligibility_summary || '';
@@ -162,23 +175,24 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
      });
 
      if (mode === 'DISCOVER' || mode === 'TIMELINE') {
-        setDisplayOpportunities(filtered.map(item => ({ item })));
+        return filtered.map(item => ({ item }));
      } else if (mode === 'MATCH_ME') {
         if (userProfile) {
-           setDisplayOpportunities(getMatchMeOpportunities(userProfile, filtered));
+           return getMatchMeOpportunities(userProfile, filtered);
         } else {
-           setDisplayOpportunities(filtered.map(item => ({ item })));
+           return filtered.map(item => ({ item }));
         }
      } else if (mode === 'APPLY_READY') {
         if (userProfile) {
-           setDisplayOpportunities(getApplyReadyOpportunities(userProfile, filtered));
+           return getApplyReadyOpportunities(userProfile, filtered);
         } else {
-           setDisplayOpportunities([]);
+           return [];
         }
      }
+     return [];
   }, [opportunities, searchQuery, mode, userProfile]);
 
-  const handleStartApplication = async (opportunityId: string) => {
+  const handleStartApplication = React.useCallback(async (opportunityId: string) => {
     if (!user) {
       onLogin();
       return;
@@ -228,15 +242,17 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `users/${user.id}/applications`);
     }
-  };
+  }, [user, opportunities, onLogin]);
 
-  const handleViewDetails = (id: string) => {
+  const handleViewDetails = React.useCallback((id: string) => {
     const opp = opportunities.find(o => o.opportunity_id === id);
     if (opp) {
       setSelectedOpp(opp);
       onSetActiveOpportunity(id);
     }
-  };
+  }, [opportunities, onSetActiveOpportunity]);
+
+  const handleDownloadForm = React.useCallback((_id: string) => {}, []);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12 relative">
@@ -352,7 +368,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                   matchScore={res.score}
                   onViewDetails={handleViewDetails}
                   onStartApplication={handleStartApplication}
-                  onDownloadForm={() => {}}
+                  onDownloadForm={handleDownloadForm}
                 />
               ))}
               {displayOpportunities.filter(o => o.item.status === 'UPCOMING').length === 0 && (
@@ -371,7 +387,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                   matchScore={res.score}
                   onViewDetails={handleViewDetails}
                   onStartApplication={handleStartApplication}
-                  onDownloadForm={() => {}}
+                  onDownloadForm={handleDownloadForm}
                 />
               ))}
               {displayOpportunities.filter(o => o.item.status === 'OPEN').length === 0 && (
@@ -390,7 +406,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                   matchScore={res.score}
                   onViewDetails={handleViewDetails}
                   onStartApplication={handleStartApplication}
-                  onDownloadForm={() => {}}
+                  onDownloadForm={handleDownloadForm}
                 />
               ))}
               {displayOpportunities.filter(o => o.item.status === 'CLOSED').length === 0 && (
@@ -403,13 +419,13 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
       <div className="grid grid-cols-1 gap-6">
         {displayOpportunities.length > 0 ? (
           displayOpportunities.map((res, i) => (
-            <div key={res.item.opportunity_id} className="animate-in slide-in-from-bottom flex flex-col" style={{animationDelay: `${i * 100}ms`, animationFillMode: 'both'}}>
+            <div key={res.item.opportunity_id} className="animate-in slide-in-from-bottom flex flex-col" style={{animationDelay: `${Math.min(i, 10) * 50}ms`, animationFillMode: 'both'}}>
               <FundingCard 
                 opportunity={res.item} 
                 matchScore={res.score}
                 onViewDetails={handleViewDetails}
                 onStartApplication={handleStartApplication}
-                onDownloadForm={() => {}}
+                onDownloadForm={handleDownloadForm}
               />
             </div>
           ))
@@ -480,6 +496,8 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
              setWorkflowOpp(null);
              onClearResumeOpportunity();
              setShowToast({show: true, message: "Application submitted!", type: "success"});
+             if (toastTimer.current) clearTimeout(toastTimer.current);
+             toastTimer.current = setTimeout(() => setShowToast({show: false, message: '', type: 'success'}), 4000);
              onGoToDashboard();
           }}
         />

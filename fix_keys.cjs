@@ -1,24 +1,33 @@
 const fs = require('fs');
-const path = require('path');
 
-const files = [
+const filesToFix = [
   'components/AIAssistant.tsx',
-  'components/AILogoGenerator.tsx',
-  'components/PresentationDesigner.tsx',
-  'components/ApplicationWorkflow.tsx',
-  'components/FormDigitizer.tsx',
   'components/AdvertGenerator.tsx',
-  'pages/Marketplace.tsx',
-  'pages/ProfileForm.tsx',
+  'components/AILogoGenerator.tsx',
+  'components/FormDigitizer.tsx',
+  'components/FundingNeedsTracker.tsx',
+  'components/WhatsAppIngestion.tsx',
+  'components/PresentationDesigner.tsx',
+  'services/advancedScraper.ts',
   'pages/Dashboard.tsx'
 ];
 
-files.forEach(file => {
-  const filepath = path.join(__dirname, file);
-  if (fs.existsSync(filepath)) {
-    let content = fs.readFileSync(filepath, 'utf8');
-    content = content.replace(/process\.env\.API_KEY/g, 'process.env.GEMINI_API_KEY');
-    fs.writeFileSync(filepath, content);
-    console.log(`Updated ${file}`);
+for (const file of filesToFix) {
+  if (!fs.existsSync(file)) continue;
+  let content = fs.readFileSync(file, 'utf-8');
+  
+  if (content.includes('new GoogleGenAI')) {
+    content = content.replace(/new GoogleGenAI\(\{ apiKey:[^\}]+\}\)/g, 'await createGeminiClient()');
+    
+    // Add import if not present
+    if (!content.includes('createGeminiClient')) {
+      const depth = file.split('/').length - 1;
+      const prefix = depth === 1 ? '../' : '../../'; // assuming all in one subfolder level
+      const importPath = file.startsWith('services') ? './geminiClient' : (file.startsWith('pages') ? '../services/geminiClient' : '../services/geminiClient');
+      
+      content = content.replace(/(import .* from '@google\/genai';?)/, `$1\nimport { createGeminiClient } from '${importPath}';`);
+    }
+    fs.writeFileSync(file, content);
+    console.log('Fixed', file);
   }
-});
+}

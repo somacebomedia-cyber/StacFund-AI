@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, Sparkles, Loader2, Bot, Minimize2, ArrowUpRight, Mic, MicOff, RotateCcw, Zap, Command, CreditCard, Shield } from 'lucide-react';
 import { GoogleGenAI, GenerateContentResponse, Type, FunctionDeclaration } from '@google/genai';
+import { createGeminiClient } from '../services/geminiClient';
 import { collection, getDocs, updateDoc, doc, query, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { User, Application } from '../types';
@@ -246,13 +247,21 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
     setInput('');
     setIsTyping(true);
 
+    if (!user) {
+      setTimeout(() => {
+        setMessages(prev => [...prev, { role: 'ai', text: 'You need to be logged in to chat with StacFund AI. Please log in or create an account to continue.' }]);
+        setIsTyping(false);
+      }, 500);
+      return;
+    }
+
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       const profileData = user ? localStorage.getItem(`stacfund_profile_${user.id}`) : null;
       const parsedProfile = profileData ? JSON.parse(profileData) : null;
       
       const sessionChat = ai.chats.create({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         config: {
           tools: [tools],
           systemInstruction: `You are the StacFund AI Assistant. You are AGENTIC. 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Laptop, HelpCircle, Upload, X, Loader2, PenTool, BarChart3, CheckCircle2, ChevronRight, Plus, Trash2, Printer, Search, Link as LinkIcon, FileText, Check } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
+import { createGeminiClient } from '../services/geminiClient';
 import { doc, getDoc, collection, getDocs, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { handleGeminiError } from '../services/geminiError';
@@ -139,7 +140,7 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
         const docRef = await addDoc(docsRef, newDoc);
         
         // Use Gemini to extract item name and price
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+        const ai = await createGeminiClient();
         const response = await ai.models.generateContent({
              model: 'gemini-2.5-flash',
              contents: [
@@ -304,7 +305,7 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
     setGeneratedPitchDeckData(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
 
       const prompt = `You are a senior South African pitch consultant writing content for a 12-slide investor pitch deck for a live presentation.
 
@@ -370,7 +371,7 @@ WRITING REQUIREMENTS:
     `;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'proxy', httpOptions: { baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini' } });
+      const ai = await createGeminiClient();
       
       const totalBatches = 5;
 
