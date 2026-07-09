@@ -10,6 +10,7 @@ import { uploadImage, uploadDocument } from '../services/storage';
 import { AppDocument, User } from '../types';
 import BusinessPlanDocument from '../components/BusinessPlanDocument';
 import PitchDeckDocument from '../components/PitchDeckDocument';
+import { getQuotaInfo } from '../services/tokenQuotaService';
 
 interface ProfileFormProps {
   onBack: () => void;
@@ -36,6 +37,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeySavedStatus, setApiKeySavedStatus] = useState<string | null>(null);
+
+  const [quotaInfo, setQuotaInfo] = useState(() => getQuotaInfo(user?.id, user?.subscriptionPlan));
+
+  useEffect(() => {
+    const handleTokenUpdate = () => {
+      setQuotaInfo(getQuotaInfo(user?.id, user?.subscriptionPlan));
+    };
+
+    window.addEventListener('stacfund_token_usage_updated', handleTokenUpdate);
+    window.addEventListener('custom_gemini_key_saved', handleTokenUpdate);
+    
+    return () => {
+      window.removeEventListener('stacfund_token_usage_updated', handleTokenUpdate);
+      window.removeEventListener('custom_gemini_key_saved', handleTokenUpdate);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (configModal) {
@@ -1697,6 +1714,44 @@ WRITING REQUIREMENTS:
                   <p className={`text-xs font-semibold ${apiKeySavedStatus.includes('success') ? 'text-emerald-400' : 'text-gray-400'}`}>
                     {apiKeySavedStatus}
                   </p>
+                )}
+
+                {/* AI Token Quota & Usage Progress Indicator */}
+                {!quotaInfo.hasCustomKey && (
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-400 font-bold flex items-center gap-1.5">
+                        <BarChart3 size={14} className="text-purple-400" />
+                        Estimated Monthly AI Token Usage
+                      </span>
+                      <span className="text-white font-mono font-bold">
+                        {quotaInfo.used.toLocaleString()} / {quotaInfo.limit.toLocaleString()} <span className="text-gray-500 text-[10px]">Tokens</span>
+                      </span>
+                    </div>
+
+                    {/* Progress Bar Track */}
+                    <div className="h-2 w-full bg-black/60 rounded-full overflow-hidden relative border border-white/5">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          quotaInfo.percentage > 85 
+                            ? 'bg-gradient-to-r from-red-500 to-rose-600 shadow-lg shadow-rose-500/20' 
+                            : quotaInfo.percentage > 60 
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500' 
+                            : 'bg-gradient-to-r from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/20'
+                        }`}
+                        style={{ width: `${quotaInfo.percentage}%` }}
+                      />
+                    </div>
+
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-gray-500 font-medium">
+                        {quotaInfo.percentage.toFixed(1)}% Used
+                      </span>
+                      <span className="text-emerald-400 font-bold uppercase tracking-wider">
+                        {quotaInfo.remaining.toLocaleString()} Tokens Remaining Quota
+                      </span>
+                    </div>
+                  </div>
                 )}
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3.5 rounded-xl bg-purple-500/5 border border-purple-500/10 text-xs">

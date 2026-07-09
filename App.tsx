@@ -51,7 +51,10 @@ const App: React.FC = () => {
           msg.includes('resource_exhausted') ||
           msg.includes('prepayment') ||
           msg.includes('depleted') ||
-          msg.includes('quota')
+          msg.includes('quota') ||
+          msg.includes('api key not valid') ||
+          msg.includes('api_key_invalid') ||
+          msg.includes('invalid_argument')
         ) {
           event.preventDefault(); // Stop standard error reporting
           setQuotaError(error.message || "Your prepayment credits are depleted. Please manage your project and billing in Google AI Studio.");
@@ -153,6 +156,16 @@ const App: React.FC = () => {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('stacfund_user_plan', currentUser.subscriptionPlan || 'free');
+      localStorage.setItem('stacfund_user_id', currentUser.id);
+    } else {
+      localStorage.removeItem('stacfund_user_plan');
+      localStorage.removeItem('stacfund_user_id');
+    }
+  }, [currentUser]);
 
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
@@ -539,9 +552,15 @@ const App: React.FC = () => {
           <div className="mx-6 mt-4 p-5 rounded-3xl border border-red-500/20 bg-red-950/20 backdrop-blur-md flex items-start gap-4 text-red-200 text-xs shadow-xl animate-in fade-in slide-in-from-top-4 duration-300">
             <AlertTriangle size={20} className="shrink-0 text-red-400 mt-0.5" />
             <div className="flex-1">
-              <p className="font-extrabold text-[#fff] text-sm tracking-tight mb-1">AI Action Interrupted (Prepayment Limits Reached)</p>
+              <p className="font-extrabold text-[#fff] text-sm tracking-tight mb-1">
+                {quotaError.toLowerCase().includes('key') || quotaError.toLowerCase().includes('invalid') || quotaError.toLowerCase().includes('argument')
+                  ? "AI Authorization Required (Invalid or Missing Key)" 
+                  : "AI Action Interrupted (Prepayment Limits Reached)"}
+              </p>
               <p className="text-gray-300 mb-3 leading-relaxed">
-                Your current Google AI Studio prepayment credits/billing limits have been depleted. Advanced features like our AI Document Digitizer, dynamic matching engines, pitch deck structures, and the AI Assistant might experience disruptions.
+                {quotaError.toLowerCase().includes('key') || quotaError.toLowerCase().includes('invalid') || quotaError.toLowerCase().includes('argument')
+                  ? "The default shared Gemini API key is invalid, missing, or has reached limits. To keep testing all AI features without interruptions, you can create and provide your own free Gemini API key in your Profile settings."
+                  : "Your current Google AI Studio prepayment credits/billing limits have been depleted. Advanced features like our AI Document Digitizer, dynamic matching engines, pitch deck structures, and the AI Assistant might experience disruptions."}
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <a 

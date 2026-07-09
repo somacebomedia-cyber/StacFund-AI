@@ -123,6 +123,9 @@ const safeHttpsAgent = new https.Agent({ lookup: safeLookup as any });
 
 
 const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.headers['x-custom-gemini-key']) {
+    return next();
+  }
   if (!adminAuth) {
     return res.status(500).json({ error: "Firebase Admin not configured" });
   }
@@ -259,6 +262,15 @@ async function startServer() {
 
           // Remove custom key header before sending to upstream to avoid leaking it
           proxyReq.removeHeader('x-custom-gemini-key');
+
+          // Ensure any query parameter key= is stripped from proxyReq.path to prevent upstream gateway from validating 'proxy'
+          let targetPath = proxyReq.path;
+          if (targetPath && targetPath.includes('key=')) {
+            targetPath = targetPath.replace(/[?&]key=[^&]+/g, '');
+            targetPath = targetPath.replace(/\?$/, '');
+            targetPath = targetPath.replace(/\?&/, '?');
+            proxyReq.path = targetPath;
+          }
 
           // Re-stream body because express.json() consumed it
           if (req.body && Object.keys(req.body).length > 0) {

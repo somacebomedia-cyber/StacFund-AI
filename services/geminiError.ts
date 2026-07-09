@@ -6,7 +6,10 @@ export function isQuotaError(error: any): boolean {
     message.includes('resource_exhausted') ||
     message.includes('prepayment') ||
     message.includes('depleted') ||
-    message.includes('quota')
+    message.includes('quota') ||
+    message.includes('api key not valid') ||
+    message.includes('api_key_invalid') ||
+    message.includes('invalid_argument')
   );
 }
 

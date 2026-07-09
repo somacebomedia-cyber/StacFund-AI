@@ -25,6 +25,28 @@ export function isRetryableError(error: any): boolean {
   );
 }
 
+// Helper to inspect errors and dispatch a global quota error event for the BYOK banner
+function checkAndReportQuotaError(error: any) {
+  if (!error) return;
+  const msg = (error.message || String(error)).toLowerCase();
+  if (
+    msg.includes('429') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('prepayment') ||
+    msg.includes('depleted') ||
+    msg.includes('quota') ||
+    msg.includes('api key not valid') ||
+    msg.includes('api_key_invalid') ||
+    msg.includes('invalid_argument')
+  ) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('gemini_quota_error', {
+        detail: { message: error.message || String(error) }
+      }));
+    }
+  }
+}
+
 // Helper to check if a model name is a standard flash model that can fall back to lite
 export function canFallbackToLite(modelName: string): boolean {
   if (!modelName) return false;
@@ -57,10 +79,22 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
                 ...params,
                 model: currentModel,
               };
-              return await rawModels.generateContent.call(rawModels, currentParams, ...args);
+              const res = await rawModels.generateContent.call(rawModels, currentParams, ...args);
+              try {
+                if (typeof window !== 'undefined') {
+                  const uid = localStorage.getItem('stacfund_user_id');
+                  const plan = localStorage.getItem('stacfund_user_plan');
+                  const { recordAiQueryUsage } = await import('./tokenQuotaService');
+                  recordAiQueryUsage(uid, plan, false);
+                }
+              } catch (e) {
+                console.error('[Gemini Interceptor] Error recording token usage:', e);
+              }
+              return res;
             } catch (error: any) {
               lastError = error;
               console.warn(`[Gemini Interceptor] generateContent failed (attempt ${retryCount + 1}/${maxRetries + 1}) with error:`, error);
+              checkAndReportQuotaError(error);
 
               if (isRetryableError(error)) {
                 if (canFallbackToLite(currentModel)) {
@@ -96,10 +130,22 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
                 ...params,
                 model: currentModel,
               };
-              return await rawModels.generateContentStream.call(rawModels, currentParams, ...args);
+              const resStream = await rawModels.generateContentStream.call(rawModels, currentParams, ...args);
+              try {
+                if (typeof window !== 'undefined') {
+                  const uid = localStorage.getItem('stacfund_user_id');
+                  const plan = localStorage.getItem('stacfund_user_plan');
+                  const { recordAiQueryUsage } = await import('./tokenQuotaService');
+                  recordAiQueryUsage(uid, plan, true);
+                }
+              } catch (e) {
+                console.error('[Gemini Interceptor] Error recording token usage:', e);
+              }
+              return resStream;
             } catch (error: any) {
               lastError = error;
               console.warn(`[Gemini Interceptor] generateContentStream failed (attempt ${retryCount + 1}/${maxRetries + 1}) with error:`, error);
+              checkAndReportQuotaError(error);
 
               if (isRetryableError(error)) {
                 if (canFallbackToLite(currentModel)) {
@@ -167,6 +213,7 @@ Object.defineProperty(GoogleGenAI.prototype, 'chats', {
                 } catch (error: any) {
                   lastError = error;
                   console.warn(`[Gemini Interceptor] sendMessage failed (attempt ${retryCount + 1}/${maxRetries + 1}) with error:`, error);
+                  checkAndReportQuotaError(error);
 
                   if (isRetryableError(error)) {
                     if (canFallbackToLite(chatInstance.model)) {
@@ -202,6 +249,7 @@ Object.defineProperty(GoogleGenAI.prototype, 'chats', {
                 } catch (error: any) {
                   lastError = error;
                   console.warn(`[Gemini Interceptor] sendMessageStream failed (attempt ${retryCount + 1}/${maxRetries + 1}) with error:`, error);
+                  checkAndReportQuotaError(error);
 
                   if (isRetryableError(error)) {
                     if (canFallbackToLite(chatInstance.model)) {
