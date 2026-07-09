@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Save, Building2, User as UserIcon, FileText, Upload, X, File, CheckCircle2, Loader2, Sparkles, Wand2, Phone, MessageCircle, FileDown, BookOpen, PenTool, ChevronRight, Copy, Check, ShoppingBag, BarChart3, Package, Printer, Lock, Crown, CreditCard } from 'lucide-react';
+import { ArrowLeft, Save, Building2, User as UserIcon, FileText, Upload, X, File, CheckCircle2, Loader2, Sparkles, Wand2, Phone, MessageCircle, FileDown, BookOpen, PenTool, ChevronRight, Copy, Check, ShoppingBag, BarChart3, Package, Printer, Lock, Crown, CreditCard, Key, Eye, EyeOff } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createGeminiClient } from '../services/geminiClient';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
@@ -30,6 +30,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
   const [generatedBusinessPlanData, setGeneratedBusinessPlanData] = useState<any | null>(null);
   const [generatedPitchDeckData, setGeneratedPitchDeckData] = useState<any | null>(null);
   const [configModal, setConfigModal] = useState<{ type: 'proposal' | 'businessplan' | 'pitchdeck', amount: string, purpose: string, impact: string, roi: string, premiumOutput: boolean, productImages: string[] } | null>(null);
+
+  const [customApiKey, setCustomApiKey] = useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('stacfund_custom_gemini_api_key') || '' : '';
+  });
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeySavedStatus, setApiKeySavedStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (configModal) {
@@ -1617,6 +1623,97 @@ WRITING REQUIREMENTS:
                     Cancel Subscription
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Custom Gemini API Key configuration */}
+            <div className="glass-panel p-6 rounded-2xl border border-purple-500/10 mt-6 bg-white/5 backdrop-blur-md">
+              <h4 className="font-bold text-lg mb-2 text-purple-400 flex items-center gap-2">
+                <Key size={20} className="text-purple-400" /> Bring Your Own Key (BYOK)
+              </h4>
+              <p className="text-gray-400 text-sm mb-4 leading-relaxed">
+                If the platform experiences billing limit or quota restrictions, you can provide your own free or prepaid <strong>Gemini API Key</strong> from Google AI Studio. 
+                All AI generations (such as Business Plans, the AI Assistant, or PDF Scanners) will run using your own API quota. 
+                Your key is stored strictly on your local browser cache and never sent to our servers.
+              </p>
+
+              <div className="space-y-4">
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <input 
+                      type={showApiKey ? "text" : "password"} 
+                      value={customApiKey}
+                      onChange={(e) => {
+                        setCustomApiKey(e.target.value);
+                        setApiKeySavedStatus(null);
+                      }}
+                      placeholder="Paste your Gemini API Key here (starts with AIzaSy...)" 
+                      className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-white text-sm focus:border-purple-500 focus:outline-none placeholder:text-gray-600 font-mono" 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        const trimmed = customApiKey.trim();
+                        if (trimmed) {
+                          localStorage.setItem('stacfund_custom_gemini_api_key', trimmed);
+                          setApiKeySavedStatus('Key saved successfully!');
+                          // Clear quota error banner if present
+                          window.dispatchEvent(new CustomEvent('custom_gemini_key_saved'));
+                        } else {
+                          localStorage.removeItem('stacfund_custom_gemini_api_key');
+                          setApiKeySavedStatus('Key cleared.');
+                        }
+                      }}
+                      className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-xl transition-all shadow-lg shadow-purple-500/20 text-sm flex items-center gap-1.5"
+                    >
+                      <Save size={16} /> Save Key
+                    </button>
+
+                    {localStorage.getItem('stacfund_custom_gemini_api_key') && (
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem('stacfund_custom_gemini_api_key');
+                          setCustomApiKey('');
+                          setApiKeySavedStatus('Key cleared.');
+                        }}
+                        className="px-4 py-3 bg-white/5 hover:bg-red-500/10 text-red-400 hover:text-red-300 font-bold rounded-xl transition-all border border-white/5 hover:border-red-500/20 text-sm"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {apiKeySavedStatus && (
+                  <p className={`text-xs font-semibold ${apiKeySavedStatus.includes('success') ? 'text-emerald-400' : 'text-gray-400'}`}>
+                    {apiKeySavedStatus}
+                  </p>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3.5 rounded-xl bg-purple-500/5 border border-purple-500/10 text-xs">
+                  <span className="text-gray-400 flex items-center gap-1.5">
+                    <span className={`inline-block w-2.5 h-2.5 rounded-full ${localStorage.getItem('stacfund_custom_gemini_api_key') ? 'bg-emerald-500 animate-pulse' : 'bg-purple-500'}`} />
+                    Status: {localStorage.getItem('stacfund_custom_gemini_api_key') ? <strong className="text-emerald-400">Custom API Key Active (Zero Limits)</strong> : <span className="text-purple-400 font-bold">Default Shared Billing Active</span>}
+                  </span>
+                  
+                  <a 
+                    href="https://aistudio.google.com/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1 transition-colors hover:underline"
+                  >
+                    Get a Free Key from Google AI Studio <ChevronRight size={14} />
+                  </a>
+                </div>
               </div>
             </div>
           </div>

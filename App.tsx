@@ -64,12 +64,18 @@ const App: React.FC = () => {
       setQuotaError(customEvent.detail?.message || "Your prepayment credits are depleted. Please manage your project and billing in Google AI Studio.");
     };
 
+    const handleKeySaved = () => {
+      setQuotaError(null);
+    };
+
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
     window.addEventListener('gemini_quota_error', handleCustomQuotaError);
+    window.addEventListener('custom_gemini_key_saved', handleKeySaved);
 
     return () => {
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       window.removeEventListener('gemini_quota_error', handleCustomQuotaError);
+      window.removeEventListener('custom_gemini_key_saved', handleKeySaved);
     };
   }, []);
 
@@ -537,18 +543,27 @@ const App: React.FC = () => {
               <p className="text-gray-300 mb-3 leading-relaxed">
                 Your current Google AI Studio prepayment credits/billing limits have been depleted. Advanced features like our AI Document Digitizer, dynamic matching engines, pitch deck structures, and the AI Assistant might experience disruptions.
               </p>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <a 
                   href="https://ai.studio/projects" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="inline-flex items-center gap-1.5 font-bold text-red-400 hover:text-red-300 transition-colors uppercase tracking-wider text-[10px] bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-xl border border-red-500/20"
+                  className="inline-flex items-center gap-1.5 font-bold text-red-400 hover:text-red-300 transition-colors uppercase tracking-wider text-[10px] bg-red-500/10 hover:bg-red-500/20 px-3.5 py-2 rounded-xl border border-red-500/20"
                 >
                   Manage Billing in AI Studio <ChevronRight size={12} />
                 </a>
                 <button 
+                  onClick={() => {
+                    localStorage.setItem('stacfund_profile_active_tab', 'subscription');
+                    setCurrentPage('profile');
+                  }}
+                  className="inline-flex items-center gap-1.5 font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider text-[10px] bg-purple-500/10 hover:bg-purple-500/20 px-3.5 py-2 rounded-xl border border-purple-500/20"
+                >
+                  Bring Your Own Key (BYOK) <ChevronRight size={12} />
+                </button>
+                <button 
                   onClick={() => setQuotaError(null)}
-                  className="text-gray-400 hover:text-white transition-colors underline uppercase tracking-wider text-[10px] font-bold"
+                  className="text-gray-400 hover:text-white transition-colors underline uppercase tracking-wider text-[10px] font-bold px-2 py-2"
                 >
                   Dismiss Warning
                 </button>

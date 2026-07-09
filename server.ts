@@ -247,10 +247,18 @@ async function startServer() {
       on: {
         proxyReq: (proxyReq, req: any) => {
           proxyReq.removeHeader('Authorization');
-          if (process.env.GEMINI_API_KEY) {
-            proxyReq.setHeader('x-goog-api-key', process.env.GEMINI_API_KEY);
+          
+          // Use client's custom API key if provided, otherwise fallback to server's key
+          const customKey = req.headers['x-custom-gemini-key'];
+          const apiKeyToUse = customKey || process.env.GEMINI_API_KEY;
+
+          if (apiKeyToUse) {
+            proxyReq.setHeader('x-goog-api-key', apiKeyToUse);
           }
           proxyReq.setHeader('user-agent', 'aistudio-build');
+
+          // Remove custom key header before sending to upstream to avoid leaking it
+          proxyReq.removeHeader('x-custom-gemini-key');
 
           // Re-stream body because express.json() consumed it
           if (req.body && Object.keys(req.body).length > 0) {
