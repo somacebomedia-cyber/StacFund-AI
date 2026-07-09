@@ -1,461 +1,567 @@
-import React, { useState } from 'react';
-import { 
-  ArrowUp, ArrowDown, Trash2, Copy, Plus, RefreshCw, Sparkles, Check, 
-  ArrowLeft, Layout, Edit3, MessageSquare, Heart, ShieldCheck, ChevronRight, Loader2 
+// ─────────────────────────────────────────────────────────────────────────────
+// OutlineEditor.tsx
+//
+// The "Outline first" step — Gamma UX pattern.
+//
+// Shows the user a draft pitch deck outline (title + bullets + layout +
+// copy formula + emotion + visual prompt for each slide) BEFORE full
+// generation. The user can:
+//   - Switch strategy (re-seeds the outline)
+//   - Edit any slide's title, bullets, layout, copy formula, emotion, guidance
+//   - Regenerate a single slide (AI rewrite of just that slide's text)
+//   - Reorder slides (up/down arrows — no drag-drop lib needed)
+//   - Add a blank slide
+//   - Remove a slide
+//   - Skip outline entirely ("Surprise me" → goes straight to AI-proposed full gen)
+//
+// When the user clicks "Generate Full Deck", the edited outline is passed to
+// the existing generatePresentation() flow, which now uses the outline as
+// strong structural guidance for the full Gemini call.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useState, useMemo } from 'react';
+import {
+  X, ChevronUp, ChevronDown, Trash2, Plus, RefreshCw, Sparkles,
+  Wand2, Loader2, ListChecks, ArrowRight, Lightbulb, AlertTriangle,
 } from 'lucide-react';
-import { SlideOutline, PITCH_STRATEGIES, LAYOUT_TEMPLATES, COPY_FORMULAS } from '../utils/outlineStrategies';
-import { regenerateSingleSlide } from '../utils/outlineGenerator';
+import {
+  OutlineSlide, OutlineStrategy, STRATEGIES, getStrategyById,
+  LAYOUTS, COPY_FORMULAS, createBlankOutlineSlide, newOutlineSlideId,
+  SlideLayout, CopyFormula, Emotion, SlideRole,
+} from '../utils/outlineStrategies';
+import { regenerateSlide, handleGeminiError } from '../utils/outlineGenerator';
 
 interface OutlineEditorProps {
-  businessName: string;
-  docName: string;
-  docContent: string;
-  initialOutline: SlideOutline[];
-  onGenerate: (finalOutline: SlideOutline[]) => void;
+  /** Draft outline from the AI (or seeded from a strategy). */
+  initialSlides: OutlineSlide[];
+  /** Strategy that produced the initial outline, if any. */
+  initialStrategyId?: string;
+  /** Source document name (shown in header + used for regeneration context). */
+  documentName: string;
+  /** Business name (used for regeneration context). */
+  businessName?: string;
+  /** Optional document content (used for slide regeneration). */
+  documentContent?: string;
+  /** Called when user clicks "Generate Full Deck" — receives the edited outline. */
+  onGenerate: (slides: OutlineSlide[]) => void;
+  /** Called when user clicks "Back" or closes the editor. */
   onBack: () => void;
-  onStrategyChange: (strategyId: string) => Promise<void>;
-  currentStrategyId: string;
+  /** Called when user switches strategy (parent refetches outline). */
+  onStrategyChange?: (strategyId: string) => void;
 }
 
-export const OutlineEditor: React.FC<OutlineEditorProps> = ({
+const EMOTION_OPTIONS: Emotion[] = [
+  'curiosity', 'frustration', 'hope', 'confidence', 'trust', 'urgency',
+  'connection', 'fear', 'relief', 'aspiration', 'clarity', 'warmth', 'celebration',
+];
+
+const ROLE_OPTIONS: SlideRole[] = [
+  'hook', 'what-is', 'what-could-be', 'proof', 'evaluation', 'trust',
+  'celebration', 'insight', 'interaction', 'summary', 'action', 'structure',
+];
+
+const EMOTION_COLORS: Record<Emotion, string> = {
+  curiosity:     'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
+  frustration:   'text-red-400 bg-red-500/10 border-red-500/30',
+  hope:          'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+  confidence:    'text-blue-400 bg-blue-500/10 border-blue-500/30',
+  trust:         'text-violet-400 bg-violet-500/10 border-violet-500/30',
+  urgency:       'text-amber-400 bg-amber-500/10 border-amber-500/30',
+  connection:    'text-pink-400 bg-pink-500/10 border-pink-500/30',
+  fear:          'text-rose-400 bg-rose-500/10 border-rose-500/30',
+  relief:        'text-teal-400 bg-teal-500/10 border-teal-500/30',
+  aspiration:    'text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/30',
+  clarity:       'text-sky-400 bg-sky-500/10 border-sky-500/30',
+  warmth:        'text-orange-400 bg-orange-500/10 border-orange-500/30',
+  celebration:   'text-yellow-400 bg-yellow-500/10 border-yellow-500/30',
+};
+
+const OutlineEditor: React.FC<OutlineEditorProps> = ({
+  initialSlides,
+  initialStrategyId,
+  documentName,
   businessName,
-  docName,
-  docContent,
-  initialOutline,
+  documentContent,
   onGenerate,
   onBack,
   onStrategyChange,
-  currentStrategyId
 }) => {
-  const [outline, setOutline] = useState<SlideOutline[]>(initialOutline);
-  const [selectedSlideId, setSelectedSlideId] = useState<string | null>(
-    initialOutline.length > 0 ? initialOutline[0].id : null
-  );
-  const [isChangingStrategy, setIsChangingStrategy] = useState(false);
-  const [regeneratingSlideId, setRegeneratingSlideId] = useState<string | null>(null);
+  const [slides, setSlides] = useState<OutlineSlide[]>(initialSlides);
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string | undefined>(initialStrategyId);
+  const [showStrategyPanel, setShowStrategyPanel] = useState(false);
 
-  const selectedSlide = outline.find(s => s.id === selectedSlideId) || outline[0];
+  // ─── Slide editing helpers ───────────────────────────────────────────────
+  const updateSlide = (id: string, patch: Partial<OutlineSlide>) => {
+    setSlides(prev => prev.map(s => (s.id === id ? { ...s, ...patch } : s)));
+  };
 
-  const handleStrategySelect = async (strategyId: string) => {
-    setIsChangingStrategy(true);
-    try {
-      await onStrategyChange(strategyId);
-    } catch (e) {
-      alert("Failed to change strategy.");
-    } finally {
-      setIsChangingStrategy(false);
+  const removeSlide = (id: string) => {
+    setSlides(prev => prev.filter(s => s.id !== id));
+    if (expandedIdx !== null && expandedIdx >= slides.length - 1) {
+      setExpandedIdx(null);
     }
   };
 
-  // Sync state if initialOutline changes externally
-  React.useEffect(() => {
-    setOutline(initialOutline);
-    if (initialOutline.length > 0) {
-      setSelectedSlideId(initialOutline[0].id);
-    }
-  }, [initialOutline]);
-
-  // Handle slide field updates
-  const updateSlideField = (id: string, field: keyof SlideOutline, value: any) => {
-    setOutline(prev => prev.map(slide => 
-      slide.id === id ? { ...slide, [field]: value } : slide
-    ));
+  const addSlide = () => {
+    const newSlide = createBlankOutlineSlide();
+    setSlides(prev => [...prev, newSlide]);
+    setExpandedIdx(slides.length); // expand the new slide
   };
 
-  const handlePointChange = (slideId: string, pointIndex: number, text: string) => {
-    setOutline(prev => prev.map(slide => {
-      if (slide.id === slideId) {
-        const newPoints = [...slide.points];
-        newPoints[pointIndex] = text;
-        return { ...slide, points: newPoints };
-      }
-      return slide;
-    }));
-  };
-
-  const addPoint = (slideId: string) => {
-    setOutline(prev => prev.map(slide => {
-      if (slide.id === slideId) {
-        return { ...slide, points: [...slide.points, 'New bullet point'] };
-      }
-      return slide;
-    }));
-  };
-
-  const removePoint = (slideId: string, pointIndex: number) => {
-    setOutline(prev => prev.map(slide => {
-      if (slide.id === slideId) {
-        const newPoints = slide.points.filter((_, idx) => idx !== pointIndex);
-        return { ...slide, points: newPoints };
-      }
-      return slide;
-    }));
-  };
-
-  // Reordering & slide actions
   const moveSlide = (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= outline.length) return;
-
-    const newOutline = [...outline];
-    const temp = newOutline[index];
-    newOutline[index] = newOutline[targetIndex];
-    newOutline[targetIndex] = temp;
-    setOutline(newOutline);
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === slides.length - 1) return;
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    setSlides(prev => {
+      const next = [...prev];
+      [next[index], next[newIndex]] = [next[newIndex], next[index]];
+      return next;
+    });
+    setExpandedIdx(newIndex);
   };
 
-  const duplicateSlide = (index: number) => {
-    const slideToCopy = outline[index];
-    const duplicated: SlideOutline = {
-      ...slideToCopy,
-      id: `slide_dup_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      title: `${slideToCopy.title} (Copy)`
-    };
-    const newOutline = [...outline];
-    newOutline.splice(index + 1, 0, duplicated);
-    setOutline(newOutline);
-    setSelectedSlideId(duplicated.id);
+  const duplicateSlide = (id: string) => {
+    const slide = slides.find(s => s.id === id);
+    if (!slide) return;
+    const idx = slides.findIndex(s => s.id === id);
+    const dup: OutlineSlide = { ...slide, id: newOutlineSlideId(), title: `${slide.title} (copy)` };
+    setSlides(prev => {
+      const next = [...prev];
+      next.splice(idx + 1, 0, dup);
+      return next;
+    });
   };
 
-  const deleteSlide = (index: number) => {
-    if (outline.length <= 1) {
-      alert("A pitch deck must have at least 1 slide!");
+  const handleRegenerate = async (slide: OutlineSlide) => {
+    setRegeneratingId(slide.id);
+    try {
+      const updated = await regenerateSlide(slide, {
+        documentName,
+        businessName,
+        documentContent,
+      });
+      updateSlide(slide.id, updated);
+    } catch (e) {
+      handleGeminiError(e);
+      alert('Failed to regenerate slide. Please try again.');
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
+  const handleStrategySelect = (strategyId: string) => {
+    // No-op if re-selecting the strategy that's already active — nothing
+    // would change, so don't regenerate or prompt.
+    if (strategyId === selectedStrategyId) {
+      setShowStrategyPanel(false);
       return;
     }
-    const slideToDelete = outline[index];
-    const newOutline = outline.filter((_, idx) => idx !== index);
-    setOutline(newOutline);
-    
-    // Adjust selected slide
-    if (selectedSlideId === slideToDelete.id) {
-      const nextSelected = newOutline[Math.min(index, newOutline.length - 1)];
-      setSelectedSlideId(nextSelected.id);
+    // FIX (2026-07-08): switching strategy re-seeds the outline from scratch
+    // via onStrategyChange, which silently discards whatever's currently in
+    // the slides list — including any manual edits. Confirm first so a
+    // curious click doesn't wipe out real work with no way back.
+    if (!window.confirm('Switching strategy will regenerate the outline and replace your current slides. Continue?')) {
+      return;
+    }
+    setSelectedStrategyId(strategyId);
+    setShowStrategyPanel(false);
+    if (onStrategyChange) {
+      onStrategyChange(strategyId);
     }
   };
 
-  const addBlankSlide = () => {
-    const newSlide: SlideOutline = {
-      id: `slide_blank_${Date.now()}`,
-      title: 'New Slide',
-      type: 'content',
-      layout: 'solution-grid',
-      copyFormula: 'Features to Benefits Mapping',
-      emotion: 'Confident & Professional',
-      role: 'Expand on offering details',
-      points: ['Point 1 description', 'Point 2 description'],
-      visualPrompt: 'Minimalist flat vector icon representing modern corporate growth'
-    };
-    setOutline(prev => [...prev, newSlide]);
-    setSelectedSlideId(newSlide.id);
-  };
+  // ─── Derived state ────────────────────────────────────────────────────────
+  const selectedStrategy = useMemo(
+    () => (selectedStrategyId ? getStrategyById(selectedStrategyId) : undefined),
+    [selectedStrategyId]
+  );
 
-  const handleAISingleRegenerate = async (slide: SlideOutline) => {
-    setRegeneratingSlideId(slide.id);
-    try {
-      const regenerated = await regenerateSingleSlide(slide, docContent, businessName);
-      setOutline(prev => prev.map(s => s.id === slide.id ? regenerated : s));
-    } catch (e) {
-      alert("Failed to regenerate slide content. Please try again.");
-    } finally {
-      setRegeneratingSlideId(null);
-    }
-  };
+  const canGenerate = slides.length >= 3 && slides.length <= 20;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#03030d] text-white">
-      {/* Top Header */}
-      <div className="h-16 px-6 border-b border-white/10 flex items-center justify-between bg-black/40 backdrop-blur-md z-10 shrink-0">
-        <div className="flex items-center gap-4">
-          <button 
+    <div className="fixed inset-0 z-[200] flex flex-col bg-[#050510] animate-in fade-in duration-300">
+      {/* ─── Top Bar ─────────────────────────────────────────────────────── */}
+      <div className="flex-shrink-0 border-b border-white/10 bg-[#0a0a1a] px-6 py-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all flex-shrink-0"
+            title="Back to document selection"
           >
-            <ArrowLeft size={16} />
+            <ChevronUp size={18} className="rotate-90" />
           </button>
-          <div>
-            <span className="text-xs text-cyan-400 font-bold uppercase tracking-widest">Phase 2: Review Deck Outline</span>
-            <h1 className="text-sm font-black text-gray-200">Structuring Pitch for "{businessName}" based on "{docName}"</h1>
-          </div>
-        </div>
-
-        <button
-          onClick={() => onGenerate(outline)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 active:scale-95"
-        >
-          <Check size={16} /> Generate Full Deck
-        </button>
-      </div>
-
-      {/* Main Workspace split */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        
-        {/* Left Sidebar: Strategy & Navigation */}
-        <div className="w-80 border-r border-white/10 flex flex-col h-full bg-black/20 shrink-0 overflow-y-auto custom-scrollbar p-5">
-          <div className="mb-6">
-            <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-              <Sparkles size={14} className="text-cyan-400" /> Pitch Strategy
-            </h2>
-            <select
-              value={currentStrategyId}
-              disabled={isChangingStrategy}
-              onChange={(e) => handleStrategySelect(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white font-medium focus:border-cyan-500 outline-none transition-all cursor-pointer"
-            >
-              {PITCH_STRATEGIES.map(strat => (
-                <option key={strat.id} value={strat.id} className="bg-[#050510] text-white">
-                  {strat.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-gray-400 mt-2 italic leading-relaxed">
-              {PITCH_STRATEGIES.find(s => s.id === currentStrategyId)?.description}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <ListChecks size={18} className="text-cyan-400 flex-shrink-0" />
+              <h2 className="text-lg font-black text-white truncate">Outline Editor</h2>
+              <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-full flex-shrink-0">
+                {slides.length} slides
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 truncate">
+              Source: <span className="text-gray-400">{documentName}</span>
+              {selectedStrategy && <> · Strategy: <span className="text-cyan-400">{selectedStrategy.name}</span></>}
             </p>
           </div>
-
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                <Layout size={14} className="text-cyan-400" /> Slide List ({outline.length})
-              </h2>
-              <button 
-                onClick={addBlankSlide}
-                className="p-1 px-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all text-cyan-400"
-              >
-                <Plus size={10} /> Add Blank
-              </button>
-            </div>
-
-            {isChangingStrategy ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-12">
-                <Loader2 size={32} className="animate-spin text-cyan-400 mb-2" />
-                <p className="text-xs text-gray-500">Regenerating draft...</p>
-              </div>
-            ) : (
-              <div className="space-y-2 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                {outline.map((slide, idx) => (
-                  <div 
-                    key={slide.id}
-                    onClick={() => setSelectedSlideId(slide.id)}
-                    className={`group w-full p-3 rounded-xl border text-left transition-all relative cursor-pointer ${
-                      selectedSlideId === slide.id 
-                        ? 'bg-white/10 border-cyan-500/50 text-white' 
-                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="truncate pr-12">
-                        <span className="text-[9px] font-black uppercase tracking-wider opacity-60">
-                          {idx + 1} • {slide.type}
-                        </span>
-                        <h4 className="text-xs font-bold truncate mt-0.5">{slide.title}</h4>
-                        <span className="text-[9px] text-gray-500 block truncate font-mono">{slide.layout}</span>
-                      </div>
-                      
-                      {/* Control Pill (Hover actions) */}
-                      <div className="absolute right-2 top-2 hidden group-hover:flex items-center gap-1 bg-black/60 p-1 rounded-lg border border-white/10">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); moveSlide(idx, 'up'); }}
-                          disabled={idx === 0}
-                          className="p-1 text-gray-400 hover:text-white disabled:opacity-30"
-                          title="Move Up"
-                        >
-                          <ArrowUp size={10} />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); moveSlide(idx, 'down'); }}
-                          disabled={idx === outline.length - 1}
-                          className="p-1 text-gray-400 hover:text-white disabled:opacity-30"
-                          title="Move Down"
-                        >
-                          <ArrowDown size={10} />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); duplicateSlide(idx); }}
-                          className="p-1 text-gray-400 hover:text-cyan-400"
-                          title="Duplicate"
-                        >
-                          <Copy size={10} />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); deleteSlide(idx); }}
-                          className="p-1 text-gray-400 hover:text-red-400"
-                          title="Delete"
-                        >
-                          <Trash2 size={10} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Right Area: Core Selected Slide Editor */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 flex justify-center bg-[#060613]">
-          {selectedSlide ? (
-            <div className="w-full max-w-3xl space-y-8 bg-white/5 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-xl self-start">
-              <div className="flex justify-between items-start border-b border-white/10 pb-6">
-                <div>
-                  <div className="flex items-center gap-2 text-xs text-cyan-400 font-black uppercase tracking-wider mb-1">
-                    <Edit3 size={14} /> Slide Customization
-                  </div>
-                  <h3 className="text-xl font-black text-white">Refine Details & Bullet Content</h3>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <button
+            onClick={() => setShowStrategyPanel(s => !s)}
+            className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-cyan-500/30 rounded-lg text-sm font-bold text-gray-300 hover:text-cyan-400 transition-all flex items-center gap-2"
+          >
+            <Lightbulb size={16} />
+            {selectedStrategy ? 'Change Strategy' : 'Pick Strategy'}
+          </button>
+          <button
+            onClick={() => canGenerate && onGenerate(slides)}
+            disabled={!canGenerate}
+            className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-purple-600/20"
+          >
+            <Sparkles size={16} />
+            Generate Full Deck
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* ─── Strategy Picker Panel (collapsible) ──────────────────────────── */}
+      {showStrategyPanel && (
+        <div className="flex-shrink-0 border-b border-white/10 bg-[#0a0a1a]/80 backdrop-blur-md px-6 py-4 animate-in slide-in-from-top duration-200">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 max-h-[40vh] overflow-y-auto custom-scrollbar">
+            {STRATEGIES.map(s => (
+              <button
+                key={s.id}
+                onClick={() => handleStrategySelect(s.id)}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  selectedStrategyId === s.id
+                    ? 'bg-cyan-500/10 border-cyan-500/50 ring-1 ring-cyan-500/30'
+                    : 'bg-white/5 border-white/10 hover:border-cyan-500/30 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-sm font-black text-white">{s.name}</h4>
+                  <span className="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">{s.slideCount}</span>
                 </div>
+                <p className="text-xs text-gray-400 mb-2 leading-snug">{s.description}</p>
+                <p className="text-[10px] text-gray-500 leading-tight">
+                  <span className="font-bold text-gray-400">Best for:</span> {s.bestFor}
+                </p>
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-500 mt-3">
+            <AlertTriangle size={11} className="inline mr-1" />
+            Switching strategy will re-seed the outline. Your current edits will be lost.
+          </p>
+        </div>
+      )}
 
-                <button
-                  onClick={() => handleAISingleRegenerate(selectedSlide)}
-                  disabled={regeneratingSlideId !== null}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-400 hover:text-purple-300 font-bold rounded-xl text-xs transition-colors disabled:opacity-50"
-                  title="Re-roll only this slide content with AI"
-                >
-                  <RefreshCw size={12} className={regeneratingSlideId === selectedSlide.id ? 'animate-spin' : ''} />
-                  {regeneratingSlideId === selectedSlide.id ? 'Regenerating...' : 'AI Re-Roll'}
-                </button>
-              </div>
-
-              {/* Editable Fields Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                
-                {/* Slide Title */}
-                <div className="md:col-span-2 space-y-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-gray-400">Slide Heading Title</label>
-                  <input
-                    type="text"
-                    value={selectedSlide.title}
-                    onChange={(e) => updateSlideField(selectedSlide.id, 'title', e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 hover:border-white/20 focus:border-cyan-500 outline-none rounded-xl p-3 text-sm font-bold transition-all"
-                  />
-                </div>
-
-                {/* Slide Type */}
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-gray-400">Slide Type</label>
-                  <select
-                    value={selectedSlide.type}
-                    onChange={(e) => updateSlideField(selectedSlide.id, 'type', e.target.value)}
-                    className="w-full bg-[#050510] border border-white/10 rounded-xl p-3 text-sm font-medium focus:border-cyan-500 outline-none"
-                  >
-                    <option value="cover">Cover / Splash</option>
-                    <option value="content">Content Bullets</option>
-                    <option value="data">Data / Metrics Chart</option>
-                    <option value="quote">Testimonial Quote</option>
-                  </select>
-                </div>
-
-                {/* Layout Template */}
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-gray-400">Structural Layout</label>
-                  <select
-                    value={selectedSlide.layout}
-                    onChange={(e) => updateSlideField(selectedSlide.id, 'layout', e.target.value)}
-                    className="w-full bg-[#050510] border border-white/10 rounded-xl p-3 text-sm font-medium focus:border-cyan-500 outline-none"
-                  >
-                    {LAYOUT_TEMPLATES.map(l => (
-                      <option key={l.id} value={l.id}>{l.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Copy Formula */}
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-gray-400">Copywriting Formula</label>
-                  <select
-                    value={selectedSlide.copyFormula}
-                    onChange={(e) => updateSlideField(selectedSlide.id, 'copyFormula', e.target.value)}
-                    className="w-full bg-[#050510] border border-white/10 rounded-xl p-3 text-sm font-medium focus:border-cyan-500 outline-none"
-                  >
-                    {COPY_FORMULAS.map(cf => (
-                      <option key={cf.name} value={cf.name}>{cf.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Emotional Tone */}
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-gray-400">Emotional Tone</label>
-                  <input
-                    type="text"
-                    value={selectedSlide.emotion}
-                    onChange={(e) => updateSlideField(selectedSlide.id, 'emotion', e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 outline-none rounded-xl p-3 text-sm font-medium transition-all"
-                  />
-                </div>
-
-                {/* Slide Role */}
-                <div className="md:col-span-2 space-y-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-gray-400">Slide Role / Purpose</label>
-                  <input
-                    type="text"
-                    value={selectedSlide.role}
-                    onChange={(e) => updateSlideField(selectedSlide.id, 'role', e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 outline-none rounded-xl p-3 text-sm font-medium transition-all"
-                  />
-                </div>
-
-                {/* Visual Generator Prompt */}
-                <div className="md:col-span-2 space-y-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-gray-400">Visual Generator Prompt (AI / Stock query)</label>
-                  <textarea
-                    value={selectedSlide.visualPrompt}
-                    rows={2}
-                    onChange={(e) => updateSlideField(selectedSlide.id, 'visualPrompt', e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 outline-none rounded-xl p-3 text-sm font-medium transition-all custom-scrollbar resize-none"
-                  />
-                </div>
-
-                {/* Bullet Points Section */}
-                <div className="md:col-span-2 space-y-3 pt-4 border-t border-white/10">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-black uppercase tracking-wider text-cyan-400">
-                      {selectedSlide.type === 'cover' ? 'Value Proposition text' : selectedSlide.type === 'data' ? 'Metrics Stats (Value:Label format)' : 'Slide Content Bullets'}
-                    </label>
-                    <button
-                      onClick={() => addPoint(selectedSlide.id)}
-                      className="p-1 px-2 text-[10px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg font-bold flex items-center gap-1 text-cyan-400 transition-colors"
-                    >
-                      <Plus size={10} /> Add Item
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    {selectedSlide.points.map((pt, pIdx) => (
-                      <div key={pIdx} className="flex items-center gap-3">
-                        <div className="text-xs font-mono text-gray-500 w-4">{pIdx + 1}.</div>
-                        <input
-                          type="text"
-                          value={pt}
-                          onChange={(e) => handlePointChange(selectedSlide.id, pIdx, e.target.value)}
-                          placeholder={selectedSlide.type === 'data' ? 'e.g. R500k:Revenue' : 'e.g. Bullet details'}
-                          className="flex-1 bg-white/5 border border-white/10 focus:border-cyan-500 outline-none rounded-xl p-2.5 text-xs font-medium transition-all"
-                        />
-                        <button
-                          onClick={() => removePoint(selectedSlide.id, pIdx)}
-                          className="p-2 text-gray-500 hover:text-red-400 hover:bg-white/5 rounded-xl transition-all"
-                          title="Remove Bullet"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
-                    {selectedSlide.points.length === 0 && (
-                      <p className="text-xs text-gray-500 italic py-4 text-center">No bullets added yet. Click "Add Item" above.</p>
-                    )}
+      {/* ─── Main editor area ─────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <div className="max-w-4xl mx-auto space-y-3">
+          {/* Strategy context card (if a strategy is active) */}
+          {selectedStrategy && (
+            <div className="mb-4 p-4 rounded-2xl bg-gradient-to-br from-cyan-500/5 to-purple-500/5 border border-cyan-500/20">
+              <div className="flex items-start gap-3">
+                <Lightbulb size={18} className="text-cyan-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-black text-white mb-1">{selectedStrategy.name}</h3>
+                  <p className="text-xs text-gray-400 mb-2">{selectedStrategy.description}</p>
+                  <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+                    <span className="text-gray-400 bg-white/5 px-2 py-1 rounded">Audience: <span className="text-white">{selectedStrategy.audience}</span></span>
+                    <span className="text-gray-400 bg-white/5 px-2 py-1 rounded">Tone: <span className="text-white">{selectedStrategy.tone}</span></span>
+                    <span className="text-gray-400 bg-white/5 px-2 py-1 rounded">Arc: <span className="text-white">{selectedStrategy.emotionArc}</span></span>
                   </div>
                 </div>
-
               </div>
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center text-gray-500">
-              <Layout size={48} className="mb-4 text-gray-600" />
-              <p>Select a slide from the sidebar to edit</p>
+          )}
+
+          {/* Slide cards */}
+          {slides.map((slide, idx) => (
+            <SlideCard
+              key={slide.id}
+              slide={slide}
+              index={idx}
+              total={slides.length}
+              isExpanded={expandedIdx === idx}
+              isRegenerating={regeneratingId === slide.id}
+              onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+              onChange={(patch) => updateSlide(slide.id, patch)}
+              onMoveUp={() => moveSlide(idx, 'up')}
+              onMoveDown={() => moveSlide(idx, 'down')}
+              onRemove={() => removeSlide(slide.id)}
+              onDuplicate={() => duplicateSlide(slide.id)}
+              onRegenerate={() => handleRegenerate(slide)}
+            />
+          ))}
+
+          {/* Add slide button */}
+          <button
+            onClick={addSlide}
+            className="w-full p-4 rounded-2xl border-2 border-dashed border-white/15 hover:border-cyan-500/50 text-gray-500 hover:text-cyan-400 font-bold transition-all flex items-center justify-center gap-2"
+          >
+            <Plus size={18} />
+            Add Slide
+          </button>
+
+          {/* Validation warnings */}
+          {!canGenerate && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-bold flex items-center gap-2">
+              <AlertTriangle size={16} />
+              {slides.length < 3 ? `Need at least 3 slides (currently ${slides.length}).` : `Maximum 20 slides (currently ${slides.length}).`}
             </div>
           )}
         </div>
+      </div>
 
+      {/* ─── Bottom action bar ───────────────────────────────────────────── */}
+      <div className="flex-shrink-0 border-t border-white/10 bg-[#0a0a1a] px-6 py-3 flex items-center justify-between">
+        <p className="text-xs text-gray-500">
+          Edit any slide title, bullets, layout, or copy formula. Click <RefreshCw size={11} className="inline mx-1" /> to AI-rewrite a single slide.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => canGenerate && onGenerate(slides)}
+            disabled={!canGenerate}
+            className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-purple-600/20"
+          >
+            <Sparkles size={16} />
+            Generate Full Deck
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );
 };
+
+// ─── SlideCard sub-component ────────────────────────────────────────────────
+interface SlideCardProps {
+  slide: OutlineSlide;
+  index: number;
+  total: number;
+  isExpanded: boolean;
+  isRegenerating: boolean;
+  onToggleExpand: () => void;
+  onChange: (patch: Partial<OutlineSlide>) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRemove: () => void;
+  onDuplicate: () => void;
+  onRegenerate: () => void;
+}
+
+const SlideCard: React.FC<SlideCardProps> = ({
+  slide, index, total, isExpanded, isRegenerating,
+  onToggleExpand, onChange, onMoveUp, onMoveDown, onRemove, onDuplicate, onRegenerate,
+}) => {
+  return (
+    <div
+      className={`rounded-2xl border transition-all overflow-hidden ${
+        isExpanded
+          ? 'bg-white/[0.07] border-cyan-500/40 shadow-lg shadow-cyan-500/5'
+          : 'bg-white/[0.03] border-white/10 hover:border-white/20'
+      }`}
+    >
+      {/* ─── Header (always visible) ─────────────────────────────────── */}
+      <div className="flex items-center gap-3 p-4">
+        {/* Slide number + reorder controls */}
+        <div className="flex flex-col items-center gap-1 flex-shrink-0">
+          <button
+            onClick={onMoveUp}
+            disabled={index === 0}
+            className="p-1 rounded text-gray-500 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronUp size={14} />
+          </button>
+          <span className="text-xs font-black text-cyan-400 w-6 text-center">{index + 1}</span>
+          <button
+            onClick={onMoveDown}
+            disabled={index === total - 1}
+            className="p-1 rounded text-gray-500 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronDown size={14} />
+          </button>
+        </div>
+
+        {/* Title + meta */}
+        <button
+          onClick={onToggleExpand}
+          className="flex-1 min-w-0 text-left"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{slide.role}</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${EMOTION_COLORS[slide.emotion]}`}>
+              {slide.emotion}
+            </span>
+            <span className="text-[10px] font-bold text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">
+              {LAYOUTS[slide.layout].name}
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-white truncate">
+            {slide.title || <span className="text-gray-500 italic">Untitled slide</span>}
+          </h3>
+          {!isExpanded && slide.bullets.length > 0 && (
+            <p className="text-xs text-gray-500 truncate mt-0.5">
+              {slide.bullets.join(' · ')}
+            </p>
+          )}
+        </button>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={onRegenerate}
+            disabled={isRegenerating}
+            className="p-2 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10 disabled:opacity-50 transition-all"
+            title="AI regenerate this slide"
+          >
+            {isRegenerating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          </button>
+          <button
+            onClick={onDuplicate}
+            className="p-2 rounded-lg text-gray-400 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+            title="Duplicate slide"
+          >
+            <Plus size={14} className="rotate-45" />
+          </button>
+          <button
+            onClick={onRemove}
+            className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            title="Remove slide"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* ─── Expanded editor ──────────────────────────────────────────────── */}
+      {isExpanded && (
+        <div className="px-4 pb-4 pt-2 border-t border-white/5 space-y-3 animate-in slide-in-from-top duration-200">
+          {/* Title */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Slide Title</label>
+            <input
+              type="text"
+              value={slide.title}
+              onChange={e => onChange({ title: e.target.value })}
+              className="w-full bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-white text-sm font-bold outline-none transition-colors"
+              placeholder="Enter slide title..."
+            />
+          </div>
+
+          {/* Bullets */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+              Bullet Points <span className="text-gray-600 normal-case font-normal">(one per line — what this slide will cover)</span>
+            </label>
+            <textarea
+              value={slide.bullets.join('\n')}
+              onChange={e => onChange({ bullets: e.target.value.split('\n').filter(b => b.length > 0) })}
+              rows={3}
+              className="w-full bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-gray-200 text-sm outline-none transition-colors resize-y font-mono"
+              placeholder={'Bullet one\nBullet two\nBullet three'}
+            />
+          </div>
+
+          {/* Dropdowns: Layout / Formula / Emotion / Role */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Layout</label>
+              <select
+                value={slide.layout}
+                onChange={e => onChange({ layout: e.target.value as SlideLayout })}
+                className="w-full bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-lg px-2 py-2 text-white text-xs outline-none transition-colors"
+              >
+                {(Object.keys(LAYOUTS) as SlideLayout[]).map(k => (
+                  <option key={k} value={k} className="bg-[#0a0a1a]">{LAYOUTS[k].name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Copy Formula</label>
+              <select
+                value={slide.copyFormula}
+                onChange={e => onChange({ copyFormula: e.target.value as CopyFormula })}
+                className="w-full bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-lg px-2 py-2 text-white text-xs outline-none transition-colors"
+              >
+                {(Object.keys(COPY_FORMULAS) as CopyFormula[]).map(k => (
+                  <option key={k} value={k} className="bg-[#0a0a1a]">{COPY_FORMULAS[k].name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Emotion Goal</label>
+              <select
+                value={slide.emotion}
+                onChange={e => onChange({ emotion: e.target.value as Emotion })}
+                className="w-full bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-lg px-2 py-2 text-white text-xs outline-none transition-colors"
+              >
+                {EMOTION_OPTIONS.map(e => (
+                  <option key={e} value={e} className="bg-[#0a0a1a]">{e}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Role</label>
+              <select
+                value={slide.role}
+                onChange={e => onChange({ role: e.target.value as SlideRole })}
+                className="w-full bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-lg px-2 py-2 text-white text-xs outline-none transition-colors"
+              >
+                {ROLE_OPTIONS.map(r => (
+                  <option key={r} value={r} className="bg-[#0a0a1a]">{r}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Selected formula hint */}
+          <p className="text-[10px] text-gray-500 italic">
+            <span className="font-bold text-gray-400">{COPY_FORMULAS[slide.copyFormula].name}:</span> {COPY_FORMULAS[slide.copyFormula].template}
+          </p>
+
+          {/* Visual prompt */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+              Visual Prompt <span className="text-gray-600 normal-case font-normal">(image/chart description for AI generation)</span>
+            </label>
+            <input
+              type="text"
+              value={slide.visualPrompt || ''}
+              onChange={e => onChange({ visualPrompt: e.target.value })}
+              className="w-full bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-gray-300 text-sm outline-none transition-colors"
+              placeholder="e.g. Heroic brand illustration with SA flag accent"
+            />
+          </div>
+
+          {/* Guidance */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+              Guidance <span className="text-gray-600 normal-case font-normal">(hint for AI when generating full content)</span>
+            </label>
+            <textarea
+              value={slide.guidance}
+              onChange={e => onChange({ guidance: e.target.value })}
+              rows={2}
+              className="w-full bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-gray-300 text-sm outline-none transition-colors resize-y"
+              placeholder="What should this slide accomplish?"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default OutlineEditor;

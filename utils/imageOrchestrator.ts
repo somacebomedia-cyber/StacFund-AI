@@ -3,6 +3,84 @@ import { searchStockPhotos, StockPhoto } from '../services/stockPhotos';
 
 export type ImageSourceMode = 'auto' | 'ai' | 'stock';
 
+export interface ImageAttribution {
+  photographer: string;
+  source: string;
+}
+
+export function getImageSourceModeLabel(mode: ImageSourceMode): string {
+  if (mode === 'ai') return 'AI Only';
+  if (mode === 'stock') return 'Stock Only';
+  return 'Auto Fallback';
+}
+
+export function getImageSourceModeDescription(mode: ImageSourceMode): string {
+  if (mode === 'ai') return 'Strict AI generation using Gemini Imagen 3.0.';
+  if (mode === 'stock') return 'Real stock photos from Pexels and Pixabay.';
+  return 'AI generation first, automatic fallback to stock photos if AI fails.';
+}
+
+export function deriveStockSearchQuery(prompt: string, title: string): string {
+  let query = (prompt || title || '').trim();
+  // Standard clean up for better matches
+  query = query.replace(/style:.*$/i, '');
+  query = query.replace(/(vector art|flat design|high quality|minimalist|cinematic|professional)/gi, '');
+  return query.slice(0, 40).trim();
+}
+
+export async function generateSlideImage({
+  prompt,
+  searchQuery,
+  slideType,
+  swatchColors,
+  themeName,
+  slideIndex,
+  mode,
+}: {
+  prompt: string;
+  searchQuery: string;
+  slideType: 'cover' | 'content' | 'data' | 'quote';
+  swatchColors: string[];
+  themeName: string;
+  slideIndex: number;
+  mode: ImageSourceMode;
+}): Promise<{ imageData: string; attribution?: ImageAttribution; source: 'ai' | 'stock' }> {
+  const result = await generateOrGetImage(
+    prompt,
+    searchQuery,
+    slideType,
+    themeName,
+    swatchColors?.[0] || '#ffffff',
+    mode
+  );
+  if (!result) {
+    throw new Error('Failed to generate or retrieve image');
+  }
+
+  let attributionObj: ImageAttribution | undefined = undefined;
+  if (result.attribution) {
+    // result.attribution is like: "Photo: Photographer Name / Source"
+    const match = result.attribution.match(/Photo:\s*(.*?)\s*\/\s*(.*)/i);
+    if (match) {
+      attributionObj = {
+        photographer: match[1].trim(),
+        source: match[2].trim(),
+      };
+    } else {
+      attributionObj = {
+        photographer: 'Unknown',
+        source: result.attribution,
+      };
+    }
+  }
+
+  return {
+    imageData: result.url,
+    attribution: attributionObj,
+    source: result.source,
+  };
+}
+
 interface ImageResult {
   url: string;
   attribution?: string;

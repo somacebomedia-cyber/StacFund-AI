@@ -3,16 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover" />
+
+    <!-- ─── PWA / Native-app meta tags ─────────────────────────────────── -->
+    <!-- Android Chrome + Edge installability -->
+    <meta name="theme-color" content="#050510" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#050510" media="(prefers-color-scheme: light)" />
+    <link rel="manifest" href="/manifest.json?v=30" />
+
+    <!-- iOS Safari — full-screen PWA with no browser chrome -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#050510" />
-    <meta name="apple-mobile-web-app-title" content="StacFund">
-    <link rel="icon" type="image/png" href="/icon.png">
-    <link rel="apple-touch-icon" href="/icon.png">
-    <link rel="manifest" href="/manifest.json?v=6">
-    <title>StacFund - Power Your Business</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="apple-mobile-web-app-title" content="StacFund" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- App icons (all sizes for every platform) -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="mask-icon" href="/icon.svg" color="#a855f7" />
+
+    <!-- Android deep-linking: when this URL is opened in a browser on Android,
+         Chrome will offer to open the installed PWA instead. -->
+    <meta property="al:android:app_name" content="StacFund" />
+    <meta property="al:android:package" content="com.stacfund.app" />
+
+    <!-- Windows tile -->
+    <meta name="msapplication-TileColor" content="#050510" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <meta name="application-name" content="StacFund" />
+
+    <title>StacFund — Power Your Business</title>
+    <meta name="description" content="StacFund is the all-in-one funding toolkit for South African entrepreneurs. Discover grants, auto-fill applications, generate investor-ready business plans and pitch decks." />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Lato (body) + Cormorant Garamond (display) — Venturekit-style typography for the
+         business plan and pitch deck documents. Loaded here so they're available to the
+         html2canvas PDF renderer. -->
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- Unbounded — display font for pitch deck slide headings (Presenton's signature font).
+         Used only for large headings (h1/h2) to create visual hierarchy. -->
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* ─── Standalone-app CSS ───────────────────────────────────────────
+           When running as an installed PWA (display-mode: standalone), we:
+           - Disable text selection on the body (apps don't let you select UI text)
+           - Disable the iOS Safari callout on long-press
+           - Use 100dvh (dynamic viewport height) so the app fills the screen
+             correctly on mobile browsers with collapsible toolbars
+           - Set overscroll-behavior: contain so the user can't "pull to refresh"
+             the app (which would feel like a website, not an app) */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #050510;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            overscroll-behavior: contain;
+        }
+        @media (display-mode: standalone), (display-mode: fullscreen) {
+            html, body {
+                user-select: none;
+                -webkit-user-select: none;
+                height: 100dvh;
+            }
+            /* But allow text selection inside inputs/textareas/contenteditable */
+            input, textarea, [contenteditable="true"] {
+                user-select: text;
+                -webkit-user-select: text;
+            }
+        }
         body {
             font-family: 'Inter', sans-serif;
             background-color: #050510;
@@ -56,6 +120,37 @@
             50% { transform: scale(1.05); opacity: 1; }
             100% { transform: scale(0.95); opacity: 0.8; }
         }
+        /* PERF FIX: Stat-card hover glow — replaces imperative onMouseEnter/Leave
+           box-shadow mutation in Landing.tsx. The transition runs entirely on the
+           compositor thread, no React re-render or layout invalidation. */
+        .stat-card-hover {
+            transition: box-shadow 0.3s ease;
+        }
+        .stat-card-hover:hover {
+            box-shadow: 0 0 30px var(--stat-glow, #a855f7)25, inset 0 0 30px var(--stat-glow, #a855f7)08;
+        }
+        /* ─── VENTUREKIT DOCUMENT TEXT COLOR OVERRIDE ──────────────────────
+           The business plan document was originally designed for a purple
+           gradient background with white text. After switching to the
+           Venturekit cream background (#F8F5F0), all `text-white` Tailwind
+           classes would be invisible. This scoped override remaps every
+           `text-white*` variant to the appropriate dark gray within
+           `.venturekit-doc`, so the existing 90+ `text-white` references
+           render correctly without requiring individual edits. */
+        .venturekit-doc .text-white { color: #333333 !important; }
+        .venturekit-doc .text-white\/90 { color: #333333 !important; }
+        .venturekit-doc .text-white\/85 { color: #333333 !important; }
+        .venturekit-doc .text-white\/80 { color: #444444 !important; }
+        .venturekit-doc .text-white\/75 { color: #555555 !important; }
+        .venturekit-doc .text-white\/70 { color: #555555 !important; }
+        .venturekit-doc .text-white\/60 { color: #666666 !important; }
+        .venturekit-doc .text-white\/50 { color: #777777 !important; }
+        .venturekit-doc .text-white\/40 { color: #888888 !important; }
+        .venturekit-doc .text-white\/30 { color: #999999 !important; }
+        .venturekit-doc .border-white\/20 { border-color: #E0E0E0 !important; }
+        .venturekit-doc .border-white\/10 { border-color: #EEEEEE !important; }
+        .venturekit-doc .bg-white\/5 { background-color: rgba(0,0,0,0.02) !important; }
+        .venturekit-doc .bg-white\/10 { background-color: rgba(0,0,0,0.03) !important; }
     </style>
 
 </head>
@@ -68,15 +163,28 @@
     </div>
     <script type="module" src="./index.tsx"></script>
     <script>
+      // Service worker registration — offline-first PWA.
+      // The SW is registered on window.load so it doesn't compete with the
+      // initial app bundle for bandwidth. We also handle the "controllerchange"
+      // event so that when a new SW takes over, the page reloads to pick up
+      // the latest cached assets.
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Add a try-catch to prevent origin mismatch errors from logging loudly
           try {
              navigator.serviceWorker.register('/sw.js')
-               .then(reg => console.log('SW registered'))
-               .catch(err => console.log('SW registration skipped (expected in preview):', err.message));
+               .then(reg => {
+                 console.log('[PWA] Service Worker registered:', reg.scope);
+                 // Listen for updates — if a new SW takes over, reload once.
+                 let refreshing = false;
+                 navigator.serviceWorker.addEventListener('controllerchange', () => {
+                   if (refreshing) return;
+                   refreshing = true;
+                   window.location.reload();
+                 });
+               })
+               .catch(err => console.warn('[PWA] SW registration skipped:', err.message));
           } catch (e) {
-             console.log('SW initialization skipped');
+             console.warn('[PWA] SW initialization skipped');
           }
         });
       }

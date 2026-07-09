@@ -142,6 +142,78 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
 
 const geminiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
 const paystackLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
+// FIX (2026-07-08): Pexels/Pixabay keys are shared server-side across every
+// user of the app — Pexels' free tier caps at 200 req/hr and Pixabay at
+// 100/min, TOTAL, not per-user. Without a limiter here, one buggy client
+// loop (or one user) can burn the whole app's quota, which is especially
+// bad since this endpoint is the fallback for when Imagen fails.
+const stockPhotosLimiter = rateLimit({ windowMs: 60 * 1000, max: 20 });
+
+// ─── Stock photo search helpers (Pexels + Pixabay) ──────────────────────────
+// Used by the /api/stock-photos/search route. Returns a unified StockPhoto[]
+// shape so the client doesn't need to know which source each photo came from
+// (the source is preserved in the `source` field for attribution).
+
+interface StockPhoto {
+  url: string;              // direct image URL (large size — typically 800-1280px wide)
+  thumbUrl: string;         // smaller thumbnail for preview UIs
+  photographer: string;     // for attribution
+  photographerUrl: string;  // link to photographer profile
+  source: 'pexels' | 'pixabay';
+  width: number;
+  height: number;
+}
+
+async function searchPexels(apiKey: string, query: string, orientation: 'landscape' | 'portrait', perPage: number): Promise<StockPhoto[]> {
+  // Pexels API: https://www.pexels.com/api/documentation/#photos-search
+  const params = new URLSearchParams({
+    query,
+    per_page: String(perPage),
+    orientation,
+    size: 'large',
+  });
+  const response = await axios.get(`https://api.pexels.com/v1/search?${params.toString()}`, {
+    headers: { Authorization: apiKey },
+    timeout: 8000,
+    validateStatus: (s) => s === 200,
+  });
+  const photos = (response.data?.photos || []) as any[];
+  return photos.map(p => ({
+    url: p.src?.large || p.src?.medium || p.src?.original,
+    thumbUrl: p.src?.small || p.src?.tiny,
+    photographer: p.photographer || 'Unknown',
+    photographerUrl: p.photographer_url || 'https://www.pexels.com',
+    source: 'pexels' as const,
+    width: p.width || 0,
+    height: p.height || 0,
+  })).filter(p => p.url);
+}
+
+async function searchPixabay(apiKey: string, query: string, orientation: 'landscape' | 'portrait', perPage: number): Promise<StockPhoto[]> {
+  // Pixabay API: https://pixabay.com/api/docs/
+  const params = new URLSearchParams({
+    key: apiKey,
+    q: query,
+    image_type: 'photo',
+    orientation: orientation === 'portrait' ? 'vertical' : 'horizontal',
+    per_page: String(perPage),
+    safesearch: 'true',
+  });
+  const response = await axios.get(`https://pixabay.com/api/?${params.toString()}`, {
+    timeout: 8000,
+    validateStatus: (s) => s === 200,
+  });
+  const hits = (response.data?.hits || []) as any[];
+  return hits.map(h => ({
+    url: h.largeImageURL,
+    thumbUrl: h.previewURL || h.webformatURL,
+    photographer: h.user || 'Unknown',
+    photographerUrl: h.pageURL || 'https://pixabay.com',
+    source: 'pixabay' as const,
+    width: h.imageWidth || 0,
+    height: h.imageHeight || 0,
+  })).filter(p => p.url);
+}
 
 async function startServer() {
   const app = express();
@@ -453,76 +525,6 @@ Include these slides:
     }
   });
 
-  // API route for Stock Photo fallback search
-  // SECURITY: Requires authentication and uses server-side keys
-  app.get("/api/stock-photos/search", requireAuth, async (req, res) => {
-    try {
-      const query = String(req.query.q || '').trim();
-      if (!query) {
-        return res.json({ photos: [] });
-      }
-
-      const pexelsApiKey = process.env.PEXELS_API_KEY;
-      const pixabayApiKey = process.env.PIXABAY_API_KEY;
-      const photos: any[] = [];
-      const promises: Promise<any>[] = [];
-
-      if (pexelsApiKey) {
-        promises.push(
-          axios.get(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=15`, {
-            headers: { Authorization: pexelsApiKey },
-            timeout: 5000,
-          }).then((response) => {
-            if (response.data && Array.isArray(response.data.photos)) {
-              response.data.photos.forEach((p: any) => {
-                photos.push({
-                  url: p.src.large2x || p.src.large || p.src.landscape || p.src.original,
-                  photographer: p.photographer,
-                  photographerUrl: p.photographer_url,
-                  source: 'pexels',
-                });
-              });
-            }
-          }).catch((err) => {
-            console.error('[Pexels API Error]', err.message);
-          })
-        );
-      }
-
-      if (pixabayApiKey) {
-        promises.push(
-          axios.get(`https://pixabay.com/api/?key=${pixabayApiKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=15`, {
-            timeout: 5000,
-          }).then((response) => {
-            if (response.data && Array.isArray(response.data.hits)) {
-              response.data.hits.forEach((h: any) => {
-                photos.push({
-                  url: h.largeImageURL || h.webformatURL,
-                  photographer: h.user,
-                  photographerUrl: h.pageURL,
-                  source: 'pixabay',
-                });
-              });
-            }
-          }).catch((err) => {
-            console.error('[Pixabay API Error]', err.message);
-          })
-        );
-      }
-
-      if (promises.length > 0) {
-        await Promise.allSettled(promises);
-      } else {
-        console.warn('Neither PEXELS_API_KEY nor PIXABAY_API_KEY is configured.');
-      }
-
-      res.json({ photos });
-    } catch (error: any) {
-      console.error("Stock photos search error:", error.message);
-      res.status(500).json({ error: "Failed to search stock photos", details: error.message });
-    }
-  });
-
   // Manual scraper trigger — admin-only. Useful for testing or forcing a
   // refresh outside the daily cron schedule. Returns immediately and runs
   // the scraper in the background (can take 10+ minutes for all 37 sites).
@@ -535,6 +537,75 @@ Include these slides:
     // Fire-and-forget — don't block the request
     runAdvancedScraper().catch(e => console.error('[Scraper] Manual run failed:', e));
     res.json({ status: 'started', message: 'Scraper running in background' });
+  });
+
+  // ─── Stock Photos API (Pexels + Pixabay proxy) ────────────────────────────
+  // Provides a unified endpoint for the client to search stock photos from
+  // both Pexels and Pixabay in parallel. Used as a fallback (or alternative)
+  // to AI image generation (Imagen) for pitch deck slides.
+  //
+  // Why server-side proxy (not direct client calls):
+  //   1. API keys stay server-side — never exposed to the browser
+  //   2. requireAuth middleware prevents anonymous quota burn
+  //   3. stockPhotosLimiter caps each authenticated user at 20 req/min —
+  //      Pexels/Pixabay quotas are shared app-wide, not per-user, so one
+  //      runaway client loop could otherwise exhaust them for everyone
+  //   4. Parallel fetch + merge happens server-side (one round-trip for client)
+  //
+  // Required env vars (both optional — route returns empty array if missing):
+  //   PEXELS_API_KEY  — get one free at https://www.pexels.com/api/
+  //   PIXABAY_API_KEY — get one free at https://pixabay.com/api/docs/
+  app.post("/api/stock-photos/search", requireAuth, stockPhotosLimiter, async (req, res) => {
+    try {
+      const { query, orientation = 'landscape', perPage = 15 } = req.body || {};
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'query is required' });
+      }
+      // Cap perPage to prevent abuse (both APIs allow up to 80/page)
+      const safePerPage = Math.min(Math.max(Number(perPage) || 15, 1), 30);
+      const safeOrientation = orientation === 'portrait' ? 'portrait' : 'landscape';
+      const safeQuery = String(query).slice(0, 100).trim();
+      if (!safeQuery) return res.status(400).json({ error: 'query must not be empty' });
+
+      const pexelsKey = process.env.PEXELS_API_KEY;
+      const pixabayKey = process.env.PIXABAY_API_KEY;
+
+      // Run both searches in parallel. If a key is missing, that source is skipped.
+      const [pexelsResults, pixabayResults] = await Promise.allSettled([
+        pexelsKey ? searchPexels(pexelsKey, safeQuery, safeOrientation, safePerPage) : Promise.resolve([]),
+        pixabayKey ? searchPixabay(pixabayKey, safeQuery, safeOrientation, safePerPage) : Promise.resolve([]),
+      ]);
+
+      const pexelsPhotos = pexelsResults.status === 'fulfilled' ? pexelsResults.value : [];
+      const pixabayPhotos = pixabayResults.status === 'fulfilled' ? pixabayResults.value : [];
+
+      // Log failures for debugging (don't fail the whole request — partial results are useful)
+      if (pexelsResults.status === 'rejected') {
+        console.warn('[Stock Photos] Pexels search failed:', pexelsResults.reason?.message);
+      }
+      if (pixabayResults.status === 'rejected') {
+        console.warn('[Stock Photos] Pixabay search failed:', pixabayResults.reason?.message);
+      }
+
+      // Interleave results from both sources so the user sees variety
+      const merged: StockPhoto[] = [];
+      const maxLen = Math.max(pexelsPhotos.length, pixabayPhotos.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (i < pexelsPhotos.length) merged.push(pexelsPhotos[i]);
+        if (i < pixabayPhotos.length) merged.push(pixabayPhotos[i]);
+      }
+
+      res.json({
+        photos: merged,
+        sources: {
+          pexels: pexelsResults.status === 'fulfilled',
+          pixabay: pixabayResults.status === 'fulfilled',
+        },
+      });
+    } catch (error: any) {
+      console.error('[Stock Photos] Search error:', error.message);
+      res.status(500).json({ error: 'Failed to search stock photos', details: error.message });
+    }
   });
 
   // Vite middleware for development

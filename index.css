@@ -1,7 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Design tokens ──────────────────────────────────────────────────
+       Anchored on the values already established across the app (not new
+       colors): --background/--surface match the #050510 / #0a0a1a used in
+       bg-space-* and OutlineEditor's top bar; --primary/--secondary match
+       the brand-primary/brand-secondary hex already used in .fintech-glow;
+       --success/--destructive formalize the emerald/red already used
+       throughout as the de-facto positive/error colors.
+       Stored as HSL triplets so Tailwind's <alpha-value> opacity modifiers
+       work, e.g. bg-primary/20, border-border/10 — same pattern as the
+       existing border-white/10 usage. */
+    --background: 240 52% 4%;       /* #050510 */
+    --surface: 240 44% 7%;          /* #0a0a1a */
+    --foreground: 0 0% 100%;
+    --muted-foreground: 220 9% 46%; /* #6b7280, gray-500 */
+    --primary: 258 90% 66%;         /* #8b5cf6 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 91% 60%;       /* #3b82f6 */
+    --success: 160 84% 39%;         /* #10b981, emerald-500 */
+    --destructive: 0 84% 60%;       /* #ef4444, red-500 */
+    --border: 0 0% 100%;            /* used with opacity, e.g. border-border/10 */
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Unbounded', ui-sans-serif, sans-serif;
+  }
+}
 
 @keyframes shimmer {
   0% { transform: translateX(-150%); }
@@ -27,29 +53,18 @@
   }
 
   .fintech-glow {
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15), 0 0 40px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.15), 0 0 40px hsl(var(--secondary) / 0.1);
   }
 
-  /* ── Space Image Art Direction ── */
-  .bg-space-hero {
-    background-color: #050510;
-    background-image: linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-  }
-
-  .bg-space-auth {
-    background-color: #050510;
-    background-image: linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-  }
-
+  /* ── Space Image Art Direction ──
+     Previously duplicated identically 3x (hero/auth/dashboard) — same
+     background-color and gradient overlay in each, just different class
+     names. Collapsed to one rule; all 3 class names still work. */
+  .bg-space-hero,
+  .bg-space-auth,
   .bg-space-dashboard {
-    background-color: #050510;
-    background-image: linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png');
+    background-color: hsl(var(--background));
+    background-image: linear-gradient(hsl(var(--background) / 0.75), hsl(var(--background) / 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;

@@ -2,6 +2,33 @@ import { Type } from '@google/genai';
 import { createGeminiClient } from '../services/geminiClient';
 import { SlideOutline, PitchStrategy } from './outlineStrategies';
 
+export const handleGeminiError = (error: any) => {
+  console.error('Outline generation error:', error);
+};
+
+export async function generateOutline({
+  documentName,
+  businessName,
+  documentContent,
+  strategy,
+}: {
+  documentName: string;
+  businessName?: string;
+  documentContent?: string;
+  strategy: any;
+}): Promise<{ slides: SlideOutline[]; strategyId: string }> {
+  const slides = await generateSlideOutline(
+    documentName,
+    businessName || '',
+    strategy,
+    documentContent || ''
+  );
+  return {
+    slides,
+    strategyId: strategy.id,
+  };
+}
+
 export async function generateSlideOutline(
   docName: string,
   businessName: string,
@@ -125,4 +152,19 @@ export async function regenerateSingleSlide(
     console.error('Error regenerating single slide:', error);
     throw error;
   }
+}
+
+export async function regenerateSlide(
+  slide: SlideOutline,
+  context: {
+    documentName: string;
+    businessName?: string;
+    documentContent?: string;
+  }
+): Promise<SlideOutline> {
+  return regenerateSingleSlide(
+    slide,
+    context.documentContent || '',
+    context.businessName || ''
+  );
 }

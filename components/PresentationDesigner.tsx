@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, 
-  Palette, Wand2, Loader2, PieChart, Film, Play, Settings, RefreshCw, AlertCircle
-} from 'lucide-react';
+import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Palette, Wand2, Loader2, Printer, Type as TypeIcon, PieChart, ListChecks, Video } from 'lucide-react';
+import { Type } from '@google/genai';
+import { createGeminiClient } from '../services/geminiClient';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { handleGeminiError } from '../services/geminiError';
 import { User, AppDocument } from '../types';
-import { el, ELEMENT_TAXONOMY } from '../utils/elementTypes';
-import { SlideOutline, PITCH_STRATEGIES } from '../utils/outlineStrategies';
-import { generateSlideOutline } from '../utils/outlineGenerator';
-import { OutlineEditor } from './OutlineEditor';
-import { generateOrGetImage, ImageSourceMode } from '../utils/imageOrchestrator';
-import { exportDeckToVideo } from '../utils/videoExporter';
+import OutlineEditor from './OutlineEditor';
+import { generateOutline, handleGeminiError as outlineHandleGeminiError } from '../utils/outlineGenerator';
+import { OutlineSlide, OutlineStrategy, getStrategyById, getDefaultStrategy, STRATEGIES } from '../utils/outlineStrategies';
+import { generateSlideImage as orchestratorGenerateImage, deriveStockSearchQuery, getImageSourceModeLabel, getImageSourceModeDescription, type ImageSourceMode, type ImageAttribution } from '../utils/imageOrchestrator';
+import { el } from '../utils/elementTypes';
+import { exportSlidesToVideo, isVideoExportSupported, downloadVideoBlob, paintElementToCanvas, type VideoExportOptions } from '../utils/videoExporter';
 
 interface PresentationDesignerProps {
   user: User | null;
@@ -26,70 +26,89 @@ interface Slide {
   visualPrompt?: string; 
   imageData?: string;
   isGeneratingImage?: boolean;
+  // Attribution metadata for stock photos (Pexels/Pixabay). Undefined for
+  // AI-generated images. Required for legal compliance with stock photo licenses.
+  imageAttribution?: ImageAttribution;
+  // Which source produced this slide's image. Used to show a badge in the editor.
+  imageSource?: 'ai' | 'pexels' | 'pixabay';
 }
 
+// ─── PITCH DECK THEME SYSTEM ─────────────────────────────────────────
+// Each theme defines the visual identity for a pitch deck. The `gradient`
+// field (if present) is used as an inline CSS background on the slide,
+// overriding the flat `bg` Tailwind class. This lets us do vibrant
+// multi-stop gradients like the Gamma-style purple.
+//
+// Themes are designed for specific use cases:
+//   - gamma-purple:    Default investor pitch (matches PitchDeckDocument)
+//   - eco-printer:     For EcoTank/sustainability pitches (earthy green)
+//   - ride-on-cars:    For kids' EV racer / preschool pitches (warm orange)
+//   - ocean-blue:      For professional/corporate pitches (calm blue)
+//   - sunset-pink:     For creative/lifestyle pitches (warm pink)
+//   - modern-dark:     Minimal dark (original "modern")
+//   - bold-magenta:    Bold magenta (original "bold")
 const THEMES = [
-  { id: 'modern', name: 'Modern Blue', bg: 'bg-[#0a0a1a]', accent: 'text-cyan-400', border: 'border-cyan-500/30', font: 'font-sans', graphColor: '#22d3ee' },
-  { id: 'eco', name: 'Eco Green', bg: 'bg-[#051a05]', accent: 'text-emerald-400', border: 'border-emerald-500/30', font: 'font-serif', graphColor: '#34d399' },
-  { id: 'bold', name: 'Bold Purple', bg: 'bg-[#1a051a]', accent: 'text-purple-400', border: 'border-purple-500/30', font: 'font-sans', graphColor: '#a855f7' },
+  { id: 'gamma-purple', name: 'Gamma Purple', bg: 'bg-[#3B0764]', accent: 'text-[#A3E635]', border: 'border-[#A3E635]/30', font: 'font-sans', graphColor: '#A3E635', gradient: 'linear-gradient(135deg, #3B0764 0%, #6D28D9 50%, #9333EA 100%)', swatch: ['#3B0764', '#6D28D9', '#A3E635'] },
+  { id: 'eco-printer', name: 'Eco Printer', bg: 'bg-[#064E3B]', accent: 'text-[#34D399]', border: 'border-emerald-500/30', font: 'font-serif', graphColor: '#34D399', gradient: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #047857 100%)', swatch: ['#064E3B', '#065F46', '#34D399'] },
+  { id: 'ride-on-cars', name: 'Ride-On Cars', bg: 'bg-[#7C2D12]', accent: 'text-[#FBBF24]', border: 'border-amber-500/30', font: 'font-sans', graphColor: '#F97316', gradient: 'linear-gradient(135deg, #7C2D12 0%, #EA580C 50%, #F97316 100%)', swatch: ['#7C2D12', '#EA580C', '#FBBF24'] },
+  { id: 'ocean-blue', name: 'Ocean Blue', bg: 'bg-[#0C4A6E]', accent: 'text-[#38BDF8]', border: 'border-sky-500/30', font: 'font-sans', graphColor: '#38BDF8', gradient: 'linear-gradient(135deg, #0C4A6E 0%, #0369A1 50%, #0284C7 100%)', swatch: ['#0C4A6E', '#0369A1', '#38BDF8'] },
+  { id: 'sunset-pink', name: 'Sunset Pink', bg: 'bg-[#831843]', accent: 'text-[#FCD34D]', border: 'border-pink-500/30', font: 'font-sans', graphColor: '#DB2777', gradient: 'linear-gradient(135deg, #831843 0%, #BE185D 50%, #DB2777 100%)', swatch: ['#831843', '#BE185D', '#FCD34D'] },
+  { id: 'modern-dark', name: 'Modern Dark', bg: 'bg-[#0a0a1a]', accent: 'text-cyan-400', border: 'border-cyan-500/30', font: 'font-sans', graphColor: '#22d3ee', gradient: 'linear-gradient(135deg, #0a0a1a 0%, #1e293b 50%, #22d3ee 100%)', swatch: ['#0a0a1a', '#1e293b', '#22d3ee'] },
+  { id: 'bold-magenta', name: 'Bold Magenta', bg: 'bg-[#1a051a]', accent: 'text-purple-400', border: 'border-purple-500/30', font: 'font-sans', graphColor: '#a855f7', gradient: 'linear-gradient(135deg, #1a051a 0%, #581c87 50%, #a855f7 100%)', swatch: ['#1a051a', '#581c87', '#a855f7'] },
 ];
 
-// Helper to render slide content (used for Editor, Print view, and Video capture)
+// Helper to render slide content (used for both Editor and Print view)
+// Marked with `data-element-type` attributes so export tools can walk the DOM
+// semantically (matches the PitchDeckDocument tagging pattern).
 const SlideRenderer = ({ slide, theme, index, total }: { slide: Slide, theme: typeof THEMES[0], index: number, total: number }) => (
-  <div 
+  <div
+    {...el('container-slide')}
     className={`w-full h-full ${theme.bg} relative overflow-hidden flex flex-col p-8 md:p-16 border-4 ${theme.border}`}
-    {...el(ELEMENT_TAXONOMY.CONTAINER_SLIDE)}
+    style={theme.gradient ? { background: theme.gradient } : undefined}
   >
       {/* Background Pattern */}
-      <div 
-        className="absolute inset-0 opacity-10 pointer-events-none" 
-        style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }}
-        {...el(ELEMENT_TAXONOMY.VECTOR_DECORATIVE)}
-      />
+      <div {...el('decorative-bg')} className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
       
       {/* Slide Content */}
       {slide.type === 'cover' ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center relative z-10" {...el(ELEMENT_TAXONOMY.CONTAINER_COVER)}>
+        <div className="flex-1 flex flex-col items-center justify-center text-center relative z-10">
             {slide.imageData ? (
-              <div className="absolute inset-0 opacity-50 mix-blend-screen" {...el(ELEMENT_TAXONOMY.IMAGE_BACKGROUND)}>
-                <img src={slide.imageData} alt="Generated Visual" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                <div className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent`}></div>
+              <div className="absolute inset-0 opacity-50 mix-blend-screen">
+                <img src={slide.imageData} alt="Generated Visual" className="w-full h-full object-cover" />
+                <div className={`absolute inset-0 bg-gradient-to-t from-[${theme.bg.replace('bg-', '')}] via-transparent to-transparent`}></div>
               </div>
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center opacity-5" {...el(ELEMENT_TAXONOMY.VECTOR_DECORATIVE)}>
+              <div className="absolute inset-0 flex items-center justify-center opacity-5">
                 <ImageIcon size={300} />
               </div>
             )}
             <div className="relative z-20 max-w-3xl">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-8" {...el(ELEMENT_TAXONOMY.BADGE)}>
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-8`}>
                 <Sparkles size={16} className={theme.accent} />
                 <span className="text-sm font-bold uppercase tracking-widest text-white">Business Proposal</span>
               </div>
-              <h1 className={`text-5xl md:text-6xl font-black mb-8 leading-tight ${theme.font} text-white drop-shadow-2xl`} {...el(ELEMENT_TAXONOMY.TITLE_COVER)}>{slide.title}</h1>
-              <p className={`text-xl font-medium opacity-90 ${theme.accent}`} {...el(ELEMENT_TAXONOMY.SUBTITLE_COVER)}>{slide.points[0] || 'Business Overview'}</p>
+              <h1 {...el('heading-title')} className="text-6xl md:text-7xl font-black mb-8 leading-tight text-white drop-shadow-2xl" style={{ fontFamily: theme.font === 'font-serif' ? '"Cormorant Garamond", serif' : '"Unbounded", sans-serif', letterSpacing: '-0.03em' }}>{slide.title}</h1>
+              <p {...el('body-lead')} className={`text-2xl font-medium opacity-90 ${theme.accent}`}>{slide.points[0] || 'Business Overview'}</p>
             </div>
         </div>
       ) : slide.type === 'data' ? (
-        <div className="flex-1 flex flex-col relative z-10" {...el(ELEMENT_TAXONOMY.CONTAINER_GRID)}>
-            <h2 className={`text-4xl font-black mb-10 ${theme.font} text-white border-b border-white/10 pb-4`} {...el(ELEMENT_TAXONOMY.HEADING_PRIMARY)}>{slide.title}</h2>
+        <div {...el('container-section')} className="flex-1 flex flex-col relative z-10">
+            <h2 {...el('heading-section')} className="text-5xl font-black mb-12 text-white border-b border-white/10 pb-6" style={{ fontFamily: '"Unbounded", sans-serif', letterSpacing: '-0.02em' }}>{slide.title}</h2>
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-              <div className="space-y-4" {...el(ELEMENT_TAXONOMY.CONTAINER_COLUMN, 'metrics')}>
+              <div className="space-y-6">
                 {slide.points.map((p, i) => {
                   const [val, label] = p.includes(':') ? p.split(':') : [p, ''];
                   return (
-                    <div key={i} className={`p-5 rounded-2xl bg-white/5 border ${theme.border} backdrop-blur-sm`} {...el(ELEMENT_TAXONOMY.FINANCIAL_METRIC)}>
-                      <p className={`text-3xl font-black mb-1 ${theme.accent}`} {...el(ELEMENT_TAXONOMY.ASK_AMOUNT)}>{val}</p>
-                      <p className="text-gray-300 text-sm font-medium" {...el(ELEMENT_TAXONOMY.TEXT_BODY)}>{label}</p>
+                    <div key={i} className={`p-6 rounded-2xl bg-white/5 border ${theme.border} backdrop-blur-sm`}>
+                      <p className={`text-4xl font-black mb-1 ${theme.accent}`}>{val}</p>
+                      <p className="text-gray-300 text-lg font-medium">{label}</p>
                     </div>
                   );
                 })}
               </div>
-              <div 
-                className={`h-full min-h-[250px] rounded-3xl bg-white/5 border ${theme.border} flex items-center justify-center relative overflow-hidden p-4`}
-                {...el(ELEMENT_TAXONOMY.CHART_CONTAINER)}
-              >
+              <div className={`h-full min-h-[300px] rounded-3xl bg-white/5 border ${theme.border} flex items-center justify-center relative overflow-hidden p-4`}>
                  {slide.imageData ? (
-                   <img src={slide.imageData} className="w-full h-full object-contain rounded-xl" alt="Data Visualization" referrerPolicy="no-referrer" {...el(ELEMENT_TAXONOMY.CHART_ELEMENT)} />
+                   <img src={slide.imageData} className="w-full h-full object-contain rounded-xl" alt="Data Visualization" />
                  ) : (
                    <div className="text-center opacity-30">
                      <PieChart size={64} className={`mx-auto mb-4 ${theme.accent}`} />
@@ -100,30 +119,30 @@ const SlideRenderer = ({ slide, theme, index, total }: { slide: Slide, theme: ty
             </div>
         </div>
       ) : slide.type === 'quote' ? (
-        <div className="flex-1 flex flex-col items-center justify-center relative z-10 p-12" {...el(ELEMENT_TAXONOMY.QUOTE_CONTAINER)}>
-            <div className="text-8xl opacity-20 font-serif absolute top-10 left-10 text-white">"</div>
-            <blockquote className={`text-3xl md:text-4xl font-medium text-center leading-relaxed ${theme.font} text-white italic max-w-4xl`} {...el(ELEMENT_TAXONOMY.QUOTE_TEXT)}>
+        <div className="flex-1 flex flex-col items-center justify-center relative z-10 p-12">
+            <div className="text-8xl opacity-20 font-serif absolute top-10 left-10">"</div>
+            <blockquote className="text-4xl md:text-5xl font-medium text-center leading-relaxed text-white italic max-w-4xl" style={{ fontFamily: theme.font === 'font-serif' ? '"Cormorant Garamond", serif' : '"Unbounded", sans-serif', letterSpacing: '-0.01em' }}>
               {slide.title}
             </blockquote>
-             <div className="text-8xl opacity-20 font-serif absolute bottom-10 right-10 text-white">"</div>
-             <div className={`mt-12 w-24 h-1 ${theme.accent.replace('text-', 'bg-')}`} {...el(ELEMENT_TAXONOMY.VECTOR_DECORATIVE)}></div>
+             <div className="text-8xl opacity-20 font-serif absolute bottom-10 right-10">"</div>
+             <div className={`mt-12 w-24 h-1 ${theme.accent.replace('text-', 'bg-')}`}></div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col relative z-10" {...el(ELEMENT_TAXONOMY.CONTAINER_GRID)}>
-            <div className={`w-20 h-2 rounded-full mb-6 ${theme.accent.replace('text-', 'bg-')}`} {...el(ELEMENT_TAXONOMY.VECTOR_DECORATIVE)}></div>
-            <h2 className={`text-4xl font-black mb-10 ${theme.font} text-white`} {...el(ELEMENT_TAXONOMY.HEADING_PRIMARY)}>{slide.title}</h2>
-            <div className="flex flex-col md:flex-row gap-8">
-               <div className="flex-1 space-y-6" {...el(ELEMENT_TAXONOMY.LIST_BULLET)}>
+        <div className="flex-1 flex flex-col relative z-10">
+            <div className={`w-20 h-2 rounded-full mb-8 ${theme.accent.replace('text-', 'bg-')}`}></div>
+            <h2 className="text-5xl font-black mb-12 text-white" style={{ fontFamily: '"Unbounded", sans-serif', letterSpacing: '-0.02em' }}>{slide.title}</h2>
+            <div className="flex flex-col md:flex-row gap-12">
+               <div className="flex-1 space-y-8">
                 {slide.points.map((p, i) => (
-                  <div key={i} className="flex items-start gap-4" {...el(ELEMENT_TAXONOMY.TEXT_BULLET_ITEM)}>
-                    <div className={`mt-2 w-3 h-3 rounded-full ${theme.accent.replace('text-', 'bg-')} shadow-[0_0_10px_currentColor]`} {...el(ELEMENT_TAXONOMY.VECTOR_DECORATIVE)}></div>
-                    <p className="text-lg text-gray-200 leading-relaxed" {...el(ELEMENT_TAXONOMY.TEXT_BODY)}>{p.replace(/^- /, '')}</p>
+                  <div key={i} className="flex items-start gap-6">
+                    <div className={`mt-2 w-4 h-4 rounded-full ${theme.accent.replace('text-', 'bg-')} shadow-[0_0_10px_currentColor]`}></div>
+                    <p className="text-2xl text-gray-200 leading-relaxed">{p.replace(/^- /, '')}</p>
                   </div>
                 ))}
                </div>
                {slide.imageData && (
-                 <div className="w-1/3 hidden md:block" {...el(ELEMENT_TAXONOMY.CONTAINER_COLUMN, 'sidebar-image')}>
-                    <img src={slide.imageData} className="w-full h-auto rounded-2xl border border-white/10 shadow-2xl" alt="Illustration" referrerPolicy="no-referrer" {...el(ELEMENT_TAXONOMY.IMAGE_SLIDE)} />
+                 <div className="w-1/3 hidden md:block">
+                    <img src={slide.imageData} className="w-full h-auto rounded-2xl border border-white/10 shadow-2xl" alt="Illustration" />
                  </div>
                )}
             </div>
@@ -131,237 +150,56 @@ const SlideRenderer = ({ slide, theme, index, total }: { slide: Slide, theme: ty
       )}
 
       {/* Footer */}
-      <div className="absolute bottom-6 left-8 right-8 flex justify-between items-center opacity-40 mix-blend-plus-lighter" {...el(ELEMENT_TAXONOMY.FOOTER_SECTION)}>
-          <p className="text-xs font-black uppercase tracking-widest text-white" {...el(ELEMENT_TAXONOMY.METADATA_LINE)}>StacFund Generated</p>
-          <p className="text-xs font-black uppercase tracking-widest text-white" {...el(ELEMENT_TAXONOMY.SLIDE_NUMBER)}>{index + 1} / {total}</p>
+      <div className="absolute bottom-6 left-8 right-8 flex justify-between items-center opacity-40 mix-blend-plus-lighter">
+          <div className="flex items-center gap-3 min-w-0">
+            <p className="text-sm font-black uppercase tracking-widest text-white">StacFund Generated</p>
+            {/* Attribution for stock photos (Pexels/Pixabay license requirement).
+                Hidden for AI-generated images (no attribution needed). */}
+            {slide.imageAttribution && (
+              <span className="text-[10px] text-white/80 font-normal normal-case tracking-normal truncate max-w-[40%]">
+                Photo: {slide.imageAttribution.photographer} / {slide.imageAttribution.source}
+              </span>
+            )}
+            {/* Source badge — small label showing where the image came from.
+                Helps the user understand which mode produced the current slide. */}
+            {slide.imageSource && slide.imageSource !== 'ai' && !slide.imageAttribution && (
+              <span className="text-[10px] text-white/80 font-normal normal-case tracking-normal">
+                [{slide.imageSource}]
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-black uppercase tracking-widest text-white">{index + 1} / {total}</p>
       </div>
   </div>
 );
 
-export const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClose }) => {
-  // New workflow phases
-  const [step, setStep] = useState<'select' | 'generating-outline' | 'outline-review' | 'generating-deck' | 'editor'>('select');
+const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClose }) => {
+  const [step, setStep] = useState<'select' | 'outline-loading' | 'outline' | 'generating' | 'editor'>('select');
   const [documents, setDocuments] = useState<AppDocument[]>([]);
-  const [selectedDoc, setSelectedDoc] = useState<AppDocument | null>(null);
-
-  // Outline-first states
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('sa-funding');
-  const [imageSourceMode, setImageSourceMode] = useState<ImageSourceMode>('auto');
-  const [outline, setOutline] = useState<SlideOutline[]>([]);
-
-  // Generation & playback states
   const [slides, setSlides] = useState<Slide[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [theme, setTheme] = useState(THEMES[0]);
+  const [theme, setTheme] = useState(THEMES[0]); // gamma-purple is now the default
   const [presentonTemplate, setPresentonTemplate] = useState('stacfund-template');
-  
-  // Custom interactive messages
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [syncingBrand, setSyncingBrand] = useState(false);
-
-  // Video Export states
-  const [isExportingVideo, setIsExportingVideo] = useState(false);
-  const [videoExportProgress, setVideoExportProgress] = useState(0);
-  const [videoExportMessage, setVideoExportMessage] = useState('');
-  
-  const videoCancelRef = useRef(false);
-  const printContainerRef = useRef<HTMLDivElement>(null);
-
-  // Load user's documents
-  useEffect(() => {
-    const fetchDocs = async () => {
-      if (!user) return;
-      try {
-        const docsRef = collection(db, 'users', user.id, 'documents');
-        const docSnapshot = await getDocs(docsRef);
-        const fetchedDocs = docSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppDocument));
-        setDocuments(fetchedDocs.filter(d => d.type === 'text/plain' || d.content));
-      } catch (error) {
-        console.error('Error fetching documents:', error);
-      }
-    };
-    fetchDocs();
-  }, [user]);
-
-  // Phase 1: Ingest document and trigger draft outline generation
-  const handleDocSelected = async (doc: AppDocument) => {
-    setSelectedDoc(doc);
-    setStep('generating-outline');
-    setLoadingMessage(`Extracting business intelligence and structuring outline using "${PITCH_STRATEGIES.find(s => s.id === selectedStrategyId)?.name}" template...`);
-
-    try {
-      const activeStrategy = PITCH_STRATEGIES.find(s => s.id === selectedStrategyId) || PITCH_STRATEGIES[0];
-      const generatedOutline = await generateSlideOutline(
-        doc.name, 
-        user?.businessName || 'Your Startup', 
-        activeStrategy, 
-        doc.content || ''
-      );
-      
-      setOutline(generatedOutline);
-      setStep('outline-review');
-    } catch (error) {
-      console.error('Error generating presentation outline:', error);
-      alert('Failed to construct the initial draft outline. Please try again.');
-      setStep('select');
-    }
-  };
-
-  // Triggered when strategy is modified on the editor sidebar
-  const handleStrategyChange = async (strategyId: string) => {
-    if (!selectedDoc) return;
-    setSelectedStrategyId(strategyId);
-    setStep('generating-outline');
-    setLoadingMessage(`Regenerating draft structure using "${PITCH_STRATEGIES.find(s => s.id === strategyId)?.name}" template...`);
-    
-    try {
-      const activeStrategy = PITCH_STRATEGIES.find(s => s.id === strategyId) || PITCH_STRATEGIES[0];
-      const generatedOutline = await generateSlideOutline(
-        selectedDoc.name,
-        user?.businessName || 'Your Startup',
-        activeStrategy,
-        selectedDoc.content || ''
-      );
-      setOutline(generatedOutline);
-      setStep('outline-review');
-    } catch (e) {
-      console.error(e);
-      alert('Failed to regenerate outline.');
-      setStep('outline-review');
-    }
-  };
-
-  // Phase 3: Take finalized, edited outline and generate full slide deck assets (Images/Stock fallbacks)
-  const handleFinalOutlineConfirmed = async (finalOutline: SlideOutline[]) => {
-    setStep('generating-deck');
-    setGenerationProgress({ current: 0, total: finalOutline.length });
-
-    const generatedSlides: Slide[] = [];
-
-    for (let idx = 0; idx < finalOutline.length; idx++) {
-      const slideDef = finalOutline[idx];
-      setGenerationProgress({ current: idx + 1, total: finalOutline.length });
-      setLoadingMessage(`Generating assets for Slide ${idx + 1} of ${finalOutline.length}: "${slideDef.title}"...`);
-
-      let imageUrl: string | undefined = undefined;
-
-      // Call the image fallback orchestrator (AI -> Stock photo mode)
-      if (['cover', 'data', 'content'].includes(slideDef.type)) {
-        try {
-          const imgResult = await generateOrGetImage(
-            slideDef.title,
-            slideDef.visualPrompt,
-            slideDef.type,
-            theme.name,
-            theme.accent,
-            imageSourceMode
-          );
-          if (imgResult) {
-            imageUrl = imgResult.url;
-          }
-        } catch (e) {
-          console.warn(`Asset generation failed for Slide ${idx + 1}, proceeding without image.`, e);
-        }
-      }
-
-      generatedSlides.push({
-        id: slideDef.id,
-        type: slideDef.type,
-        title: slideDef.title,
-        points: slideDef.points,
-        visualPrompt: slideDef.visualPrompt,
-        imageData: imageUrl
-      });
-    }
-
-    setSlides(generatedSlides);
-    setCurrentSlideIndex(0);
-    setStep('editor');
-  };
-
-  // Single-slide image regeneration in the primary canvas editor
-  const handleSingleImageRegenerate = async (slideIdx: number) => {
-    const slideToUpdate = slides[slideIdx];
-    setSlides(prev => prev.map((s, i) => i === slideIdx ? { ...s, isGeneratingImage: true } : s));
-
-    try {
-      const imgResult = await generateOrGetImage(
-        slideToUpdate.title,
-        slideToUpdate.visualPrompt || slideToUpdate.title,
-        slideToUpdate.type,
-        theme.name,
-        theme.accent,
-        imageSourceMode
-      );
-
-      if (imgResult) {
-        setSlides(prev => prev.map((s, i) => i === slideIdx ? { ...s, imageData: imgResult.url, isGeneratingImage: false } : s));
-      } else {
-        setSlides(prev => prev.map((s, i) => i === slideIdx ? { ...s, isGeneratingImage: false } : s));
-        alert('Could not generate or find a matching image for this slide query.');
-      }
-    } catch (e) {
-      console.error(e);
-      setSlides(prev => prev.map((s, i) => i === slideIdx ? { ...s, isGeneratingImage: false } : s));
-      alert('Error regenerating slide image.');
-    }
-  };
-
-  // Video Export trigger using the ref print-container elements
-  const handleVideoExport = async () => {
-    if (!printContainerRef.current) return;
-    
-    const slideElements = Array.from(
-      printContainerRef.current.querySelectorAll<HTMLElement>('.slide-to-record')
-    );
-
-    if (slideElements.length === 0) {
-      alert("No slides rendered to record.");
-      return;
-    }
-
-    setIsExportingVideo(true);
-    setVideoExportProgress(0);
-    setVideoExportMessage('Initializing presentation video capture...');
-    videoCancelRef.current = false;
-
-    try {
-      const videoBlob = await exportDeckToVideo(
-        slideElements,
-        {
-          secondsPerSlide: 4, // 4 seconds transition time
-          width: 1280,
-          height: 720,
-          fps: 30,
-          bitrate: 5000000 // 5 Mbps High Quality
-        },
-        (current, total, msg) => {
-          setVideoExportMessage(msg);
-          setVideoExportProgress(Math.round((current / total) * 100));
-        },
-        () => videoCancelRef.current
-      );
-
-      // Create download link
-      const url = URL.createObjectURL(videoBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${user?.businessName || 'Business'}_Presenter_Video.${videoBlob.type.includes('mp4') ? 'mp4' : 'webm'}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-    } catch (err: any) {
-      console.error('Video export error:', err);
-      if (err.message !== 'Video generation cancelled by user.') {
-        alert(`Failed to export video presentation: ${err.message}`);
-      }
-    } finally {
-      setIsExportingVideo(false);
-    }
-  };
+  // ─── Outline-first state ────────────────────────────────────────────
+  // The draft outline (from AI or strategy-seeded) shown in OutlineEditor.
+  // The user reviews/edits here before full slide generation begins.
+  const [outlineSlides, setOutlineSlides] = useState<OutlineSlide[]>([]);
+  const [outlineStrategyId, setOutlineStrategyId] = useState<string | undefined>(undefined);
+  const [outlineSourceDoc, setOutlineSourceDoc] = useState<AppDocument | null>(null);
+  const [outlineLoadingMessage, setOutlineLoadingMessage] = useState('');
+  // ─── Image source mode ──────────────────────────────────────────────
+  // Controls whether slides use AI-generated images (Imagen), stock photos
+  // (Pexels/Pixabay), or auto-fallback (AI first → stock on failure).
+  // Default: 'auto' — best of both worlds. User can switch in editor sidebar.
+  const [imageSourceMode, setImageSourceMode] = useState<ImageSourceMode>('auto');
+  // ─── Video export state ──────────────────────────────────────────────
+  // Tracks the progress of video recording (slide N of M). Null when not recording.
+  // Hidden render container ref — used by video exporter to paint slides to canvas.
+  const [videoProgress, setVideoProgress] = useState<{ current: number; total: number } | null>(null);
+  const videoRenderRef = useRef<HTMLDivElement>(null);
+  const videoAbortRef = useRef<AbortController | null>(null);
 
   const handleBrandSync = async () => {
     const url = prompt("Enter your website URL (e.g., https://example.com) to extract brand colors:");
@@ -377,14 +215,18 @@ export const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user
       if (res.ok) {
         const data = await res.json();
         // Create a custom theme based on the extracted colors
+        const primary = data.primaryColor || '#a855f7';
+        const secondary = data.secondaryColor || '#6d28d9';
         const customTheme = {
           id: 'custom-brand',
           name: 'Custom Brand',
-          bg: `bg-[#0a0a1a]`, // dark background base
-          accent: `text-[${data.primaryColor}]`,
-          border: `border-[${data.primaryColor}]/30`,
+          bg: `bg-[#0a0a1a]`,
+          accent: `text-[${primary}]`,
+          border: `border-[${primary}]/30`,
           font: data.font || 'font-sans',
-          graphColor: data.primaryColor
+          graphColor: primary,
+          gradient: `linear-gradient(135deg, #0a0a1a 0%, ${secondary} 50%, ${primary} 100%)`,
+          swatch: ['#0a0a1a', secondary, primary]
         };
         // Add to themes and set as active
         if (!THEMES.find(t => t.id === 'custom-brand')) {
@@ -405,13 +247,304 @@ export const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user
     }
   };
 
+  useEffect(() => {
+    const fetchDocs = async () => {
+      if (!user) return;
+      try {
+        const docsRef = collection(db, 'users', user.id, 'documents');
+        const docSnapshot = await getDocs(docsRef);
+        const fetchedDocs = docSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppDocument));
+        setDocuments(fetchedDocs.filter(d => d.type === 'text/plain' || d.content));
+      } catch (error) {
+        console.error('Error fetching documents:', error);
+      }
+    };
+    fetchDocs();
+  }, [user]);
+
+  // ─── Outline-first flow ─────────────────────────────────────────────
+  // Phase 1: generateOutline() produces a draft OutlineSlide[] (fast — no images).
+  // Phase 2: OutlineEditor lets user review/edit/reorder/add/remove slides.
+  // Phase 3: generateFullPresentation() takes the user-approved outline and
+  //          generates the full slide deck (titles, points, visualPrompts) —
+  //          using the outline as strong structural guidance.
+  //
+  // This is the Gamma UX pattern: outline → review → generate.
+
+  // Entry point — called when user clicks a document in the select step.
+  // Generates the draft outline (with default strategy = SA Funding Pitch).
+  const startOutlineGeneration = async (doc: AppDocument, strategyId?: string) => {
+    setStep('outline-loading');
+    setOutlineLoadingMessage(strategyId ? 'Adapting outline to your document...' : 'Drafting outline...');
+    setOutlineSourceDoc(doc);
+
+    try {
+      const strategy = strategyId ? getStrategyById(strategyId) : getDefaultStrategy();
+      if (!strategy) throw new Error('Strategy not found');
+      const result = await generateOutline({
+        documentName: doc.name,
+        businessName: user?.businessName,
+        documentContent: doc.content,
+        strategy,
+      });
+      setOutlineSlides(result.slides);
+      setOutlineStrategyId(result.strategyId);
+      setStep('outline');
+    } catch (error) {
+      handleGeminiError(error);
+      alert('Failed to generate outline. Please try again.');
+      setStep('select');
+    }
+  };
+
+  // Called when user switches strategy in OutlineEditor — re-seed the outline.
+  const handleStrategyChange = async (strategyId: string) => {
+    if (!outlineSourceDoc) return;
+    // Re-run outline generation with the new strategy
+    await startOutlineGeneration(outlineSourceDoc, strategyId);
+  };
+
+  // Called when user clicks "Generate Full Deck" in OutlineEditor.
+  // Converts the user-edited OutlineSlide[] into the Slide[] shape the editor
+  // expects, then triggers background image generation.
+  const generateFullPresentation = async (editedOutline: OutlineSlide[]) => {
+    setStep('generating');
+    setLoadingMessage('Building full slide deck from your outline...');
+
+    try {
+      const ai = await createGeminiClient();
+
+      // Build a prompt that uses the outline as strong structural guidance.
+      // The AI's job is to expand each outline slide into full slide content
+      // (title, polished points, refined visualPrompt) — not to invent structure.
+      const outlineJson = editedOutline.map(s => ({
+        role: s.role,
+        title: s.title,
+        bullets: s.points || [], // Map points/bullets properly
+        layout: s.layout,
+        copyFormula: s.copyFormula,
+        emotion: s.emotion,
+        guidance: s.role,
+        visualPrompt: s.visualPrompt,
+      }));
+
+      const prompt = `You are expanding a user-approved pitch deck outline into full slide content.
+
+Business: ${user?.businessName || 'A South African business'}
+Source document: "${outlineSourceDoc?.name || 'Business profile'}"
+
+USER-APPROVED OUTLINE (do not change slide order, role, layout, formula, or emotion — only expand the text):
+${JSON.stringify(outlineJson, null, 2)}
+
+TASK: For each outline slide, produce a final slide object with:
+- type: 'cover' (for the first slide only) | 'content' (most slides) | 'data' (when layout is 'metrics-dashboard' or 'big-number-hero' or 'comparison-table') | 'quote' (when layout is 'quote-testimonial')
+- title: a polished version of the outline title (max 10 words)
+- points: 3-5 punchy bullet points (each max 15 words) that fulfill the slide's guidance + copyFormula + emotion goal
+- visualPrompt: a refined image/chart description (max 20 words) suitable for AI image generation
+
+South African context. All financial figures in ZAR.
+Output MUST be valid JSON matching the responseSchema. Array length must equal input length (${editedOutline.length}).`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.7,
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                type: { type: Type.STRING, enum: ['cover', 'content', 'data', 'quote'] },
+                title: { type: Type.STRING },
+                points: { type: Type.ARRAY, items: { type: Type.STRING } },
+                visualPrompt: { type: Type.STRING }
+              },
+              required: ['type', 'title', 'points', 'visualPrompt'],
+            },
+          },
+        },
+      });
+
+      let generatedSlides: any[] = [];
+      try {
+        generatedSlides = JSON.parse(response.text || '[]');
+      } catch (e) {
+        // Recovery: strip markdown fences and try again
+        const cleaned = (response.text || '').trim().replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        generatedSlides = JSON.parse(cleaned);
+      }
+
+      if (!Array.isArray(generatedSlides) || generatedSlides.length === 0) {
+        throw new Error('Gemini returned an empty slide array');
+      }
+
+      const slidesWithIds: Slide[] = generatedSlides.map((s: any, i: number) => ({
+        id: i.toString(),
+        type: s.type || 'content',
+        title: String(s.title || 'Untitled Slide'),
+        points: Array.isArray(s.points) ? s.points.map(String) : [],
+        visualPrompt: s.visualPrompt ? String(s.visualPrompt) : undefined,
+        isGeneratingImage: false,
+      }));
+      setSlides(slidesWithIds);
+      setStep('editor');
+
+      // Trigger background image generation for cover/data/content slides
+      slidesWithIds.forEach((slide: Slide, index: number) => {
+        if (['cover', 'data', 'content'].includes(slide.type)) {
+          generateSlideImage(slide, index);
+        }
+      });
+    } catch (error) {
+      handleGeminiError(error);
+      alert('Failed to generate full deck. Please try again.');
+      setStep('outline');
+    }
+  };
+
+  // ─── Slide image generation (orchestrator-backed) ──────────────────────
+  // Replaces the direct Imagen-only call with the orchestrator that supports
+  // 3 modes: 'ai' (Imagen), 'stock' (Pexels/Pixabay), 'auto' (AI → stock fallback).
+  // The mode is controlled by `imageSourceMode` state, switchable in the editor sidebar.
+  //
+  // On success, sets `imageData` + `imageAttribution` + `imageSource` on the slide.
+  // On failure (all sources exhausted in auto mode), clears `isGeneratingImage`
+  // and leaves the slide without an image — same behavior as before, but now
+  // with a console error explaining what failed.
+  const generateSlideImage = async (slide: Slide, index: number) => {
+    setSlides(prev => prev.map((s, i) => i === index ? { ...s, isGeneratingImage: true } : s));
+
+    try {
+      const result = await orchestratorGenerateImage({
+        prompt: slide.visualPrompt || slide.title,
+        searchQuery: deriveStockSearchQuery(slide.visualPrompt || '', slide.title),
+        slideType: slide.type,
+        swatchColors: theme.swatch,
+        themeName: theme.name,
+        slideIndex: index,
+        mode: imageSourceMode,
+      });
+
+      setSlides(prev => prev.map((s, i) => i === index ? {
+        ...s,
+        imageData: result.imageData,
+        imageAttribution: result.attribution,
+        imageSource: result.source,
+        isGeneratingImage: false,
+      } : s));
+    } catch (e) {
+      // For 'auto' mode, the orchestrator already tried both sources internally.
+      // For 'ai' or 'stock' modes, this is the first failure — show the Gemini
+      // error handler (which surfaces content-policy / quota messages to the user).
+      if (imageSourceMode !== 'auto') {
+        handleGeminiError(e);
+      } else {
+        console.error('[generateSlideImage] All image sources failed:', e);
+      }
+      setSlides(prev => prev.map((s, i) => i === index ? { ...s, isGeneratingImage: false } : s));
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
 
+  // ─── Video export ────────────────────────────────────────────────────
+  // Records the slide deck as a video by:
+  //   1. Creating a hidden render container at slide dimensions
+  //   2. For each slide: render it via SlideRenderer into the hidden container,
+  //      use html2canvas to paint it onto the recording canvas
+  //   3. MediaRecorder captures the canvas stream while slides advance
+  //   4. Output: .webm (Chrome/Firefox) or .mp4 (Safari) — auto-detected
+  const handleVideoExport = async () => {
+    if (!videoRenderRef.current) return;
+    if (slides.length === 0) {
+      alert('No slides to export.');
+      return;
+    }
+    if (!isVideoExportSupported()) {
+      alert('Video export is not supported in this browser. Try Chrome, Firefox, or Safari 14+.');
+      return;
+    }
+
+    videoAbortRef.current = new AbortController();
+
+    // Ask the user for seconds per slide (default 3)
+    const input = prompt('Seconds per slide?', '3');
+    if (!input) return;
+    const secondsPerSlide = Math.max(1, Math.min(10, parseInt(input, 10) || 3));
+
+    setVideoProgress({ current: 0, total: slides.length });
+
+    // Set up the hidden render container at slide dimensions (16:9)
+    const renderEl = videoRenderRef.current;
+    renderEl.style.width = '1280px';
+    renderEl.style.height = '720px';
+    renderEl.style.display = 'block';
+
+    // We use a stable React root to render each slide into the hidden container
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(renderEl);
+
+    try {
+      const result = await exportSlidesToVideo(
+        slides,
+        async (slide, canvas, width, height, index) => {
+          // Render the slide into the hidden container via React
+          await new Promise<void>((resolve) => {
+            root.render(
+              <div style={{ width: '1280px', height: '720px' }}>
+                <SlideRenderer slide={slide} theme={theme} index={index} total={slides.length} />
+              </div>
+            );
+            // Wait for React to flush + images to potentially load
+            setTimeout(resolve, 200);
+          });
+
+          // Paint the rendered slide onto the recording canvas via html2canvas
+          const slideEl = renderEl.firstElementChild as HTMLElement;
+          if (slideEl) {
+            await paintElementToCanvas(slideEl, canvas, width, height);
+          }
+        },
+        {
+          secondsPerSlide,
+          fps: 30,
+          width: 1280,
+          height: 720,
+          onProgress: (current, total, title) => {
+            setVideoProgress({ current, total });
+          },
+          signal: videoAbortRef.current.signal,
+        }
+      );
+
+      const filename = `${user?.businessName || 'Business'} Pitch Deck Video`;
+      downloadVideoBlob(result.blob, filename, result.extension);
+      setVideoProgress(null);
+    } catch (error) {
+      console.error('Video export failed:', error);
+      if ((error as Error).message !== 'Export cancelled by user') {
+        alert('Video export failed: ' + (error as Error).message);
+      }
+      setVideoProgress(null);
+    } finally {
+      // Clean up
+      root.unmount();
+      renderEl.style.display = 'none';
+      renderEl.innerHTML = '';
+      videoAbortRef.current = null;
+    }
+  };
+
+  const handleCancelVideoExport = () => {
+    videoAbortRef.current?.abort();
+  };
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-      
       {/* Print Styles */}
       <style>{`
         @media print {
@@ -436,228 +569,168 @@ export const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
           }
+          /* Ensure backgrounds print correctly */
           .bg-\\[\\#0a0a1a\\] { background-color: #0a0a1a !important; }
           .bg-\\[\\#051a05\\] { background-color: #051a05 !important; }
           .bg-\\[\\#1a051a\\] { background-color: #1a051a !important; }
         }
       `}</style>
 
-      {/* Hidden Container for Printing & Video Capturing */}
+      {/* Hidden Container for Printing */}
       {step === 'editor' && (
-        <div ref={printContainerRef} className="print-container fixed inset-0 pointer-events-none opacity-0 z-[-1]">
+        <div className="print-container fixed inset-0 pointer-events-none opacity-0 z-[-1]">
           {slides.map((slide, idx) => (
-            <div key={idx} className="print-slide slide-to-record" style={{ width: '1280px', height: '720px' }}>
+            <div key={idx} className="print-slide">
               <SlideRenderer slide={slide} theme={theme} index={idx} total={slides.length} />
             </div>
           ))}
         </div>
       )}
 
-      {/* Video Capturing Progress Modal Overlay */}
-      {isExportingVideo && (
-        <div className="fixed inset-0 z-[300] bg-black/90 flex flex-col items-center justify-center p-6 backdrop-blur-sm">
-          <div className="w-full max-w-md p-8 rounded-3xl bg-white/5 border border-white/10 text-center space-y-6">
-            <Film size={48} className="text-cyan-400 mx-auto animate-pulse" />
-            
-            <div className="space-y-2">
-              <h3 className="text-lg font-black text-white">Exporting Video Presentation</h3>
-              <p className="text-xs text-gray-400 leading-relaxed">{videoExportMessage}</p>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="space-y-1">
-              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300" 
-                  style={{ width: `${videoExportProgress}%` }}
-                />
-              </div>
-              <span className="text-xs font-mono text-cyan-400">{videoExportProgress}% Completed</span>
-            </div>
-
-            <button
-              onClick={() => { videoCancelRef.current = true; }}
-              className="w-full py-2.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 font-bold rounded-xl text-xs transition-colors"
-            >
-              Cancel Video Capture
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main UI Container */}
+      {/* UI Container */}
       <div className="relative w-full max-w-7xl h-[90vh] bg-[#050510] rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden flex no-print">
         
-        {step !== 'outline-review' && (
-          <button 
-            onClick={onClose}
-            className="absolute top-6 right-6 z-50 p-2 rounded-full bg-black/50 hover:bg-white/20 text-white transition-all"
-          >
-            <X size={24} />
-          </button>
-        )}
+        <button 
+          onClick={onClose}
+          className="absolute top-6 right-6 z-50 p-2 rounded-full bg-black/50 hover:bg-white/20 text-white transition-all"
+        >
+          <X size={24} />
+        </button>
 
-        {/* Phase 1: Selective document ingest and generation parameters */}
         {step === 'select' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-10 text-center overflow-y-auto custom-scrollbar">
-            <div className="w-20 h-20 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-cyan-500/20">
-              <Layout size={40} className="text-white" />
+          <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
+            <div className="w-24 h-24 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-cyan-500/20">
+              <Layout size={48} className="text-white" />
             </div>
-            
-            <h2 className="text-3xl font-black mb-2">Gamma-UX Presentation Designer</h2>
-            <p className="text-gray-400 max-w-md mb-8 text-sm">
-              Convert your South African business plans into dynamic, high-impact investor pitch decks using our three-phase layout generator.
+            <h2 className="text-4xl font-black mb-4">Presentation Designer</h2>
+            <p className="text-gray-400 max-w-lg mb-12 text-lg">
+              Pick a document to start. We'll draft an outline you can edit, then generate the full deck — Gamma-style.
             </p>
 
-            {/* Generator Settings Card */}
-            <div className="w-full max-w-xl p-6 bg-white/5 border border-white/10 rounded-2xl mb-8 text-left space-y-4">
-              <div className="flex items-center gap-2 text-xs font-black text-cyan-400 uppercase tracking-widest border-b border-white/5 pb-2">
-                <Settings size={14} /> Generator Settings
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Strategy Picker */}
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pitch Framework</label>
-                  <select
-                    value={selectedStrategyId}
-                    onChange={(e) => setSelectedStrategyId(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none cursor-pointer focus:border-cyan-500"
-                  >
-                    {PITCH_STRATEGIES.map(s => (
-                      <option key={s.id} value={s.id} className="bg-[#050510]">{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Image source fallback */}
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Image Fallback Protocol</label>
-                  <select
-                    value={imageSourceMode}
-                    onChange={(e) => setImageSourceMode(e.target.value as ImageSourceMode)}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none cursor-pointer focus:border-cyan-500"
-                  >
-                    <option value="auto" className="bg-[#050510]">Auto (Gemini Imagen 3.0 + Stock Fallback)</option>
-                    <option value="ai" className="bg-[#050510]">AI Only (Strict Imagen 3.0)</option>
-                    <option value="stock" className="bg-[#050510]">Stock Photos Only (Pexels / Pixabay)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-4">Select Source Intelligence Document</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
               {documents.length > 0 ? (
                 documents.map(doc => (
                   <button 
                     key={doc.id}
-                    onClick={() => handleDocSelected(doc)}
-                    className="p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-cyan-500/50 transition-all group text-left flex items-center gap-4"
+                    onClick={() => startOutlineGeneration(doc)}
+                    className="p-6 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-cyan-500/50 transition-all group text-left flex items-center gap-4"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 group-hover:text-cyan-400 group-hover:scale-110 transition-all">
-                      <Wand2 size={20} />
+                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 group-hover:text-cyan-400 group-hover:scale-110 transition-all">
+                      <ListChecks size={24} />
                     </div>
-                    <div className="truncate flex-1">
-                      <h4 className="font-bold text-sm text-white group-hover:text-cyan-400 transition-colors truncate">{doc.name}</h4>
-                      <p className="text-[10px] text-gray-500">Business Plan Source • {PITCH_STRATEGIES.find(s => s.id === selectedStrategyId)?.name.split(' ')[0]} layout</p>
+                    <div>
+                      <h4 className="font-bold text-white group-hover:text-cyan-400 transition-colors truncate w-48">{doc.name}</h4>
+                      <p className="text-xs text-gray-500">Outline-first • AI Generated</p>
                     </div>
                   </button>
                 ))
               ) : (
-                <div className="col-span-2 p-8 rounded-2xl border border-dashed border-white/20 text-gray-500 text-sm">
-                  No business intelligence documents detected. Please generate a Business Plan document in the workspace first.
+                <div className="col-span-2 p-8 rounded-2xl border border-dashed border-white/20 text-gray-500">
+                  No generated text documents found. Go to Profile &gt; Documents and generate a Business Plan first.
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Phase 1: Outline-first loading step */}
-        {step === 'generating-outline' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-6">
-            <Loader2 size={56} className="text-cyan-400 animate-spin" />
-            <div className="space-y-2">
-              <h3 className="text-xl font-black text-white animate-pulse">Structuring Draft Presentation</h3>
-              <p className="text-sm text-gray-400 max-w-lg leading-relaxed">{loadingMessage}</p>
-            </div>
+        {step === 'generating' && (
+          <div className="flex-1 flex flex-col items-center justify-center p-10">
+            <Loader2 size={64} className="text-cyan-400 animate-spin mb-8" />
+            <h3 className="text-2xl font-black animate-pulse">{loadingMessage}</h3>
+            <p className="text-gray-500 mt-2">Building slides from your outline and generating visuals...</p>
           </div>
         )}
 
-        {/* Phase 2: Interactive Outline Review panel */}
-        {step === 'outline-review' && (
-          <OutlineEditor
-            businessName={user?.businessName || 'Your Startup'}
-            docName={selectedDoc?.name || 'Business Plan'}
-            docContent={selectedDoc?.content || ''}
-            initialOutline={outline}
-            onGenerate={handleFinalOutlineConfirmed}
-            onBack={() => setStep('select')}
-            onStrategyChange={handleStrategyChange}
-            currentStrategyId={selectedStrategyId}
-          />
-        )}
-
-        {/* Phase 3: Slide Deck Realization Progress step */}
-        {step === 'generating-deck' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-8">
-            <Loader2 size={56} className="text-purple-400 animate-spin" />
-            <div className="space-y-2">
-              <h3 className="text-xl font-black text-white">Realizing Slide Presentation</h3>
-              <p className="text-xs text-gray-400 leading-relaxed max-w-md">{loadingMessage}</p>
-            </div>
-
-            {/* Progress status indicators */}
-            <div className="w-full max-w-xs space-y-1">
-              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 transition-all duration-300" 
-                  style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
-                />
-              </div>
-              <span className="text-[10px] font-mono text-purple-400">Rendering slide {generationProgress.current} of {generationProgress.total}</span>
-            </div>
+        {step === 'outline-loading' && (
+          <div className="flex-1 flex flex-col items-center justify-center p-10">
+            <Loader2 size={64} className="text-cyan-400 animate-spin mb-8" />
+            <h3 className="text-2xl font-black animate-pulse">{outlineLoadingMessage}</h3>
+            <p className="text-gray-500 mt-2">Drafting your pitch deck outline...</p>
           </div>
         )}
 
-        {/* Phase 3: The Canvas Editor Workspace */}
         {step === 'editor' && (
           <div className="flex-1 flex flex-col md:flex-row h-full">
             {/* Sidebar Controls */}
-            <div className="w-full md:w-80 bg-[#0a0a1a] border-r border-white/10 p-5 flex flex-col h-full overflow-y-auto custom-scrollbar z-20">
-              
-              {/* Theme Settings block */}
-              <div className="mb-6">
-                <h3 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                  <Palette size={14} className="text-cyan-400" /> Deck Aesthetics
+            <div className="w-full md:w-80 bg-[#0a0a1a] border-r border-white/10 p-6 flex flex-col h-full overflow-y-auto custom-scrollbar z-20">
+              <div className="mb-8">
+                <h3 className="text-lg font-black mb-4 flex items-center gap-2">
+                  <Palette size={18} className="text-cyan-400" /> Theme
                 </h3>
-                <div className="flex flex-wrap gap-2 mb-3">
+                {/* Theme picker — redesigned to show gradient swatches + names.
+                    Each button shows a mini gradient preview using the theme's
+                    `swatch` colors, so the user can see exactly what the slide
+                    background will look like before selecting. */}
+                <div className="grid grid-cols-2 gap-2 mb-4">
                   {THEMES.map(t => (
                     <button
                       key={t.id}
                       onClick={() => setTheme(t)}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${t.id === theme.id ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                      style={{ backgroundColor: t.id === 'modern' ? '#0a0a1a' : t.id === 'eco' ? '#051a05' : t.id === 'custom-brand' ? t.graphColor : '#1a051a' }}
-                      title={t.name}
-                    />
+                      className={`relative flex flex-col items-start gap-1.5 p-2 rounded-xl border-2 transition-all overflow-hidden ${t.id === theme.id ? 'border-white scale-[1.02] shadow-lg' : 'border-white/10 opacity-60 hover:opacity-100'}`}
+                    >
+                      {/* Gradient preview bar */}
+                      <div
+                        className="w-full h-8 rounded-lg flex items-center justify-center"
+                        style={{
+                          background: t.gradient || t.swatch[0],
+                          boxShadow: t.id === theme.id ? `0 0 12px ${t.graphColor}80` : 'none'
+                        }}
+                      >
+                        <div className="w-4 h-4 rounded-full" style={{ background: t.swatch[2], boxShadow: `0 0 6px ${t.swatch[2]}` }} />
+                      </div>
+                      <span className="text-[10px] font-bold text-white/80 truncate w-full text-left">{t.name}</span>
+                    </button>
                   ))}
                 </div>
                 <button
                   onClick={handleBrandSync}
                   disabled={syncingBrand}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-xs text-cyan-400 border border-cyan-500/30 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm text-cyan-400 border border-cyan-500/30 transition-colors"
                 >
-                  {syncingBrand ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                  {syncingBrand ? 'Syncing...' : 'Sync website design (URL)'}
+                  {syncingBrand ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                  {syncingBrand ? 'Syncing...' : 'Brand Sync (URL)'}
                 </button>
               </div>
 
-              {/* Slide Selector */}
-              <div className="flex-1 flex flex-col min-h-0">
-                <h3 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                  <Layout size={14} className="text-cyan-400" /> Slides ({slides.length})
+              {/* ─── Image source mode picker ─────────────────────────────────
+                  Controls whether slides use AI-generated images (Imagen),
+                  stock photos (Pexels/Pixabay), or auto-fallback.
+                  Affects NEW image generation — existing slides keep their images.
+                  To re-generate with a different mode, click the refresh icon
+                  on the slide in the slides list (TODO — not yet implemented). */}
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <h3 className="text-sm font-black mb-3 flex items-center gap-2">
+                  <ImageIcon size={16} className="text-cyan-400" /> Image Source
                 </h3>
-                <div className="space-y-2 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+                <div className="grid grid-cols-3 gap-1.5 mb-2">
+                  {(['auto', 'ai', 'stock'] as ImageSourceMode[]).map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setImageSourceMode(m)}
+                      title={getImageSourceModeDescription(m)}
+                      className={`px-2 py-2 rounded-lg text-xs font-bold transition-all ${
+                        imageSourceMode === m
+                          ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400'
+                          : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {m === 'auto' ? 'Auto' : m === 'ai' ? 'AI' : 'Stock'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500 leading-tight">
+                  {getImageSourceModeDescription(imageSourceMode)}
+                </p>
+                <p className="text-[10px] text-gray-600 mt-1.5 leading-tight">
+                  Applies to new image generation. Existing slides keep their images.
+                </p>
+              </div>
+
+              <div className="flex-1">
+                <h3 className="text-lg font-black mb-4 flex items-center gap-2">
+                  <Layout size={18} className="text-cyan-400" /> Slides
+                </h3>
+                <div className="space-y-3">
                   {slides.map((slide, idx) => (
                     <button
                       key={idx}
@@ -668,12 +741,11 @@ export const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user
                           : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                       }`}
                     >
-                      <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5 opacity-60">Slide {idx + 1} • {slide.type}</p>
-                      <p className="text-xs font-black truncate">{slide.title}</p>
-                      
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-70">Slide {idx + 1} • {slide.type}</p>
+                      <p className="text-sm font-medium truncate">{slide.title}</p>
                       {slide.isGeneratingImage && (
                         <div className="absolute top-2 right-2">
-                          <Loader2 size={10} className="animate-spin text-cyan-400" />
+                          <Loader2 size={12} className="animate-spin text-cyan-400" />
                         </div>
                       )}
                     </button>
@@ -681,123 +753,113 @@ export const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user
                 </div>
               </div>
 
-              {/* Exporters and PPTX Settings panel */}
-              <div className="mt-5 pt-5 border-t border-white/10 space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">PPTX Brand Template</label>
+              <div className="mt-8 pt-8 border-t border-white/10">
+                <div className="mb-4">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Professional PPTX Theme</label>
                   <select 
                     value={presentonTemplate}
                     onChange={(e) => setPresentonTemplate(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-xs text-white font-medium focus:border-purple-500 transition-colors outline-none cursor-pointer"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white font-medium focus:border-purple-500 transition-colors"
                   >
-                    <option value="stacfund-template" className="bg-[#050510]">StacFund Investor (Default)</option>
-                    <option value="mint-blue" className="bg-[#050510]">Mint Blue</option>
-                    <option value="edge-yellow" className="bg-[#050510]">Edge Yellow</option>
-                    <option value="light-rose" className="bg-[#050510]">Light Rose</option>
-                    <option value="professional-blue" className="bg-[#050510]">Professional Blue</option>
+                    <option value="stacfund-template">StacFund Investor (Default)</option>
+                    <option value="mint-blue">Mint Blue</option>
+                    <option value="edge-yellow">Edge Yellow</option>
+                    <option value="light-rose">Light Rose</option>
+                    <option value="professional-blue">Professional Blue</option>
                   </select>
                 </div>
-
-                <div className="space-y-2">
-                  <button 
-                    onClick={async () => {
-                      try {
-                        const doc = selectedDoc || documents[0];
-                        if (!doc) {
-                          alert("Could not find source document for this presentation.");
-                          return;
-                        }
-
-                        const response = await fetch("/api/presenton/generate", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            businessPlan: doc.content || doc.name,
-                            template: presentonTemplate,
-                            deckType: "Investor Pitch Deck"
-                          })
-                        });
-
-                        if (!response.ok) throw new Error("Failed to generate professional deck");
-                        
-                        const result = await response.json();
-                        if (result.downloadUrl) {
-                          window.open(result.downloadUrl, "_blank");
-                        } else if (result.pptxUrl) {
-                          window.open(result.pptxUrl, "_blank");
-                        } else {
-                           alert("Deck generated, but no download URL returned.");
-                        }
-                      } catch (error) {
-                        console.error(error);
-                        alert("Error connecting to Presenton service. Make sure it is running.");
-                      }
-                    }}
-                    className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-purple-600/20 active:scale-95"
+                <button
+                  onClick={async () => {
+                    try {
+                      // ─── CLIENT-SIDE PPTX EXPORT (pptxgenjs) ───────────────
+                      // Replaces the dead /api/presenton/generate stub that required
+                      // a Python backend. Now generates editable PPTX directly in
+                      // the browser with native text boxes, shapes, and images.
+                      const { exportSlidesToPptx } = await import('../utils/exportPptx');
+                      await exportSlidesToPptx(
+                        slides,
+                        theme as any,
+                        `${user?.businessName || 'Business'} Pitch Deck`,
+                        user?.businessName
+                      );
+                    } catch (error) {
+                      console.error('PPTX export failed:', error);
+                      alert('Failed to export PPTX: ' + (error as Error).message);
+                    }
+                  }}
+                  className="w-full mb-3 py-4 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-600/20"
+                >
+                  <Sparkles size={18} /> Export Editable PPTX
+                </button>
+                <button 
+                  onClick={handlePrint}
+                  className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-cyan-500/20"
+                >
+                  <Download size={18} /> Export PDF
+                </button>
+                {/* ─── Video export (MediaRecorder → WebM/MP4) ─────────────────
+                    Hidden on browsers that don't support MediaRecorder +
+                    canvas.captureStream (older Safari). Uses isVideoExportSupported()
+                    to gate the button. */}
+                {isVideoExportSupported() && (
+                  <button
+                    onClick={videoProgress ? handleCancelVideoExport : handleVideoExport}
+                    className={`w-full mt-3 py-4 font-black rounded-xl flex items-center justify-center gap-2 transition-all ${
+                      videoProgress
+                        ? 'bg-red-600/30 hover:bg-red-600/50 text-red-300 border border-red-500/50'
+                        : 'bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white shadow-lg shadow-pink-600/20'
+                    }`}
                   >
-                    <Sparkles size={14} /> Export PPTX Presentation
+                    {videoProgress ? (
+                      <>
+                        <X size={18} /> Cancel ({videoProgress.current}/{videoProgress.total})
+                      </>
+                    ) : (
+                      <>
+                        <Video size={18} /> Export Video
+                      </>
+                    )}
                   </button>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={handlePrint}
-                      className="py-2.5 bg-cyan-500 hover:bg-cyan-400 text-black font-black rounded-xl text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-cyan-500/20 active:scale-95"
-                    >
-                      <Download size={12} /> Save PDF
-                    </button>
-
-                    <button 
-                      onClick={handleVideoExport}
-                      className="py-2.5 bg-[#00f2fe]/15 hover:bg-[#00f2fe]/30 border border-[#00f2fe]/40 text-[#00f2fe] font-black rounded-xl text-[11px] flex items-center justify-center gap-1.5 transition-all active:scale-95"
-                      title="Capture entire slide presentation as WebM/MP4 video"
-                    >
-                      <Film size={12} /> Save Video
-                    </button>
+                )}
+                {videoProgress && (
+                  <div className="mt-2 px-2">
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-pink-500 to-rose-500 transition-all duration-300"
+                        style={{ width: `${(videoProgress.current / videoProgress.total) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+                      Recording slide {videoProgress.current} of {videoProgress.total}...
+                    </p>
                   </div>
-                </div>
-
-                <div className="flex gap-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl items-start">
-                  <AlertCircle size={14} className="text-yellow-400 shrink-0 mt-0.5" />
-                  <p className="text-[9px] text-yellow-300/80 leading-relaxed">
-                    Save PDF includes full graphic compositions. Select "Save as PDF" and "Landscape orientation" in the native dialog.
-                  </p>
-                </div>
+                )}
+                <p className="text-[10px] text-gray-500 text-center mt-3">
+                  PDF: includes all AI-generated graphics. Video: WebM (Chrome/Firefox) or MP4 (Safari), 3s per slide.
+                </p>
               </div>
             </div>
 
-            {/* Canvas Playback Area */}
-            <div className="flex-1 bg-[#0b0b18] relative flex items-center justify-center p-8 overflow-hidden">
-               
-               {/* Slide Image Re-roll Pill */}
-               {['cover', 'data', 'content'].includes(slides[currentSlideIndex]?.type) && (
-                 <button
-                   onClick={() => handleSingleImageRegenerate(currentSlideIndex)}
-                   disabled={slides[currentSlideIndex]?.isGeneratingImage}
-                   className="absolute top-6 left-6 z-40 flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-white/10 border border-white/10 text-xs text-cyan-400 font-bold rounded-full transition-colors backdrop-blur-md disabled:opacity-50"
-                 >
-                   <RefreshCw size={12} className={slides[currentSlideIndex]?.isGeneratingImage ? 'animate-spin' : ''} />
-                   {slides[currentSlideIndex]?.isGeneratingImage ? 'Generating Graphic...' : 'Regenerate Graphic'}
-                 </button>
-               )}
-
+            {/* Canvas Area */}
+            <div className="flex-1 bg-[#1a1a2e] relative flex items-center justify-center p-8 overflow-hidden">
                {/* Previous/Next Overlays */}
                <button 
                  onClick={() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))}
                  disabled={currentSlideIndex === 0}
-                 className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-white/20 text-white disabled:opacity-0 border border-white/10 transition-all z-30"
+                 className="absolute left-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-black/50 hover:bg-white/20 text-white disabled:opacity-0 transition-all z-30"
                >
-                 <ChevronLeft size={20} />
+                 <ChevronLeft size={24} />
                </button>
                <button 
                  onClick={() => setCurrentSlideIndex(Math.min(slides.length - 1, currentSlideIndex + 1))}
                  disabled={currentSlideIndex === slides.length - 1}
-                 className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-white/20 text-white disabled:opacity-0 border border-white/10 transition-all z-30"
+                 className="absolute right-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-black/50 hover:bg-white/20 text-white disabled:opacity-0 transition-all z-30"
                >
-                 <ChevronRight size={20} />
+                 <ChevronRight size={24} />
                </button>
 
-               {/* Active Slide Canvas Stage */}
-               <div className="aspect-video w-full max-w-4xl shadow-2xl transition-all duration-500 transform relative border border-white/10 rounded-2xl overflow-hidden bg-black">
+               {/* The Active Slide */}
+               <div className="aspect-video w-full max-w-5xl shadow-2xl transition-all duration-500 transform">
                  {slides[currentSlideIndex] ? (
                    <SlideRenderer slide={slides[currentSlideIndex]} theme={theme} index={currentSlideIndex} total={slides.length} />
                  ) : (
@@ -810,6 +872,40 @@ export const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user
           </div>
         )}
       </div>
+
+      {/* ─── Hidden video render container ───────────────────────────────────
+          Used by handleVideoExport to render each slide via SlideRenderer at
+          1280×720, then html2canvas paints it onto the recording canvas.
+          Off-screen (position:absolute, left:-99999px) so it doesn't affect layout. */}
+      <div
+        ref={videoRenderRef}
+        style={{
+          position: 'absolute',
+          left: '-99999px',
+          top: 0,
+          width: '1280px',
+          height: '720px',
+          display: 'none',
+          pointerEvents: 'none',
+        }}
+        aria-hidden="true"
+      />
+
+      {/* ─── Outline Editor (full-screen overlay) ────────────────────────────
+          Renders above the modal when step === 'outline'. Lets the user
+          review/edit/reorder the draft outline before full generation. */}
+      {step === 'outline' && outlineSourceDoc && (
+        <OutlineEditor
+          initialOutline={outlineSlides}
+          currentStrategyId={outlineStrategyId || ''}
+          docName={outlineSourceDoc.name}
+          businessName={user?.businessName || ''}
+          docContent={outlineSourceDoc.content || ''}
+          onGenerate={(editedSlides) => generateFullPresentation(editedSlides)}
+          onBack={() => setStep('select')}
+          onStrategyChange={handleStrategyChange}
+        />
+      )}
     </div>
   );
 };

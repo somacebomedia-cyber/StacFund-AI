@@ -8,7 +8,14 @@ export interface SlideOutline {
   role: string;
   points: string[];
   visualPrompt: string;
+  guidance?: string;
 }
+
+export type OutlineSlide = SlideOutline;
+export type SlideLayout = string;
+export type CopyFormula = string;
+export type Emotion = string;
+export type SlideRole = string;
 
 export interface PitchStrategy {
   id: string;
@@ -16,6 +23,8 @@ export interface PitchStrategy {
   description: string;
   slides: Omit<SlideOutline, 'id' | 'points' | 'visualPrompt'>[];
 }
+
+export type OutlineStrategy = PitchStrategy;
 
 export const PITCH_STRATEGIES: PitchStrategy[] = [
   {
@@ -134,44 +143,66 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
   }
 ];
 
-export const LAYOUT_TEMPLATES = [
-  { id: 'heroic-split', name: 'Heroic Split Screen' },
-  { id: 'minimal-centered', name: 'Minimal Centered' },
-  { id: 'problem-split', name: 'Problem Split Layout' },
-  { id: 'solution-grid', name: 'Solution Multi-Grid' },
-  { id: 'impact-bento', name: 'Impact Bento Grid' },
-  { id: 'market-funnel', name: 'Market TAM-SAM-SOM Funnel' },
-  { id: 'business-flow', name: 'Business Flow Diagram' },
-  { id: 'ask-pie', name: 'Funding Use-of-Funds Pie' },
-  { id: 'financial-chart', name: 'Financial Projections Chart' },
-  { id: 'compliance-list', name: 'Compliance Checklist' },
-  { id: 'hockey-stick', name: 'Hockey-Stick Growth Graph' },
-  { id: 'market-shift', name: 'Market Tailwinds Shift' },
-  { id: 'team-grid', name: 'Team Profile Grid' },
-  { id: 'tech-diagram', name: 'Tech Stack Diagram' },
-  { id: 'matrix-chart', name: 'Comparison Matrix' },
-  { id: 'milestone-line', name: 'Timeline Milestones' },
-  { id: 'testimonial-quote', name: 'Testimonial Quote' }
-];
+export const LAYOUTS: Record<SlideLayout, { name: string }> = {
+  'heroic-split': { name: 'Heroic Split Screen' },
+  'minimal-centered': { name: 'Minimal Centered' },
+  'problem-split': { name: 'Problem Split Layout' },
+  'solution-grid': { name: 'Solution Multi-Grid' },
+  'impact-bento': { name: 'Impact Bento Grid' },
+  'market-funnel': { name: 'Market TAM-SAM-SOM Funnel' },
+  'business-flow': { name: 'Business Flow Diagram' },
+  'ask-pie': { name: 'Funding Use-of-Funds Pie' },
+  'financial-chart': { name: 'Financial Projections Chart' },
+  'compliance-list': { name: 'Compliance Checklist' },
+  'hockey-stick': { name: 'Hockey-Stick Growth Graph' },
+  'market-shift': { name: 'Market Tailwinds Shift' },
+  'team-grid': { name: 'Team Profile Grid' },
+  'tech-diagram': { name: 'Tech Stack Diagram' },
+  'matrix-chart': { name: 'Comparison Matrix' },
+  'milestone-line': { name: 'Timeline Milestones' },
+  'testimonial-quote': { name: 'Testimonial Quote' }
+};
 
-export const COPY_FORMULAS = [
-  { name: 'Problem-Agitate-Solve (PAS)' },
-  { name: 'Hook-Line-Sinker' },
-  { name: 'Vision + South African Context' },
-  { name: 'TAM-SAM-SOM in ZAR' },
-  { name: 'Requested ZAR + Breakdown' },
-  { name: 'BEE Status + Job Metrics' },
-  { name: 'Founders + Pedigree + Skills' },
-  { name: 'Current Traction + Milestones' },
-  { name: 'Before-After-Bridge (BAB)' },
-  { name: 'High-Concept-Pitch (X for Y)' },
-  { name: 'Industry Shift + Opportunity' },
-  { name: 'Features to Benefits Mapping' },
-  { name: 'Cost-Benefit Analysis' },
-  { name: 'Three Pillars of Growth' },
-  { name: 'The Golden Circle (Why-How-What)' },
-  { name: 'Interactive Case Narrative' },
-  { name: 'Unit Economics breakdown' },
-  { name: 'ROI Guarantee / Statement' },
-  { name: 'Next-step Call-to-action' }
-];
+export const LAYOUT_TEMPLATES = Object.entries(LAYOUTS).map(([id, val]) => ({ id, name: val.name }));
+
+export const COPY_FORMULAS: Record<CopyFormula, { name: string; template: string }> = {
+  'Problem-Agitate-Solve (PAS)': { name: 'Problem-Agitate-Solve (PAS)', template: 'Identify a pain point, agitate it, and present your solution.' },
+  'Hook-Line-Sinker': { name: 'Hook-Line-Sinker', template: 'Grab attention with a bold hook, explain the core, and deliver the final CTA.' },
+  'Vision + South African Context': { name: 'Vision + South African Context', template: 'Introduce your company mission placed in the South African development landscape.' },
+  'TAM-SAM-SOM in ZAR': { name: 'TAM-SAM-SOM in ZAR', template: 'Break down Total Addressable, Serviceable Addressable, and Serviceable Obtainable markets in Rand.' },
+  'Requested ZAR + Breakdown': { name: 'Requested ZAR + Breakdown', template: 'Specify total ZAR funding needed and high-level allocation pie chart.' },
+  'BEE Status + Job Metrics': { name: 'BEE Status + Job Metrics', template: 'Demonstrate BEE score level and direct/indirect job creation forecast.' },
+  'Founders + Pedigree + Skills': { name: 'Founders + Pedigree + Skills', template: 'Introduce team members, relevant backgrounds, and core capabilities.' },
+  'Current Traction + Milestones': { name: 'Current Traction + Milestones', template: 'Highlight key achievements to date and immediate future milestones.' },
+  'Before-After-Bridge (BAB)': { name: 'Before-After-Bridge (BAB)', template: 'Show the client before, the desired after, and how you bridge the gap.' },
+  'High-Concept-Pitch (X for Y)': { name: 'High-Concept-Pitch (X for Y)', template: 'Instant high-concept analogy for rapid investor understanding.' },
+  'Industry Shift + Opportunity': { name: 'Industry Shift + Opportunity', template: 'Detail a secular shift or regulatory tailwind opening a massive window.' },
+  'Features to Benefits Mapping': { name: 'Features to Benefits Mapping', template: 'Direct connection from product functionality to end-user benefit.' },
+  'Cost-Benefit Analysis': { name: 'Cost-Benefit Analysis', template: 'Show direct financial comparison of investment vs return.' },
+  'Three Pillars of Growth': { name: 'Three Pillars of Growth', template: 'Explain the three core strategic thrusts driving company expansion.' },
+  'The Golden Circle (Why-How-What)': { name: 'The Golden Circle (Why-How-What)', template: 'Start with why you do it, how you do it, and finally what you do.' },
+  'Interactive Case Narrative': { name: 'Interactive Case Narrative', template: 'Take the audience through a real customer journey or operational case.' },
+  'Unit Economics breakdown': { name: 'Unit Economics breakdown', template: 'Examine product-level pricing, cost of goods sold, and contribution margins.' },
+  'ROI Guarantee / Statement': { name: 'ROI Guarantee / Statement', template: 'Deliver a clear, bulletproof ROI expectation for clients or investors.' },
+  'Next-step Call-to-action': { name: 'Next-step Call-to-action', template: 'Provide clear, low-friction immediate next steps or contact info.' }
+};
+
+export const newOutlineSlideId = () => `slide_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+export const createBlankOutlineSlide = (): SlideOutline => ({
+  id: newOutlineSlideId(),
+  title: 'New Slide',
+  type: 'content',
+  layout: 'heroic-split',
+  copyFormula: 'Problem-Agitate-Solve (PAS)',
+  emotion: 'confidence',
+  role: 'hook',
+  points: ['Enter a bullet point here'],
+  visualPrompt: 'Clean minimalist vector graphic representing the concept',
+  guidance: 'Define the core idea of this slide.'
+});
+
+export const STRATEGIES = PITCH_STRATEGIES;
+export const getDefaultStrategy = () => PITCH_STRATEGIES[0];
+export const getStrategyById = (id: string) => PITCH_STRATEGIES.find(s => s.id === id);
+

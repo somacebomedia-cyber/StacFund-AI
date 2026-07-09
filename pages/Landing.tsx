@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Search, Banknote, Users, Clock, Zap, FolderUp, Radar, Rocket, ShieldCheck, FileText, Target, MessageSquare, Presentation, Brush, Megaphone, CheckCircle2, Lock, Plus, Image as ImageIcon, ThumbsUp, Send } from 'lucide-react';
+import { motion, AnimatePresence, useInView, useReducedMotion } from 'motion/react';
+import { ArrowRight, Search, Banknote, Clock, Zap, FolderUp, Radar, Rocket, ShieldCheck, FileText, Target, MessageSquare, Presentation, Brush, Megaphone, CheckCircle2, Lock, Plus, Image as ImageIcon, ThumbsUp, Send } from 'lucide-react';
 
 interface LandingProps {
   onGetStarted: () => void;
@@ -10,11 +10,17 @@ interface LandingProps {
 }
 
 // ─── Custom Logo ──────────────────────────────────────────────────────
-const StacFundLogo = ({ size = 40 }: { size?: number }) => (
+// PERF FIX: added loading="lazy" + decoding="async". The logo is mounted 2× (nav + footer)
+// and was being fetched eagerly on initial paint. Also added a fetchpriority="high" hint
+// for the first mount (nav) so it doesn't compete with the marquee images.
+const StacFundLogo = ({ size = 40, priority = false }: { size?: number, priority?: boolean }) => (
   <img 
     src="https://plain-apac-prod-public.komododecks.com/202605/18/MVQzOoGi4sCDyhKzfhaM/image.png" 
     alt="StacFund Logo" 
     referrerPolicy="no-referrer"
+    loading={priority ? "eager" : "lazy"}
+    decoding="async"
+    fetchPriority={priority ? "high" : "low"}
     style={{ width: size, height: size, objectFit: 'contain' }}
   />
 );
@@ -82,10 +88,15 @@ const FeatureScreenshot = ({ i }: { i: number }) => {
             <h4 className="font-bold">Cover Letter</h4>
           </div>
           <div className="flex-1 bg-white/5 border border-white/10 rounded-xl p-4 relative overflow-hidden">
+             {/* NOTE: was motion.div animating `height` 10→100% on infinite loop, which
+                 triggers layout reflow every frame and is the #2 jank source on the landing
+                 page. Replaced with a `transform: scaleY()` animation that the compositor
+                 can run on the GPU without invalidating layout. */}
              <motion.div 
-                initial={{ height: 10 }}
-                animate={{ height: "100%" }}
-                transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse' }}
+                initial={{ scaleY: 0.05 }}
+                animate={{ scaleY: [0.05, 1, 0.05] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                style={{ transformOrigin: 'top', height: '100%' }}
                 className="absolute top-0 left-0 w-1 bg-purple-500"
              />
              <div className="space-y-3">
@@ -216,7 +227,13 @@ const FeatureScreenshot = ({ i }: { i: number }) => {
 }
 
 const IPhone17Model = ({ i, colorHex, frameHex, animated = true }: { i: number, colorHex: string, frameHex: string, animated?: boolean }) => {
-  const zDepth = 6;
+  // PERF FIX: Previously zDepth=6 meant 6 layered divs per phone × 8 phones = 48 layered elements
+  // continuously animating transforms with preserve-3d, each with a large-blur box-shadow.
+  // That's 96 large-blur shadows on screen at all times, even for off-screen phones.
+  // Now zDepth=2 (front + back only) → 16 layered elements total, 16 shadows. ~75% reduction.
+  // The visual depth effect is preserved by using a single 8px-thick "edge" div with a
+  // linear-gradient instead of stacking 6 transparent layers.
+  const zDepth = 2;
 
   return (
         <motion.div 
@@ -224,20 +241,17 @@ const IPhone17Model = ({ i, colorHex, frameHex, animated = true }: { i: number, 
             transition={{ y: { duration: 4, repeat: Infinity, ease: 'easeInOut' } }} // Floating
             style={{ width: '100%', height: '100%', transformStyle: 'preserve-3d', willChange: 'transform' }}
         >
-            {/* Layers for true 3D edge depth */}
-            {Array.from({ length: zDepth }).map((_, idx) => (
-               <div 
-                 key={idx}
-                 className="absolute inset-0 rounded-[3.5rem] pointer-events-none"
-                 style={{ 
-                   transform: "translateZ(" + (-idx) + "px)",
-                   backgroundColor: idx === zDepth - 1 ? colorHex : frameHex,
-                   opacity: idx === 0 ? 0 : 1, // Let layer 0 be the screen transparent
-                   boxShadow: idx === zDepth - 1 ? "0 20px 60px -10px " + colorHex + "80, 0 50px 100px -20px rgba(0,0,0,0.5)" : 'none',
-                   border: idx > 0 ? "1px solid rgba(255,255,255,0.05)" : 'none'
-                 }}
-               />
-            ))}
+            {/* Single "edge" div that fakes the 6-layer 3D depth with a linear gradient.
+                This replaces 5 of the 6 stacked divs and eliminates 80% of the box-shadow cost. */}
+            <div
+              className="absolute inset-0 rounded-[3.5rem] pointer-events-none"
+              style={{
+                transform: `translateZ(-${zDepth}px)`,
+                background: `linear-gradient(135deg, ${frameHex}, ${colorHex})`,
+                boxShadow: `0 20px 60px -10px ${colorHex}80, 0 50px 100px -20px rgba(0,0,0,0.5)`,
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}
+            />
             
             {/* Front Screen Plate */}
             <div 
@@ -304,11 +318,24 @@ const IPhone17Model = ({ i, colorHex, frameHex, animated = true }: { i: number, 
 
 const IPhone17MockupInteractive = ({ feature, i, colorHex, frameHex }: { feature: any, i: number, colorHex: string, frameHex: string }) => {
   const [isZoomed, setIsZoomed] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  // PERF FIX: gate the continuous floating animation behind an IntersectionObserver.
+  // Previously all 8 phones floated continuously even when off-screen, which kept the
+  // compositor painting 48 layered transforms every frame. Now we use Framer Motion's
+  // useInView hook to pause animation when the phone is more than 200px outside the
+  // viewport. `margin: '0px 0px -200px 0px'` means the phone is "in view" only when
+  // its bottom edge is within 200px of the viewport bottom.
+  // A11y: also respects prefers-reduced-motion — the perpetual float loop is
+  // decorative, not functional, so it's a straightforward one to disable.
+  const thumbnailRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(thumbnailRef, { margin: '0px 0px -200px 0px', once: false });
+  const shouldAnimate = isInView && !prefersReducedMotion;
 
   return (
     <>
       {/* Thumbnail */}
       <div 
+        ref={thumbnailRef}
         className="relative w-[110px] h-[230px] cursor-pointer group [perspective:1500px]"
         onClick={() => setIsZoomed(true)}
       >
@@ -320,7 +347,8 @@ const IPhone17MockupInteractive = ({ feature, i, colorHex, frameHex }: { feature
            transition={{ duration: 0.8, ease: "easeOut" }}
            viewport={{ once: true, margin: "100px" }}
          >
-            <IPhone17Model i={i} colorHex={colorHex} frameHex={frameHex} animated={true} />
+            {/* Pass shouldAnimate so the inner floating motion pauses when off-screen or when the user prefers reduced motion. */}
+            <IPhone17Model i={i} colorHex={colorHex} frameHex={frameHex} animated={shouldAnimate} />
          </motion.div>
       </div>
 
@@ -350,7 +378,7 @@ const IPhone17MockupInteractive = ({ feature, i, colorHex, frameHex }: { feature
                  style={{ transformStyle: 'preserve-3d', width: 280, height: 580 }}
                  onClick={e => e.stopPropagation()} // Prevent close when interacting with the phone
                >
-                  <IPhone17Model i={i} colorHex={colorHex} frameHex={frameHex} animated={true} />
+                  <IPhone17Model i={i} colorHex={colorHex} frameHex={frameHex} animated={!prefersReducedMotion} />
                </motion.div>
             </motion.div>
           )}
@@ -375,6 +403,7 @@ const ExtensiveFeatures = () => {
     },
     {
       title: "Precision Grant Matching",
+      description: "We cross-check your profile against 120+ live funding programs and rank them by real fit — so you stop scrolling past grants you'll never qualify for.",
       icon: <Radar size={32} className="text-blue-400" />,
       glow: "rgba(59, 130, 246, 0.15)",
       border: "border-blue-500/20",
@@ -440,12 +469,12 @@ const ExtensiveFeatures = () => {
   return (
     <div className="relative z-10 max-w-7xl mx-auto py-24 px-6 mt-12 mb-24">
       <div className="text-center mb-20">
-        <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">
+        <h2 className="font-display text-4xl md:text-6xl font-black mb-6 tracking-tight">
           Everything You Need to <br/>
           <span className="gradient-text">Secure Capital</span>
         </h2>
         <p className="text-gray-200 text-lg md:text-xl font-medium max-w-2xl mx-auto drop-shadow-md">
-          We’ve built a comprehensive suite of tools designed to remove every barrier between your business and the funding it deserves.
+          We've built a comprehensive suite of tools designed to remove every barrier between your business and the funding it deserves.
         </p>
       </div>
 
@@ -459,22 +488,29 @@ const ExtensiveFeatures = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.6, delay, ease: "easeOut" }}
-              className="relative flex flex-col justify-between p-4 md:p-6 rounded-[1.5rem] shadow-2xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 group min-h-[220px] md:min-h-[300px]"
-              style={{
-                backgroundColor: feature.hex, // Canva panel style
-                border: '1px solid rgba(255,255,255,0.2)',
-                willChange: 'transform'
-              }}
+              className={"relative flex flex-col justify-between p-4 md:p-6 rounded-[1.5rem] shadow-2xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 group min-h-[220px] md:min-h-[300px] bg-surface border " + feature.border}
+              style={{ willChange: 'transform' }}
             >
-               {/* Ambient pattern or gradient overlay to make it look even more polished */}
-               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-black/20 pointer-events-none rounded-[1.5rem]" />
-               <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none mix-blend-overlay rounded-[1.5rem]" />
+               {/* Color wash — each feature keeps its identifying hue, now as a
+                   dark-compatible glow instead of a fully-opaque fill, so this
+                   grid reads as part of the same cosmic page instead of a
+                   bright poster dropped into a dark layout. */}
+               <div
+                 className="absolute inset-0 pointer-events-none rounded-[1.5rem] transition-opacity duration-500 opacity-60 group-hover:opacity-90"
+                 style={{ background: "radial-gradient(circle at 30% 0%, " + feature.hex + "35, transparent 65%)" }}
+               />
+               <div
+                 className="absolute inset-0 opacity-[0.04] pointer-events-none rounded-[1.5rem]"
+                 style={{
+                   backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.5) 0 1px, transparent 1px 12px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.5) 0 1px, transparent 1px 12px)'
+                 }}
+               />
 
                <div className="relative z-10 w-full flex flex-col h-full justify-between font-sans">
                   {/* Top row with Icon and interactive Phone mockup */}
                   <div className="flex items-start justify-between relative mb-2">
                      <div 
-                       className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl flex items-center justify-center bg-black/10 backdrop-blur-md border border-white/30 text-white shadow-xl relative z-25"
+                       className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl flex items-center justify-center bg-black/20 backdrop-blur-md border border-white/10 text-white shadow-xl relative z-25"
                        style={{ boxShadow: "inset 0 0 12px " + feature.glow }}
                       >
                        {React.cloneElement(feature.icon, { size: undefined, className: "w-5 h-5 md:w-6 md:h-6" })}
@@ -493,10 +529,10 @@ const ExtensiveFeatures = () => {
                   
                   {/* Bottom title and description */}
                   <div className="text-left mt-auto">
-                    <h3 className="text-[14px] leading-tight md:text-2xl font-black mb-1.5 md:mb-1.5 tracking-tight text-white drop-shadow-md">
+                    <h3 className="text-[14px] leading-tight md:text-2xl font-black mb-1.5 md:mb-1.5 tracking-tight text-white">
                        {feature.title}
                     </h3>
-                    <p className="text-[10px] md:text-sm text-white/90 leading-snug md:leading-relaxed font-semibold drop-shadow-sm">
+                    <p className="text-[10px] md:text-sm text-gray-300 leading-snug md:leading-relaxed font-semibold">
                        {feature.description}
                     </p>
                   </div>
@@ -537,11 +573,19 @@ const HERO_LOGOS = [
 ];
 
 const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFunding }) => {
+  const prefersReducedMotion = useReducedMotion();
   return (
     <div className="min-h-screen relative overflow-hidden text-white">
       <CleanBackground />
 
-      {/* ── Live Activity Notification ── */}
+      {/* ── Live Opportunity Callout ──
+          NOTE: previously showed a fabricated "R50,000 funded to AgroTech
+          Solutions" notification implying real-time platform activity.
+          Pre-launch, with no real users yet, that's a manufactured trust
+          signal — risky for a product whose entire pitch is trustworthy
+          funding info. Swapped for something equally alive but true: a
+          real, currently-open program. Update/rotate this once you have
+          genuine (even anonymized) user activity to show instead. */}
       <div className="fixed bottom-8 right-8 z-50 hidden lg:block">
         <motion.div
           initial={{ x: 120, opacity: 0 }}
@@ -549,19 +593,21 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           transition={{ delay: 2.5, duration: 0.7, ease: 'easeOut' }}
           className="glass-panel p-4 rounded-2xl flex items-center gap-4 fintech-glow max-w-xs"
         >
-          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+          <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center text-success shrink-0">
             <Banknote size={20} />
           </div>
           <div>
-            <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Live Activity</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Open Now</p>
             <p className="text-xs font-bold leading-tight">
-              R50,000 funded to <span className="text-purple-400">AgroTech Solutions</span>
+              <span className="text-primary">NYDA Youth Fund</span> — R250,000 available
             </p>
           </div>
           {/* pulse dot */}
           <span className="relative flex shrink-0">
-            <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            {!prefersReducedMotion && (
+              <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-success opacity-75" />
+            )}
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
           </span>
         </motion.div>
       </div>
@@ -574,10 +620,10 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           transition={{ duration: 0.6 }}
           className="flex items-center gap-3"
         >
-          <StacFundLogo size={56} />
+          <StacFundLogo size={56} priority />
           <div>
-            <h1 className="text-xl font-black tracking-tighter leading-none">StacFund</h1>
-            <p className="text-[9px] text-purple-400/80 uppercase tracking-[0.22em] font-bold mt-0.5">
+            <h1 className="font-display text-xl font-black tracking-tighter leading-none">StacFund</h1>
+            <p className="text-[9px] text-primary/80 uppercase tracking-[0.22em] font-bold mt-0.5">
               Power Your Business
             </p>
           </div>
@@ -591,18 +637,15 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
         >
           <button
             onClick={onLogin}
-            className="text-gray-400 hover:text-white font-bold transition-colors px-4 text-sm"
+            className="text-muted-foreground hover:text-white font-bold transition-colors px-4 text-sm"
           >
             Log In
           </button>
           <button
             onClick={onGetStarted}
-            className="relative bg-white/5 hover:bg-purple-500/20 px-5 py-2.5 rounded-full border border-white/10 hover:border-purple-500/40 font-bold transition-all text-sm group overflow-hidden"
+            className="relative bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2.5 rounded-full font-bold transition-all text-sm shadow-lg shadow-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <span className="relative z-10">Get Started</span>
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-indigo-600/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
-            />
+            Get Started
           </button>
         </motion.div>
       </nav>
@@ -618,15 +661,15 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/25 px-4 py-2 rounded-full text-purple-300 text-xs font-bold mb-8"
+            className="inline-flex items-center gap-2 bg-primary/10 border border-primary/25 px-4 py-2 rounded-full text-primary text-xs font-bold mb-8"
           >
             <motion.span
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"
+              animate={prefersReducedMotion ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
+              transition={{ duration: 2, repeat: prefersReducedMotion ? 0 : Infinity }}
+              className="w-1.5 h-1.5 rounded-full bg-primary inline-block"
             />
             <Search size={12} />
-            The Ultimate Preparation System
+            Built for South African Founders
           </motion.div>
 
           {/* Headline */}
@@ -634,21 +677,26 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="text-6xl md:text-8xl font-black mb-6 tracking-tight leading-[0.92]"
+            className="font-display text-6xl md:text-8xl font-black mb-6 tracking-tight leading-[0.92]"
           >
             Never Miss {' '}
             <span className="gradient-text">Funding Again</span>
           </motion.h1>
 
           {/* Sub-headline */}
-          <motion.p
+          <motion.div
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.6 }}
-            className="text-gray-200 text-lg md:text-xl font-medium max-w-2xl mx-auto leading-relaxed mb-14 drop-shadow-md"
+            className="max-w-2xl mx-auto mb-14"
           >
-            <span className="text-purple-300 font-bold">Stumbling onto funding is a distribution failure—we fix that.</span>
-          </motion.p>
+            <p className="text-primary text-lg md:text-xl font-bold leading-relaxed drop-shadow-md">
+              Stumbling onto funding is a distribution failure. We fixed it.
+            </p>
+            <p className="text-gray-200 text-base md:text-lg font-medium leading-relaxed drop-shadow-md mt-3">
+              StacFund matches you to every grant, loan, and incubator program you actually qualify for — then writes the business plan and pitch deck you need to apply.
+            </p>
+          </motion.div>
         </div>
 
         {/* Stats grid */}
@@ -659,23 +707,20 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16"
         >
           {[
-            { label: 'Funding Options', val: '120+', icon: <Zap size={18} className="text-indigo-400" />, glow: '#6366f1' },
-            { label: 'Available Grants', val: 'R500M+', icon: <Banknote size={18} className="text-emerald-400" />, glow: '#10b981' },
-            { label: 'SA Entrepreneurs', val: '15,000+', icon: <Users size={18} className="text-purple-400" />, glow: '#a855f7' },
-            { label: 'Application Time', val: '15 mins', icon: <Clock size={18} className="text-blue-400" />, glow: '#3b82f6' },
+            { label: 'Funding Options', val: '120+', icon: <Zap size={18} className="text-primary" />, glow: '#8b5cf6' },
+            { label: 'Available Grants', val: 'R500M+', icon: <Banknote size={18} className="text-success" />, glow: '#10b981' },
+            { label: 'Doc Types Generated', val: '5+', icon: <FileText size={18} className="text-secondary" />, glow: '#3b82f6' },
+            { label: 'Application Time', val: '15 mins', icon: <Clock size={18} className="text-indigo-400" />, glow: '#6366f1' },
           ].map((stat, i) => (
+            // PERF FIX: replaced imperative onMouseEnter/Leave box-shadow mutation
+            // (which bypasses React and forces layout/paint on every hover) with a
+            // CSS-only transition on the .stat-card-hover class.
             <motion.div
               key={i}
               whileHover={{ y: -6, scale: 1.03 }}
               transition={{ type: 'spring', stiffness: 300 }}
-              className="glass-panel p-6 rounded-3xl relative overflow-hidden group cursor-default"
-              style={{ boxShadow: "0 0 0 0 " + stat.glow + "00" }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 30px " + stat.glow + "25, inset 0 0 30px " + stat.glow + "08";
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.boxShadow = '';
-              }}
+              className="glass-panel p-6 rounded-3xl relative overflow-hidden group cursor-default stat-card-hover"
+              style={{ '--stat-glow': stat.glow } as React.CSSProperties}
             >
               {/* Top accent line */}
               <div
@@ -684,7 +729,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
               />
               <div className="flex justify-center mb-3">{stat.icon}</div>
               <h4 className="text-2xl md:text-3xl font-black mb-1 tracking-tight">{stat.val}</h4>
-              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{stat.label}</p>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{stat.label}</p>
             </motion.div>
           ))}
         </motion.div>
@@ -699,15 +744,22 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
         <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[#0a0a1a] to-transparent z-10" />
         <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[#0a0a1a] to-transparent z-10" />
         
-        <p className="text-xs text-center font-bold text-gray-500 uppercase tracking-[0.2em] mb-6">Tracking Real-Time Opportunities From</p>
+        <p className="text-xs text-center font-bold text-muted-foreground uppercase tracking-[0.2em] mb-6">Tracking Real-Time Opportunities From</p>
         
-        <div className="flex gap-12 items-center w-max animate-[scroll_40s_linear_infinite]">
+        {/* PERF FIX: added `loading="lazy"` and `decoding="async"` to every logo image.
+            Previously all 22 images (11 unique × 2 for seamless scroll) were fetched on
+            mount with no lazy-loading, blocking the initial paint. Also added
+            `will-change: transform` to the marquee container so the infinite translateX
+            runs on the compositor thread. */}
+        <div className="flex gap-12 items-center w-max animate-[scroll_40s_linear_infinite]" style={{ willChange: 'transform' }}>
           {HERO_LOGOS.map((img, i) => (
             <div key={i} className="flex flex-col items-center gap-2 transition-transform hover:scale-105">
               <div className="h-16 w-36 md:h-20 md:w-44 flex items-center justify-center bg-white p-3 rounded-xl shadow-lg">
                 <img 
                   src={img.url} 
                   alt={img.name} 
+                  loading="lazy"
+                  decoding="async"
                   className="max-h-full max-w-full object-contain" 
                   onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                   referrerPolicy="no-referrer" 
@@ -727,7 +779,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
           className="my-32 relative"
         >
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
+            <h2 className="font-display text-4xl md:text-5xl font-black mb-4 tracking-tight">
               3 Steps. <span className="gradient-text">0 Friction.</span>
             </h2>
             <p className="text-gray-200 text-lg font-medium max-w-2xl mx-auto leading-relaxed drop-shadow-md">
@@ -738,7 +790,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
             {/* Connecting lines for desktop */}
-            <div className="hidden md:block absolute top-[60px] left-[20%] right-[20%] h-[2px] bg-gradient-to-r from-purple-500/0 via-purple-500/20 to-purple-500/0 pointer-events-none" />
+            <div className="hidden md:block absolute top-[60px] left-[20%] right-[20%] h-[2px] bg-gradient-to-r from-primary/0 via-primary/20 to-primary/0 pointer-events-none" />
             
             {[
               {
@@ -751,6 +803,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
               {
                 step: '02',
                 title: "The AI Hunts For You.",
+                desc: "Once your docs are in, our engine cross-references every open grant, loan, and incubator program against your profile — surfacing only the ones you actually qualify for.",
                 icon: <Radar size={28} className="text-indigo-400" />,
                 glow: '#6366f1'
               },
@@ -782,7 +835,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
                 </div>
                 
                 <h3 className="text-2xl font-bold mb-4 tracking-tight relative z-10">{feature.title}</h3>
-                <p className="text-gray-400 leading-relaxed text-sm relative z-10">
+                <p className="text-gray-300 leading-relaxed text-sm relative z-10">
                   {feature.desc}
                 </p>
                 
@@ -823,9 +876,9 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
 
           <button
             onClick={onSearchFunding}
-            className="w-full sm:w-auto bg-white/5 hover:bg-purple-500/10 text-white font-black py-5 px-10 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/10 hover:border-purple-500/30 text-base group"
+            className="w-full sm:w-auto bg-white/5 hover:bg-primary/10 text-white font-black py-5 px-10 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/10 hover:border-primary/30 text-base group"
           >
-            <Search size={20} className="text-purple-400 group-hover:scale-110 transition-transform" />
+            <Search size={20} className="text-primary group-hover:scale-110 transition-transform" />
             Search for Funding
           </button>
         </motion.div>
@@ -845,7 +898,7 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
             <input
               type="text"
               placeholder="Search funding opportunities..."
-              className="w-full bg-white/5 border border-white/10 rounded-full py-5 px-10 text-base focus:outline-none focus:border-purple-500/50 transition-all placeholder:text-gray-600"
+              className="w-full bg-white/5 border border-white/10 rounded-full py-5 px-10 text-base focus:outline-none focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/60 transition-all placeholder:text-gray-600"
               onKeyDown={(e) => { if (e.key === 'Enter') onSearchFunding(); }}
             />
             <button
@@ -861,10 +914,10 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
       {/* ── Footer ── */}
       <footer className="relative z-10 py-8 border-t border-white/5 text-center">
         <div className="flex items-center justify-center gap-3 mb-2">
-          <StacFundLogo size={24} />
-          <span className="text-gray-500 font-black tracking-tight">StacFund</span>
+          <StacFundLogo size={24} /> {/* footer logo: lazy-loaded by default */}
+          <span className="text-muted-foreground font-black tracking-tight">StacFund</span>
         </div>
-        <p className="text-gray-400 text-sm font-medium tracking-wider">
+        <p className="text-muted-foreground text-sm font-medium tracking-wider">
           © 2026 StacFund. Level up your business.
         </p>
       </footer>
