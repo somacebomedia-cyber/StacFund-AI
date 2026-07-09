@@ -127,6 +127,8 @@ export interface User {
   logoUrl?: string;
   subscriptionPlan: 'free' | 'pro' | 'business';
   billingCycle?: 'monthly' | 'yearly';
+  onboardingComplete?: boolean;
+  signupNumber?: number;
 }
 
 export interface AppNotification {

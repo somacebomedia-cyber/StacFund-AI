@@ -373,7 +373,7 @@ WRITING REQUIREMENTS:
     try {
       const ai = await createGeminiClient();
       
-      const totalBatches = 5;
+      const totalBatches: number = 5;
 
       const fullBusinessPlanSchemaProperties = {
           executiveSummary: {

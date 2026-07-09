@@ -73,8 +73,18 @@ const HERO_INSTITUTIONS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-function fetchBuffer(url, { timeout = 8000, maxRedirects = 3 } = {}) {
-  return new Promise((resolve, reject) => {
+interface FetchBufferResult {
+  buffer: Buffer;
+  contentType: string;
+}
+
+interface FetchBufferOptions {
+  timeout?: number;
+  maxRedirects?: number;
+}
+
+function fetchBuffer(url: string, { timeout = 8000, maxRedirects = 3 }: FetchBufferOptions = {}): Promise<FetchBufferResult> {
+  return new Promise<FetchBufferResult>((resolve, reject) => {
     const lib = url.startsWith('https') ? https : http;
     const req = lib.get(url, {
       headers: {
@@ -98,7 +108,7 @@ function fetchBuffer(url, { timeout = 8000, maxRedirects = 3 } = {}) {
         res.resume();
         return reject(new Error(`Not an image (${contentType}) for ${url}`));
       }
-      const chunks = [];
+      const chunks: any[] = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => resolve({ buffer: Buffer.concat(chunks), contentType }));
     });
@@ -107,7 +117,7 @@ function fetchBuffer(url, { timeout = 8000, maxRedirects = 3 } = {}) {
   });
 }
 
-async function tryDownload(domain) {
+async function tryDownload(domain: string): Promise<{ buffer: Buffer; source: string } | null> {
   // Tier 1: Google Favicons
   try {
     const { buffer } = await fetchBuffer(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);

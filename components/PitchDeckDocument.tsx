@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Download, X, Loader2 } from 'lucide-react';
+import { el, ELEMENT_TAXONOMY } from '../utils/elementTypes';
 
 interface PitchDeckDocumentProps {
   data: any;
@@ -118,7 +119,7 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
   );
 
   const LogoHeader = () => (
-    <div className="flex items-center gap-3 relative z-10" style={{ marginBottom: 16 }}>
+    <div className="flex items-center gap-3 relative z-10" style={{ marginBottom: 16 }} {...el(ELEMENT_TAXONOMY.LOGO_HEADER)}>
       {businessInfo.logoUrl ? (
         <div style={{ width: 44, height: 44, background: 'white', borderRadius: 12, padding: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', flexShrink: 0 }}>
           <img src={businessInfo.logoUrl} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
@@ -131,14 +132,14 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
   );
 
   const SlideFooter = ({ pageNum }: { pageNum: number }) => (
-    <div className="absolute bottom-6 left-12 right-12 z-10 flex justify-between items-center text-white/40 text-[10px] font-bold tracking-widest">
+    <div className="absolute bottom-6 left-12 right-12 z-10 flex justify-between items-center text-white/40 text-[10px] font-bold tracking-widest" {...el(ELEMENT_TAXONOMY.FOOTER_SECTION)}>
       <span>{(businessInfo.whatsapp || '+27 79 448 6843')} · {(businessInfo.email || 'contact@business.com')}</span>
       <span>{String(pageNum).padStart(2, '0')} / 12</span>
     </div>
   );
 
   const SlideHeading = ({ title: t, kicker }: { title: string; kicker?: string }) => (
-    <div className="relative z-10 mb-6">
+    <div className="relative z-10 mb-6" {...el(ELEMENT_TAXONOMY.HEADING_PRIMARY)}>
       {kicker && <p className="text-[#A3E635] text-xs font-black uppercase tracking-[0.25em] mb-2">{kicker}</p>}
       <h2 className="text-4xl font-black text-white leading-tight">{t}</h2>
     </div>
@@ -148,6 +149,7 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
     <div
       className={className}
       style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.20)', borderRadius: 16, padding: 20, position: 'relative', zIndex: 1, ...style }}
+      {...el(ELEMENT_TAXONOMY.CARD)}
     >
       {children}
     </div>
@@ -157,6 +159,7 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
     <div
       className="deck-slide page-break relative flex flex-col overflow-visible"
       style={{ width: SLIDE_WIDTH_PX, height: SLIDE_HEIGHT_PX, padding: '48px 64px', ...SlideStyle }}
+      {...el(ELEMENT_TAXONOMY.CONTAINER_SLIDE)}
     >
       <Blob />
       {children}

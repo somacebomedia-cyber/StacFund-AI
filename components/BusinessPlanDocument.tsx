@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Download, X, Loader2 } from 'lucide-react';
+import { el, ELEMENT_TAXONOMY } from '../utils/elementTypes';
 
 interface BusinessPlanDocumentProps {
   data: any;
@@ -104,7 +105,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   );
 
   const LogoHeader = () => (
-    <div className="flex items-center gap-3 relative z-10" style={{ marginBottom: 24 }}>
+    <div className="flex items-center gap-3 relative z-10" style={{ marginBottom: 24 }} {...el(ELEMENT_TAXONOMY.LOGO_HEADER)}>
       {businessInfo.logoUrl ? (
         <div
           style={{
@@ -134,7 +135,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   );
 
   const ContactFooter = () => (
-    <div className="relative z-10 mt-auto pt-4 flex justify-between items-center" style={{ borderTop: '1px solid rgba(255,255,255,0.20)' }}>
+    <div className="relative z-10 mt-auto pt-4 flex justify-between items-center" style={{ borderTop: '1px solid rgba(255,255,255,0.20)' }} {...el(ELEMENT_TAXONOMY.FOOTER_SECTION)}>
       <div className="flex items-center gap-2">
         <div style={{ width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 14 }}>📞</span>
@@ -151,7 +152,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   );
 
   const SectionHeading = ({ number, title }: { number: string; title: string }) => (
-    <h2 className="relative z-10 text-white mb-8">
+    <h2 className="relative z-10 text-white mb-8" {...el(ELEMENT_TAXONOMY.HEADING_SECTION)}>
       <span className="text-7xl font-light opacity-40 mr-2">{number}.</span>
       <span className="text-4xl font-black">{title}</span>
     </h2>
@@ -169,13 +170,14 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
         zIndex: 1,
         ...style
       }}
+      {...el(ELEMENT_TAXONOMY.CARD)}
     >
       {children}
     </div>
   );
 
   const DiamondImage = ({ url }: { url?: string }) => (
-    <div style={{ width: 140, height: 140, transform: 'rotate(45deg)', overflow: 'hidden', borderRadius: 20, border: '4px solid white', boxShadow: '0 8px 24px rgba(0,0,0,0.35)', flexShrink: 0 }}>
+    <div style={{ width: 140, height: 140, transform: 'rotate(45deg)', overflow: 'hidden', borderRadius: 20, border: '4px solid white', boxShadow: '0 8px 24px rgba(0,0,0,0.35)', flexShrink: 0 }} {...el(ELEMENT_TAXONOMY.IMAGE_SLIDE)}>
       {url ? (
          <img src={url} alt="Visual" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'rotate(-45deg) scale(1.5)' }} />
       ) : (
@@ -185,7 +187,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
   );
   
   const PageWrapper = ({ children }: any) => (
-    <div className="w-full min-h-[297mm] p-16 pdf-page page-break flex flex-col relative overflow-hidden" style={PageStyle}>
+    <div className="w-full min-h-[297mm] p-16 pdf-page page-break flex flex-col relative overflow-hidden" style={PageStyle} {...el(ELEMENT_TAXONOMY.PAGE_WRAPPER)}>
       <Blob />
       {children}
     </div>

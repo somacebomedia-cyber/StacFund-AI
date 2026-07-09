@@ -453,6 +453,76 @@ Include these slides:
     }
   });
 
+  // API route for Stock Photo fallback search
+  // SECURITY: Requires authentication and uses server-side keys
+  app.get("/api/stock-photos/search", requireAuth, async (req, res) => {
+    try {
+      const query = String(req.query.q || '').trim();
+      if (!query) {
+        return res.json({ photos: [] });
+      }
+
+      const pexelsApiKey = process.env.PEXELS_API_KEY;
+      const pixabayApiKey = process.env.PIXABAY_API_KEY;
+      const photos: any[] = [];
+      const promises: Promise<any>[] = [];
+
+      if (pexelsApiKey) {
+        promises.push(
+          axios.get(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=15`, {
+            headers: { Authorization: pexelsApiKey },
+            timeout: 5000,
+          }).then((response) => {
+            if (response.data && Array.isArray(response.data.photos)) {
+              response.data.photos.forEach((p: any) => {
+                photos.push({
+                  url: p.src.large2x || p.src.large || p.src.landscape || p.src.original,
+                  photographer: p.photographer,
+                  photographerUrl: p.photographer_url,
+                  source: 'pexels',
+                });
+              });
+            }
+          }).catch((err) => {
+            console.error('[Pexels API Error]', err.message);
+          })
+        );
+      }
+
+      if (pixabayApiKey) {
+        promises.push(
+          axios.get(`https://pixabay.com/api/?key=${pixabayApiKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=15`, {
+            timeout: 5000,
+          }).then((response) => {
+            if (response.data && Array.isArray(response.data.hits)) {
+              response.data.hits.forEach((h: any) => {
+                photos.push({
+                  url: h.largeImageURL || h.webformatURL,
+                  photographer: h.user,
+                  photographerUrl: h.pageURL,
+                  source: 'pixabay',
+                });
+              });
+            }
+          }).catch((err) => {
+            console.error('[Pixabay API Error]', err.message);
+          })
+        );
+      }
+
+      if (promises.length > 0) {
+        await Promise.allSettled(promises);
+      } else {
+        console.warn('Neither PEXELS_API_KEY nor PIXABAY_API_KEY is configured.');
+      }
+
+      res.json({ photos });
+    } catch (error: any) {
+      console.error("Stock photos search error:", error.message);
+      res.status(500).json({ error: "Failed to search stock photos", details: error.message });
+    }
+  });
+
   // Manual scraper trigger — admin-only. Useful for testing or forcing a
   // refresh outside the daily cron schedule. Returns immediately and runs
   // the scraper in the background (can take 10+ minutes for all 37 sites).

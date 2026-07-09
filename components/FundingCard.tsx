@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { FundingOpportunityDb, FundingType, RoadmapStep } from '../types';
 import { Heart, ChevronRight, ChevronDown, CheckCircle2, Share2, Copy, MessageCircle, X, ArrowUpRight, Info, Download, ShieldCheck, AlertTriangle, Clock, ListChecks } from 'lucide-react';
 
