@@ -293,7 +293,7 @@ async function startServer() {
 
   // Proxy for Gemini API
   app.use(
-    ['/api/gemini', '/v1beta', '/v1'],
+    ['/api/gemini', '/api/v1beta', '/api/v1', '/v1beta', '/v1'],
     requireAuth,
     geminiLimiter,
     createProxyMiddleware({
@@ -304,6 +304,10 @@ async function startServer() {
         let newPath = req.originalUrl || path;
         if (newPath.startsWith('/api/gemini')) {
           newPath = newPath.replace(/^\/api\/gemini/, '');
+        } else if (newPath.startsWith('/api/v1beta')) {
+          newPath = newPath.replace(/^\/api/, '');
+        } else if (newPath.startsWith('/api/v1')) {
+          newPath = newPath.replace(/^\/api/, '');
         }
         if (newPath.includes('key=')) {
           newPath = newPath.replace(/[?&]key=[^&]+/g, '');

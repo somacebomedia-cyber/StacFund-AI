@@ -25,7 +25,7 @@ export async function createGeminiClient(): Promise<GoogleGenAI> {
   return new GoogleGenAI({
     apiKey: 'proxy',
     httpOptions: {
-      baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini' : 'http://localhost:3000/api/gemini',
+      baseUrl: typeof window !== 'undefined' ? window.location.origin + '/api/gemini/' : 'http://localhost:3000/api/gemini/',
       headers: Object.keys(headers).length > 0 ? headers : undefined
     }
   });
