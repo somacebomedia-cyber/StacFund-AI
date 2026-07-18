@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Palette, Wand2, Loader2, Printer, Type as TypeIcon, PieChart, ListChecks, Video } from 'lucide-react';
+import { X, Sparkles, Layout, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Palette, Wand2, Loader2, Printer, Type as TypeIcon, PieChart, ListChecks, Video, AlertTriangle } from 'lucide-react';
 import { Type } from '@google/genai';
 import { createGeminiClient } from '../services/geminiClient';
 import { collection, getDocs } from 'firebase/firestore';
@@ -12,6 +12,7 @@ import { OutlineSlide, OutlineStrategy, getStrategyById, getDefaultStrategy, STR
 import { generateSlideImage as orchestratorGenerateImage, deriveStockSearchQuery, getImageSourceModeLabel, getImageSourceModeDescription, type ImageSourceMode, type ImageAttribution } from '../utils/imageOrchestrator';
 import { el } from '../utils/elementTypes';
 import { exportSlidesToVideo, isVideoExportSupported, downloadVideoBlob, paintElementToCanvas, type VideoExportOptions } from '../utils/videoExporter';
+import { captureElementToCanvas, addCanvasToPdf, createPdfDocument } from '../utils/pdfExporter';
 
 interface PresentationDesignerProps {
   user: User | null;
@@ -179,7 +180,8 @@ const PresentationDesigner: React.FC<PresentationDesignerProps> = ({ user, onClo
   const [slides, setSlides] = useState<Slide[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [theme, setTheme] = useState(THEMES[0]); // gamma-purple is now the default
-  const [presentonTemplate, setPresentonTemplate] = useState('stacfund-template');
+  const [pdfExportProgress, setPdfExportProgress] = useState<{ current: number; total: number } | null>(null);
+  const [pdfExportError, setPdfExportError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [syncingBrand, setSyncingBrand] = useState(false);
   // ─── Outline-first state ────────────────────────────────────────────
@@ -447,8 +449,97 @@ Output MUST be valid JSON matching the responseSchema. Array length must equal i
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  // ─── PDF export ─────────────────────────────────────────────────────
+  // Previously this called window.print(), which depends on the user
+  // manually choosing "Save as PDF" in their browser's print dialog —
+  // inconsistent across browsers and specifically unreliable inside an
+  // installed PWA on mobile (which is this app's primary platform). This
+  // now uses the same rendering pipeline as BusinessPlanDocument and
+  // PitchDeckDocument: render each slide into the hidden off-screen
+  // container (the same one handleVideoExport uses — they're never active
+  // at once), capture it, and build a PDF directly, one click, no dialog.
+  const handlePdfExport = async () => {
+    if (!videoRenderRef.current) return;
+    if (slides.length === 0) {
+      alert('No slides to export.');
+      return;
+    }
+
+    setPdfExportError(null);
+    setPdfExportProgress({ current: 0, total: slides.length });
+
+    const renderEl = videoRenderRef.current;
+    renderEl.style.width = '1280px';
+    renderEl.style.height = '720px';
+    renderEl.style.display = 'block';
+
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(renderEl);
+
+    try {
+      // Landscape 16:9 page, matching the slides' own fixed aspect ratio.
+      const pdf = await createPdfDocument(297, 167);
+      const failedSlides: number[] = [];
+
+      for (let i = 0; i < slides.length; i++) {
+        setPdfExportProgress({ current: i + 1, total: slides.length });
+
+        await new Promise<void>((resolve) => {
+          root.render(
+            <div style={{ width: '1280px', height: '720px' }}>
+              <SlideRenderer slide={slides[i]} theme={theme} index={i} total={slides.length} />
+            </div>
+          );
+          setTimeout(resolve, 200);
+        });
+
+        const slideEl = renderEl.firstElementChild as HTMLElement;
+        if (!slideEl) continue;
+
+        const { canvas, error } = await captureElementToCanvas(slideEl, {
+          backgroundColor: theme.swatch?.[0] ?? '#3B0764',
+          widthPx: 1280,
+        });
+
+        if (!canvas) {
+          failedSlides.push(i + 1);
+          console.error(`Slide ${i + 1} failed to capture:`, error);
+          if (i > 0) pdf.addPage();
+          pdf.setFontSize(14);
+          pdf.text('This slide failed to render. Please try exporting again.', 10, 20);
+          continue;
+        }
+
+        // 'expand' mode: an over-long slide shrinks to fit one page instead
+        // of being split across two — splitting a single slide would look broken.
+        addCanvasToPdf(
+          pdf,
+          canvas,
+          { widthMm: 297, maxHeightMm: 167, overflowMode: 'expand', jpegQuality: 0.92 },
+          i === 0
+        );
+
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+
+      const filename = `${user?.businessName || 'Business'}_Pitch_Deck.pdf`;
+      pdf.save(filename);
+
+      if (failedSlides.length) {
+        setPdfExportError(
+          `Downloaded, but slide(s) ${failedSlides.join(', ')} couldn't render — likely an image that failed to load. Try exporting again.`
+        );
+      }
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      setPdfExportError((error as Error).message || 'PDF export failed. Please try again.');
+    } finally {
+      root.unmount();
+      renderEl.style.display = 'none';
+      renderEl.innerHTML = '';
+      setPdfExportProgress(null);
+    }
   };
 
   // ─── Video export ────────────────────────────────────────────────────
@@ -754,49 +845,33 @@ Output MUST be valid JSON matching the responseSchema. Array length must equal i
               </div>
 
               <div className="mt-8 pt-8 border-t border-white/10">
-                <div className="mb-4">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Professional PPTX Theme</label>
-                  <select 
-                    value={presentonTemplate}
-                    onChange={(e) => setPresentonTemplate(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white font-medium focus:border-purple-500 transition-colors"
-                  >
-                    <option value="stacfund-template">StacFund Investor (Default)</option>
-                    <option value="mint-blue">Mint Blue</option>
-                    <option value="edge-yellow">Edge Yellow</option>
-                    <option value="light-rose">Light Rose</option>
-                    <option value="professional-blue">Professional Blue</option>
-                  </select>
-                </div>
                 <button
-                  onClick={async () => {
-                    try {
-                      // ─── CLIENT-SIDE PPTX EXPORT (pptxgenjs) ───────────────
-                      // Replaces the dead /api/presenton/generate stub that required
-                      // a Python backend. Now generates editable PPTX directly in
-                      // the browser with native text boxes, shapes, and images.
-                      const { exportSlidesToPptx } = await import('../utils/exportPptx');
-                      await exportSlidesToPptx(
-                        slides,
-                        theme as any,
-                        `${user?.businessName || 'Business'} Pitch Deck`,
-                        user?.businessName
-                      );
-                    } catch (error) {
-                      console.error('PPTX export failed:', error);
-                      alert('Failed to export PPTX: ' + (error as Error).message);
-                    }
-                  }}
-                  className="w-full mb-3 py-4 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-600/20"
+                  onClick={handlePdfExport}
+                  disabled={!!pdfExportProgress}
+                  className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 text-black font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-cyan-500/20"
                 >
-                  <Sparkles size={18} /> Export Editable PPTX
+                  {pdfExportProgress ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                  {pdfExportProgress ? 'Generating PDF...' : 'Export PDF'}
                 </button>
-                <button 
-                  onClick={handlePrint}
-                  className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-cyan-500/20"
-                >
-                  <Download size={18} /> Export PDF
-                </button>
+                {pdfExportProgress && (
+                  <div className="mt-2 px-2">
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-500 to-cyan-300 transition-all duration-300"
+                        style={{ width: `${(pdfExportProgress.current / pdfExportProgress.total) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+                      Rendering slide {pdfExportProgress.current} of {pdfExportProgress.total}...
+                    </p>
+                  </div>
+                )}
+                {pdfExportError && (
+                  <div className="mt-2 px-3 py-2 bg-red-950/60 border border-red-500/40 rounded-lg text-red-200 text-xs flex items-start gap-2">
+                    <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>{pdfExportError}</span>
+                  </div>
+                )}
                 {/* ─── Video export (MediaRecorder → WebM/MP4) ─────────────────
                     Hidden on browsers that don't support MediaRecorder +
                     canvas.captureStream (older Safari). Uses isVideoExportSupported()

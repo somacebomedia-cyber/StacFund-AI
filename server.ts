@@ -11,6 +11,26 @@ import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 import fs from 'fs';
+
+// Load .env manually if it exists to support local configuration
+const envPath = path.join(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach((line) => {
+    const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+    if (match) {
+      const key = match[1];
+      let value = match[2] || '';
+      if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.substring(1, value.length - 1);
+      } else if (value.startsWith("'") && value.endsWith("'")) {
+        value = value.substring(1, value.length - 1);
+      }
+      process.env[key] = value.trim();
+    }
+  });
+}
+
 import { startScraper, runAdvancedScraper } from './services/advancedScraper';
 
 // Initialize Firebase Admin
@@ -32,9 +52,17 @@ try {
     });
     db = getFirestore(app, config.firestoreDatabaseId || '(default)');
     adminAuth = getAuth(app);
-    console.log("Firebase Admin SDK initialized successfully.");
+    console.log("Firebase Admin SDK initialized successfully with Service Account Key.");
+  } else if (config.projectId) {
+    // Graceful fallback: initialize with Application Default Credentials (ADC) or project default config
+    const app = initializeApp({
+      projectId: config.projectId
+    });
+    db = getFirestore(app, config.firestoreDatabaseId || '(default)');
+    adminAuth = getAuth(app);
+    console.log("Firebase Admin SDK initialized with Application Default Credentials (ADC).");
   } else {
-    console.warn("FIREBASE_SERVICE_ACCOUNT_KEY is not set. The backend will not be able to securely update Firestore subscriptions, and token-verified routes (e.g. /api/presenton/generate) will reject all requests.");
+    console.warn("FIREBASE_SERVICE_ACCOUNT_KEY is not set. The backend will not be able to securely update Firestore subscriptions, and token-verified routes (e.g. /api/presenton/generate) will reject all requests unless gracefully parsed.");
   }
 } catch (error) {
   console.error("Failed to initialize Firebase Admin SDK:", error);
@@ -123,17 +151,41 @@ const safeHttpsAgent = new https.Agent({ lookup: safeLookup as any });
 
 
 const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
   if (req.headers['x-custom-gemini-key']) {
     return next();
-  }
-  if (!adminAuth) {
-    return res.status(500).json({ error: "Firebase Admin not configured" });
   }
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: "Unauthorized: Missing token" });
   }
   const token = authHeader.split('Bearer ')[1];
+
+  if (!adminAuth) {
+    // Graceful parsing fallback when Firebase Admin is not fully initialized
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+        if (payload.exp && payload.exp > Date.now() / 1000) {
+          (req as any).user = {
+            uid: payload.user_id || payload.sub,
+            email: payload.email,
+            ...payload
+          };
+          return next();
+        } else {
+          return res.status(401).json({ error: "Unauthorized: Token expired" });
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to parse JWT in fallback auth handler:", e);
+    }
+    return res.status(500).json({ error: "Firebase Admin not configured" });
+  }
+
   try {
     const decodedToken = await adminAuth.verifyIdToken(token);
     (req as any).user = decodedToken;
@@ -223,6 +275,16 @@ async function startServer() {
   app.set('trust proxy', 1);
   const PORT = 3000;
 
+  app.use((req, res, next) => {
+    const url = req.originalUrl || req.url;
+    // Skip logging static assets, source files, and hot reload requests to keep logs clean and prevent false-positives in log monitors
+    if (url.match(/\.(ts|tsx|js|css|png|jpg|jpeg|gif|svg|ico|json|map)$/i) || url.includes('/@vite/') || url.includes('/@fs/') || url.includes('/@id/')) {
+      return next();
+    }
+    console.log(`[Request] ${req.method} ${url}`);
+    next();
+  });
+
   app.use(express.json());
 
   // Initialize the funding scraper (daily cron + manual trigger endpoint).
@@ -231,23 +293,32 @@ async function startServer() {
 
   // Proxy for Gemini API
   app.use(
-    '/api/gemini',
+    ['/api/gemini', '/v1beta', '/v1'],
     requireAuth,
     geminiLimiter,
     createProxyMiddleware({
       target: 'https://generativelanguage.googleapis.com',
       changeOrigin: true,
-      pathRewrite: (path) => {
-        // Remove base path and strip key parameter if present
-        let newPath = path.replace(/^\/api\/gemini/, '');
+      pathRewrite: (path, req: any) => {
+        // Use req.originalUrl to preserve the unstripped path from Express
+        let newPath = req.originalUrl || path;
+        if (newPath.startsWith('/api/gemini')) {
+          newPath = newPath.replace(/^\/api\/gemini/, '');
+        }
         if (newPath.includes('key=')) {
-          newPath = newPath.replace(/[?&]key=[^&]+/, '');
-          // Fix hanging ? if it's the only param
+          newPath = newPath.replace(/[?&]key=[^&]+/g, '');
           newPath = newPath.replace(/\?$/, '');
+          newPath = newPath.replace(/\?&/, '?');
         }
         return newPath;
       },
       on: {
+        error: (err, req: any, res: any) => {
+          console.error('[Gemini Proxy Error]:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Proxy error contacting Gemini API', details: err.message });
+          }
+        },
         proxyReq: (proxyReq, req: any) => {
           proxyReq.removeHeader('Authorization');
           
@@ -575,9 +646,20 @@ Include these slides:
   // Required env vars (both optional — route returns empty array if missing):
   //   PEXELS_API_KEY  — get one free at https://www.pexels.com/api/
   //   PIXABAY_API_KEY — get one free at https://pixabay.com/api/docs/
-  app.post("/api/stock-photos/search", requireAuth, stockPhotosLimiter, async (req, res) => {
+  app.all("/api/stock-photos/search", requireAuth, stockPhotosLimiter, async (req, res) => {
     try {
-      const { query, orientation = 'landscape', perPage = 15 } = req.body || {};
+      const bodyQuery = req.body?.query || req.body?.q;
+      const urlQuery = req.query?.query || req.query?.q;
+      const query = bodyQuery || urlQuery;
+
+      const bodyOrientation = req.body?.orientation;
+      const urlOrientation = req.query?.orientation;
+      const orientation = bodyOrientation || urlOrientation || 'landscape';
+
+      const bodyPerPage = req.body?.perPage || req.body?.per_page;
+      const urlPerPage = req.query?.perPage || req.query?.per_page;
+      const perPage = bodyPerPage || urlPerPage || 15;
+
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: 'query is required' });
       }

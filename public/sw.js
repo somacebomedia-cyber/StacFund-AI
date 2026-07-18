@@ -30,14 +30,23 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Bypass service worker for API requests and non-GET requests
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
-    return;
-  }
+  // Only handle GET requests to our own origin, and bypass service worker for API requests and external domains (e.g. Firebase, Google APIs)
+  try {
+    const url = new URL(event.request.url);
+    if (
+      event.request.method !== 'GET' || 
+      url.origin !== self.location.origin || 
+      url.pathname.startsWith('/api/')
+    ) {
+      return;
+    }
 
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
-  );
+    event.respondWith(
+      caches.match(event.request).then((response) => {
+        return response || fetch(event.request);
+      })
+    );
+  } catch (e) {
+    // If URL parsing or anything else fails, fallback to direct fetch
+  }
 });

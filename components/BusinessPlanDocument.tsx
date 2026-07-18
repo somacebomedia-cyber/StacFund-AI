@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Download, X, Loader2 } from 'lucide-react';
+import { Download, X, Loader2, AlertTriangle } from 'lucide-react';
 import { el, ELEMENT_TAXONOMY } from '../utils/elementTypes';
+import { exportElementsToPdf } from '../utils/pdfExporter';
 
 interface BusinessPlanDocumentProps {
   data: any;
@@ -12,75 +13,51 @@ interface BusinessPlanDocumentProps {
 const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, businessInfo, title = 'Business Plan', onClose }) => {
   const printRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const handlePrint = async () => {
-    if (!printRef.current) return;
+    const container = printRef.current;
+    if (!container) return;
     setIsExporting(true);
+    setExportProgress(null);
+    setExportError(null);
 
     try {
       // Yield to let DOM reflow
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Dynamically import to keep initial bundle size small
-      const html2canvasLib = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-
-      const pages = printRef.current.querySelectorAll<HTMLElement>('.pdf-page');
+      const pages = Array.from(container.querySelectorAll('.pdf-page')) as HTMLElement[];
       if (!pages.length) {
-        console.error('No .pdf-page elements found');
-        return;
-      }
-
-      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-      const A4_WIDTH_MM = 210;
-      const A4_HEIGHT_MM = 297;
-
-      for (let i = 0; i < pages.length; i++) {
-        const canvas = await html2canvasLib(pages[i], {
-          scale: 2, 
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#3B0764',
-          logging: false,
-          width: 794,
-          height: 1123,
-          windowWidth: 794,
-          windowHeight: 1123,
-          onclone: (clonedDoc: HTMLDocument) => {
-            const clonedPages = clonedDoc.querySelectorAll('.pdf-page');
-            clonedPages.forEach((p: Element) => {
-              (p as HTMLElement).style.width = '794px';
-              (p as HTMLElement).style.minHeight = '1123px';
-              (p as HTMLElement).style.height = '1123px';
-            });
-          },
-        });
-
-        // Use 0.85 quality to save RAM during the generation loop
-        const imgData = canvas.toDataURL('image/jpeg', 0.85); 
-        if (i > 0) pdf.addPage();
-        
-        // Dynamic height maintains exact aspect ratio if content pushes beyond 297mm
-        const pageRatio = canvas.height / canvas.width;
-        const printHeight = A4_WIDTH_MM * pageRatio;
-        
-        pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH_MM, printHeight);
-
-        // Force cleanup of the canvas to avoid Safari crashing mid-export
-        canvas.width = 0;
-        canvas.height = 0;
-
-        // Yield to the browser to prevent UI freeze and garbage collect
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        throw new Error('No pages found to export.');
       }
 
       const filename = `${businessInfo?.name?.replace(/\s+/g, '_') || 'Business'}_Plan.pdf`;
-      pdf.save(filename);
 
+      // 'slice' mode: a section that runs longer than one A4 page spills onto
+      // an extra page instead of being cropped. Business plan content length
+      // varies with the AI-generated text, so this is the safe default here.
+      const result = await exportElementsToPdf(pages, filename, {
+        widthPx: 794,
+        widthMm: 210,
+        maxHeightMm: 297,
+        overflowMode: 'slice',
+        backgroundColor: '#3B0764',
+        jpegQuality: 0.85,
+        onProgress: (current, total) => setExportProgress({ current, total }),
+      });
+
+      if (result.failedPages.length) {
+        setExportError(
+          `Downloaded, but page(s) ${result.failedPages.join(', ')} couldn't render — likely an image that failed to load. Try exporting again.`
+        );
+      }
     } catch (err) {
       console.error('PDF Export failed:', err);
+      setExportError(err instanceof Error ? err.message : 'PDF export failed. Please try again.');
     } finally {
       setIsExporting(false);
+      setExportProgress(null);
     }
   };
 
@@ -268,21 +245,36 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
         }
       `}</style>
       
-      <div className="fixed top-6 right-6 z-50 flex gap-4 no-print">
-        <button 
-          onClick={handlePrint}
-          disabled={isExporting}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black flex items-center gap-2 rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)]"
-        >
-          {isExporting ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />} 
-          {isExporting ? 'Generating PDF...' : 'Export High Quality PDF'}
-        </button>
-        <button 
-          onClick={onClose}
-          className="p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all backdrop-blur-md"
-        >
-          <X size={24} />
-        </button>
+      <div className="fixed top-6 right-6 z-50 flex flex-col items-end gap-2 no-print">
+        <div className="flex gap-4">
+          <button 
+            onClick={handlePrint}
+            disabled={isExporting}
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black flex flex-col items-center rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)]"
+          >
+            <span className="flex items-center gap-2">
+              {isExporting ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
+              {isExporting ? 'Generating PDF...' : 'Export High Quality PDF'}
+            </span>
+            {isExporting && exportProgress && (
+              <span className="text-[10px] text-indigo-200 uppercase tracking-widest font-bold mt-0.5">
+                Page {exportProgress.current} of {exportProgress.total}
+              </span>
+            )}
+          </button>
+          <button 
+            onClick={onClose}
+            className="p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all backdrop-blur-md"
+          >
+            <X size={24} />
+          </button>
+        </div>
+        {exportError && (
+          <div className="max-w-sm px-4 py-3 bg-red-950/90 border border-red-500/40 rounded-xl text-red-200 text-sm flex items-start gap-2 backdrop-blur-md">
+            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+            <span>{exportError}</span>
+          </div>
+        )}
       </div>
 
       <div ref={printRef} className="print-container w-full max-w-[210mm] relative my-12 mx-auto flex flex-col font-sans" style={{ minWidth: '794px', width: '794px' }}>

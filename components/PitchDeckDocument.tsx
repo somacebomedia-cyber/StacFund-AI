@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Download, X, Loader2 } from 'lucide-react';
+import { Download, X, Loader2, AlertTriangle } from 'lucide-react';
 import { el, ELEMENT_TAXONOMY } from '../utils/elementTypes';
+import { exportElementsToPdf } from '../utils/pdfExporter';
 
 interface PitchDeckDocumentProps {
   data: any;
@@ -13,6 +14,7 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
   const printRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [orientation, setOrientation] = useState<'landscape' | 'portrait'>('portrait');
   const isCancelledRef = useRef(false);
 
@@ -29,76 +31,51 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
   };
 
   const handlePrint = async () => {
-    if (!printRef.current) return;
+    const container = printRef.current;
+    if (!container) return;
     setIsExporting(true);
     setExportProgress(null);
+    setExportError(null);
     isCancelledRef.current = false;
 
     try {
       await new Promise(resolve => setTimeout(resolve, 100));
-      const html2canvasLib = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
 
-      const initialSlides = printRef.current.querySelectorAll<HTMLElement>('.deck-slide');
-      if (!initialSlides.length) {
-        console.error('No .deck-slide elements found');
-        return;
-      }
-      const totalSlides = initialSlides.length;
-      setExportProgress({ current: 0, total: totalSlides });
-
-      const pdf = new jsPDF({ unit: 'mm', format: [PDF_WIDTH_MM, PDF_HEIGHT_MM], orientation });
-
-      for (let i = 0; i < totalSlides; i++) {
-        if (isCancelledRef.current) {
-          throw new Error('Export cancelled by user');
-        }
-        setExportProgress({ current: i + 1, total: totalSlides });
-        
-        // Wait for React state to flush and re-render DOM
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        
-        const currentSlides = printRef.current?.querySelectorAll<HTMLElement>('.deck-slide');
-        if (!currentSlides || !currentSlides[i]) continue;
-
-        // Slides are fixed-aspect by design (16:9), so unlike the business plan
-        // there's no variable-height content to measure — this is the one case
-        // where a fixed capture height is actually correct, not a bug.
-        const canvas = await html2canvasLib(currentSlides[i], {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#3B0764',
-          logging: false,
-          width: SLIDE_WIDTH_PX,
-          height: SLIDE_HEIGHT_PX,
-          windowWidth: SLIDE_WIDTH_PX,
-          windowHeight: SLIDE_HEIGHT_PX,
-          onclone: (clonedDoc: Document) => {
-            const clonedSlides = clonedDoc.querySelectorAll('.deck-slide');
-            clonedSlides.forEach((p: Element) => {
-              (p as HTMLElement).style.width = `${SLIDE_WIDTH_PX}px`;
-              (p as HTMLElement).style.minHeight = `${SLIDE_HEIGHT_PX}px`;
-              (p as HTMLElement).style.height = `${SLIDE_HEIGHT_PX}px`;
-            });
-          },
-        });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.92); // higher quality — fewer slides, worth the size
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, 0, PDF_WIDTH_MM, PDF_HEIGHT_MM);
-
-        canvas.width = 0;
-        canvas.height = 0;
-        await new Promise((resolve) => setTimeout(resolve, 50));
+      const slides = Array.from(container.querySelectorAll('.deck-slide')) as HTMLElement[];
+      if (!slides.length) {
+        throw new Error('No slides found to export.');
       }
 
-      const filename = `${businessInfo?.name?.replace(/\\s+/g, '_') || 'Business'}_Pitch_Deck.pdf`;
-      pdf.save(filename);
+      const filename = `${businessInfo?.name?.replace(/\s+/g, '_') || 'Business'}_Pitch_Deck.pdf`;
+
+      // 'expand' mode: slides are fixed-aspect (16:9) by design, so this
+      // should rarely trigger — but if AI-generated content on one slide
+      // does run long, it shrinks to fit one page instead of being cropped
+      // or split mid-slide across two pages.
+      const result = await exportElementsToPdf(slides, filename, {
+        widthPx: SLIDE_WIDTH_PX,
+        widthMm: PDF_WIDTH_MM,
+        maxHeightMm: PDF_HEIGHT_MM,
+        overflowMode: 'expand',
+        backgroundColor: '#3B0764',
+        jpegQuality: 0.92, // higher quality — fewer slides, worth the size
+        onProgress: (current, total) => setExportProgress({ current, total }),
+        isCancelled: () => isCancelledRef.current,
+      });
+
+      if (result.failedPages.length) {
+        setExportError(
+          `Downloaded, but slide(s) ${result.failedPages.join(', ')} couldn't render — likely an image that failed to load. Try exporting again.`
+        );
+      }
     } catch (err) {
       console.error('Pitch deck export failed:', err);
+      if ((err as Error).message !== 'Export cancelled by user') {
+        setExportError(err instanceof Error ? err.message : 'Pitch deck export failed. Please try again.');
+      }
     } finally {
       setIsExporting(false);
+      setExportProgress(null);
     }
   };
 
@@ -184,41 +161,49 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col items-center p-4 bg-black/95 overflow-y-auto w-full custom-scrollbar">
-      <div className="fixed top-6 right-6 z-50 flex gap-4 no-print">
-        {isExporting && (
+      <div className="fixed top-6 right-6 z-50 flex flex-col items-end gap-2 no-print">
+        <div className="flex gap-4">
+          {isExporting && (
+            <button
+              onClick={handleCancelExport}
+              className="px-6 py-3 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 font-black flex items-center gap-2 rounded-xl transition-all"
+            >
+              <X size={20} />
+              <div className="flex flex-col items-start text-left">
+                <span>Cancel</span>
+              </div>
+            </button>
+          )}
           <button
-            onClick={handleCancelExport}
-            className="px-6 py-3 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 font-black flex items-center gap-2 rounded-xl transition-all"
+            onClick={() => setOrientation(o => o === 'landscape' ? 'portrait' : 'landscape')}
+            disabled={isExporting}
+            className="px-4 py-3 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white font-bold flex items-center gap-2 rounded-xl transition-all backdrop-blur-md"
           >
-            <X size={20} />
+            {orientation === 'landscape' ? 'Landscape' : 'Portrait'}
+          </button>
+          <button
+            onClick={handlePrint}
+            disabled={isExporting}
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black flex items-center gap-2 rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)]"
+          >
+            {isExporting ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
             <div className="flex flex-col items-start text-left">
-              <span>Cancel</span>
+              <span>{isExporting ? 'Generating Deck...' : 'Export Pitch Deck PDF'}</span>
+              {isExporting && exportProgress && (
+                <span className="text-[10px] text-indigo-200 uppercase tracking-widest font-bold">Processing slide {exportProgress.current} of {exportProgress.total}</span>
+              )}
             </div>
           </button>
-        )}
-        <button
-          onClick={() => setOrientation(o => o === 'landscape' ? 'portrait' : 'landscape')}
-          disabled={isExporting}
-          className="px-4 py-3 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white font-bold flex items-center gap-2 rounded-xl transition-all backdrop-blur-md"
-        >
-          {orientation === 'landscape' ? 'Landscape' : 'Portrait'}
-        </button>
-        <button
-          onClick={handlePrint}
-          disabled={isExporting}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black flex items-center gap-2 rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)]"
-        >
-          {isExporting ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
-          <div className="flex flex-col items-start text-left">
-            <span>{isExporting ? 'Generating Deck...' : 'Export Pitch Deck PDF'}</span>
-            {isExporting && exportProgress && (
-              <span className="text-[10px] text-indigo-200 uppercase tracking-widest font-bold">Processing slide {exportProgress.current} of {exportProgress.total}</span>
-            )}
+          <button onClick={onClose} disabled={isExporting} className="p-3 rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white transition-all backdrop-blur-md">
+            <X size={24} />
+          </button>
+        </div>
+        {exportError && (
+          <div className="max-w-sm px-4 py-3 bg-red-950/90 border border-red-500/40 rounded-xl text-red-200 text-sm flex items-start gap-2 backdrop-blur-md">
+            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+            <span>{exportError}</span>
           </div>
-        </button>
-        <button onClick={onClose} disabled={isExporting} className="p-3 rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white transition-all backdrop-blur-md">
-          <X size={24} />
-        </button>
+        )}
       </div>
 
       <div ref={printRef} className="relative my-12 mx-auto flex flex-col gap-8 font-sans">
