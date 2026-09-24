@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck, Server } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck, Server, Mic, AlertCircle } from 'lucide-react';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { MOCK_FUNDING } from '../constants';
@@ -7,6 +7,7 @@ import { FundingType, User, ApplicationStatus, FundingOpportunityDb, UserBusines
 import FundingCard from '../components/FundingCard';
 import ApplicationWorkflow from '../components/ApplicationWorkflow';
 import { calculateMatch, getMatchMeOpportunities, getApplyReadyOpportunities } from '../services/matchingEngine';
+import { useSpeechRecognition } from '../utils/useSpeechRecognition';
 
 interface FundingExplorerProps {
   user: User | null;
@@ -24,10 +25,10 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   const [mode, setMode] = useState<'DISCOVER' | 'TIMELINE' | 'MATCH_ME' | 'APPLY_READY'>('DISCOVER');
   const [searchQueryInput, setSearchQueryInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info'}>({ show: false, message: '', type: 'success' });
+  const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info' | 'error'}>({ show: false, message: '', type: 'success' });
   const [selectedOpp, setSelectedOpp] = useState<FundingOpportunityDb | null>(null);
   const [workflowOpp, setWorkflowOpp] = useState<FundingOpportunityDb | null>(null);
-  const toastTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const toastTimer = useRef<NodeJS.Timeout | null>(null);
   
   // The Encyclopedia State
   const [opportunities, setOpportunities] = useState<FundingOpportunityDb[]>([]);
@@ -36,10 +37,43 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   // Profile data for Match Engine
   const [userProfile, setUserProfile] = useState<UserBusinessProfile | null>(null);
 
+  const triggerToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'info') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setShowToast({ show: true, message, type });
+    toastTimer.current = setTimeout(() => {
+      setShowToast({ show: false, message: '', type: 'info' });
+    }, 4000);
+  }, []);
+
+  const {
+    isListening,
+    isSupported,
+    interimText,
+    stopListening,
+    toggleListening,
+  } = useSpeechRecognition({
+    onResult: (transcript, isFinal) => {
+      setSearchQueryInput(transcript);
+      setSearchQuery(transcript);
+      if (isFinal) {
+        triggerToast(`Voice search: "${transcript}"`, 'info');
+      }
+    },
+    onError: (errorMessage) => {
+      triggerToast(errorMessage, 'error');
+    },
+  });
+
+  const handleClearSearch = useCallback(() => {
+    if (isListening) stopListening();
+    setSearchQueryInput('');
+    setSearchQuery('');
+  }, [isListening, stopListening]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchQuery(searchQueryInput);
-    }, 250);
+    }, 200);
     return () => clearTimeout(timer);
   }, [searchQueryInput]);
 
@@ -163,15 +197,21 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   }, [activeOpportunityId, resumeOpportunityId, fallbackOpportunity?.id]);
 
   // Compute what to display based on mode
-  const displayOpportunities = React.useMemo(() => {
+  const displayOpportunities = useMemo(() => {
+     const q = searchQuery.trim().toLowerCase();
      const filtered = opportunities.filter(item => {
-        const progName = item.programme_name || '';
-        const eligSumm = item.eligibility_summary || '';
+        if (!q) return true;
+        const progName = (item.programme_name || '').toLowerCase();
+        const eligSumm = (item.eligibility_summary || '').toLowerCase();
+        const issuerName = (item.issuer_name || '').toLowerCase();
+        const fundingType = (item.funding_type || '').toLowerCase();
+        const sectorMatch = (item.sector_tags || []).some(t => t.toLowerCase().includes(q));
         
-        const matchesSearch = progName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                              eligSumm.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              (item.sector_tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-        return matchesSearch;
+        return progName.includes(q) || 
+               eligSumm.includes(q) || 
+               issuerName.includes(q) || 
+               fundingType.includes(q) || 
+               sectorMatch;
      });
 
      if (mode === 'DISCOVER' || mode === 'TIMELINE') {
@@ -257,10 +297,22 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   return (
     <div className="max-w-7xl mx-auto px-6 py-12 relative">
       {showToast.show && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
-          <div className="px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold border bg-emerald-500 text-white border-emerald-400">
-             <CheckCircle2 size={20} />
-            {showToast.message}
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300 pointer-events-none">
+          <div className={`px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold border backdrop-blur-xl ${
+            showToast.type === 'error'
+              ? 'bg-rose-500/90 text-white border-rose-400/80 shadow-rose-500/20'
+              : showToast.type === 'info'
+              ? 'bg-cyan-600/90 text-white border-cyan-400/80 shadow-cyan-500/20'
+              : 'bg-emerald-500/90 text-white border-emerald-400/80 shadow-emerald-500/20'
+          }`}>
+            {showToast.type === 'error' ? (
+              <AlertCircle size={20} className="shrink-0" />
+            ) : showToast.type === 'info' ? (
+              <Info size={20} className="shrink-0" />
+            ) : (
+              <CheckCircle2 size={20} className="shrink-0" />
+            )}
+            <span>{showToast.message}</span>
           </div>
         </div>
       )}
@@ -341,16 +393,115 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
       )}
 
       {/* Search and Filters */}
-      <div className="sticky top-24 z-30 glass-panel p-2 rounded-2xl flex flex-col md:flex-row gap-4 items-center justify-between shadow-xl shadow-black/20 backdrop-blur-md mb-8">
-        <div className="relative w-full md:w-96 group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-cyan-400 transition-colors" size={18} />
+      <div className="sticky top-24 z-30 glass-panel p-3 rounded-2xl flex flex-col md:flex-row gap-4 items-center justify-between shadow-xl shadow-black/30 backdrop-blur-md mb-8 border border-white/10">
+        <div className="relative w-full md:w-[28rem] group">
+          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${isListening ? 'text-rose-400' : 'text-gray-500 group-focus-within:text-cyan-400'}`} size={18} />
+          
           <input 
             type="text" 
-            placeholder="Search keywords or sectors..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-transparent border-none py-3 pl-12 pr-6 text-white placeholder:text-gray-600 focus:outline-none focus:ring-0 transition-all font-medium"
+            placeholder={isListening ? "Listening... Speak your grant query..." : "Search grants, loans, sectors, or click mic..."} 
+            value={searchQueryInput}
+            onChange={(e) => setSearchQueryInput(e.target.value)}
+            className={`w-full bg-black/40 border rounded-xl py-3 pl-11 pr-24 text-white placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-medium text-sm ${
+              isListening 
+                ? 'border-rose-500/70 ring-2 ring-rose-500/30 shadow-lg shadow-rose-500/10' 
+                : 'border-white/10 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20'
+            }`}
           />
+
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+            {searchQueryInput && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search input"
+                title="Clear search"
+                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            )}
+
+            <button
+              type="button"
+              id="funding-voice-search-mic-btn"
+              onClick={toggleListening}
+              aria-label={isListening ? "Stop listening" : "Search grants by speaking"}
+              title={
+                !isSupported 
+                  ? "Voice search is not supported in this browser" 
+                  : isListening 
+                  ? "Listening... Click to finish voice search" 
+                  : "Search grants by speaking (Voice search)"
+              }
+              className={`relative p-2 rounded-xl transition-all duration-200 flex items-center justify-center ${
+                isListening 
+                  ? 'bg-rose-500/25 text-rose-300 border border-rose-500/60 shadow-lg shadow-rose-500/30 scale-105' 
+                  : isSupported
+                  ? 'text-gray-400 hover:text-cyan-400 hover:bg-white/10 active:scale-95'
+                  : 'text-gray-600 cursor-not-allowed opacity-50'
+              }`}
+            >
+              {isListening ? (
+                <>
+                  <Mic size={18} className="animate-pulse text-rose-400" />
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                  </span>
+                </>
+              ) : (
+                <Mic size={18} />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Live Audio / Search Status and Results Count */}
+        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end text-xs">
+          {isListening ? (
+            <div className="flex items-center gap-2.5 bg-rose-500/10 border border-rose-500/30 text-rose-300 px-3.5 py-1.5 rounded-xl animate-pulse">
+              <span className="flex gap-0.5 items-end h-3">
+                <span className="w-1 bg-rose-400 rounded-full animate-bounce h-2"></span>
+                <span className="w-1 bg-rose-400 rounded-full animate-bounce [animation-delay:0.15s] h-3"></span>
+                <span className="w-1 bg-rose-400 rounded-full animate-bounce [animation-delay:0.3s] h-2"></span>
+              </span>
+              <span className="font-semibold">
+                Listening... {interimText ? `"${interimText}"` : "Say e.g. 'technology grant'"}
+              </span>
+              <button 
+                type="button" 
+                onClick={stopListening} 
+                className="ml-1 text-rose-300 hover:text-white underline font-bold"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-gray-400 font-medium">
+              {searchQuery ? (
+                <span className="flex items-center gap-1.5 text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg">
+                  Filtering for: <strong className="text-white font-bold max-w-[140px] truncate">"{searchQuery}"</strong>
+                  <button 
+                    type="button"
+                    onClick={handleClearSearch} 
+                    className="ml-1 text-gray-400 hover:text-white" 
+                    title="Clear filter"
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              ) : (
+                <span className="hidden sm:inline-flex items-center gap-1.5 text-gray-500">
+                  <Mic size={13} className="text-gray-400" />
+                  Try speaking: <button type="button" onClick={() => { setSearchQueryInput('Technology'); setSearchQuery('Technology'); }} className="text-gray-400 hover:text-cyan-400 underline transition-colors">"Technology"</button> or <button type="button" onClick={() => { setSearchQueryInput('Agriculture'); setSearchQuery('Agriculture'); }} className="text-gray-400 hover:text-cyan-400 underline transition-colors">"Agriculture"</button>
+                </span>
+              )}
+              <span className="text-gray-400 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 whitespace-nowrap">
+                <strong className="text-white">{displayOpportunities.length}</strong> {displayOpportunities.length === 1 ? 'grant' : 'grants'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

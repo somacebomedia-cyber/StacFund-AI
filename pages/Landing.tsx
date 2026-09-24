@@ -656,22 +656,6 @@ const Landing: React.FC<LandingProps> = ({ onGetStarted, onLogin, onSearchFundin
         {/* Orbital ring decoration (desktop) */}
         <div className="relative">
 
-          {/* Badge */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="inline-flex items-center gap-2 bg-primary/10 border border-primary/25 px-4 py-2 rounded-full text-primary text-xs font-bold mb-8"
-          >
-            <motion.span
-              animate={prefersReducedMotion ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
-              transition={{ duration: 2, repeat: prefersReducedMotion ? 0 : Infinity }}
-              className="w-1.5 h-1.5 rounded-full bg-primary inline-block"
-            />
-            <Search size={12} />
-            Built for South African Founders
-          </motion.div>
-
           {/* Headline */}
           <motion.h1
             initial={{ y: 30, opacity: 0 }}
