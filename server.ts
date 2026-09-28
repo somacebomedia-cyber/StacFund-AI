@@ -150,6 +150,39 @@ const safeHttpAgent = new http.Agent({ lookup: safeLookup as any });
 const safeHttpsAgent = new https.Agent({ lookup: safeLookup as any });
 
 
+const optionalAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split('Bearer ')[1];
+    if (adminAuth) {
+      try {
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        (req as any).user = decodedToken;
+      } catch (error) {
+        // Proceed without user
+      }
+    } else {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          (req as any).user = {
+            uid: payload.user_id || payload.sub,
+            email: payload.email,
+            ...payload
+          };
+        }
+      } catch (e) {
+        // Proceed without user
+      }
+    }
+  }
+  next();
+};
+
 const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
@@ -291,10 +324,21 @@ async function startServer() {
   // Runs after Firebase Admin is set up so the scraper can write to Firestore.
   startScraper(db);
 
+  // CORS middleware for Gemini proxy endpoints
+  app.use(['/api/gemini', '/api/v1beta', '/api/v1', '/v1beta', '/v1'], (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-custom-gemini-key, User-Agent, user-agent');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
   // Proxy for Gemini API
   app.use(
     ['/api/gemini', '/api/v1beta', '/api/v1', '/v1beta', '/v1'],
-    requireAuth,
+    optionalAuth,
     geminiLimiter,
     createProxyMiddleware({
       target: 'https://generativelanguage.googleapis.com',
@@ -320,6 +364,7 @@ async function startServer() {
         error: (err, req: any, res: any) => {
           console.error('[Gemini Proxy Error]:', err);
           if (!res.headersSent) {
+            res.header('Access-Control-Allow-Origin', '*');
             res.status(500).json({ error: 'Proxy error contacting Gemini API', details: err.message });
           }
         },
