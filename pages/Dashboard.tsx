@@ -527,7 +527,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                   </button>
                 </div>
 
-                <FundingHeatmap />
+                <FundingHeatmap onSelectOpportunity={(oppId) => onBrowseFunding(oppId)} />
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
