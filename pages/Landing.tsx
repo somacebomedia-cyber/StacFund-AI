@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useInView, useReducedMotion } from 'motion/react';
 import { ArrowRight, Search, Banknote, Clock, Zap, FolderUp, Radar, Rocket, ShieldCheck, FileText, Target, MessageSquare, Presentation, Brush, Megaphone, CheckCircle2, Lock, Plus, Image as ImageIcon, ThumbsUp, Send } from 'lucide-react';
+import astronautBackground from '../src/assets/images/astronaut_background_png_1779097044670.png';
 
 interface LandingProps {
   onGetStarted: () => void;
@@ -31,7 +32,7 @@ const CleanBackground = () => {
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
       <div 
         className="absolute inset-0 bg-center bg-cover bg-no-repeat"
-        style={{ backgroundImage: "linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png')" }}
+        style={{ backgroundImage: `linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url(${astronautBackground})` }}
       />
     </div>
   );

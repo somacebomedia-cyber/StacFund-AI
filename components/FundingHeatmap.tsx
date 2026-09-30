@@ -286,24 +286,24 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
   }, [filteredDots]);
 
   return (
-    <div className="glass-panel p-5 sm:p-7 rounded-3xl relative overflow-hidden flex flex-col border border-white/10 shadow-2xl bg-[#090d16]/95">
+    <div className="glass-panel p-4 sm:p-6 lg:p-7 rounded-3xl relative overflow-hidden flex flex-col border border-white/10 shadow-2xl bg-[#090d16]/95 w-full min-w-0">
       {/* Ambient background glow accents */}
       <div className="absolute -top-24 -left-24 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-cyan-600/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(ellipse_at_center,rgba(56,189,248,0.03)_0%,transparent_70%)] pointer-events-none" />
 
       {/* Top Header & Mission Control HUD */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 z-10 border-b border-white/5 pb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 z-10 border-b border-white/5 pb-5 w-full min-w-0">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Live South Africa Capital Grid
             </span>
             <span className="text-xs text-gray-500">·</span>
             <span className="text-xs font-mono text-gray-400">RSA RADAR HUD</span>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+          <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2 truncate">
             Funding Landscape
           </h3>
           <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
@@ -312,43 +312,43 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
         </div>
 
         {/* Live Metrics Cockpit */}
-        <div className="flex items-center gap-3 self-start lg:self-auto flex-wrap">
-          <div className="bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-sm">
+        <div className="flex items-center gap-2 sm:gap-3 self-start lg:self-auto flex-wrap min-w-0">
+          <div className="bg-white/5 border border-white/10 rounded-2xl px-3 py-1.5 sm:px-3.5 sm:py-2 flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-sm shrink-0">
               <Radio size={16} />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Active Capital</p>
-              <p className="text-sm font-black text-white font-mono tabular-nums">{filteredDots.length} Funds</p>
+              <p className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-gray-400">Active Capital</p>
+              <p className="text-xs sm:text-sm font-black text-white font-mono tabular-nums">{filteredDots.length} Funds</p>
             </div>
           </div>
 
-          <div className="bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">
+          <div className="bg-white/5 border border-white/10 rounded-2xl px-3 py-1.5 sm:px-3.5 sm:py-2 flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0">
               <DollarSign size={16} />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Available Pool</p>
-              <p className="text-sm font-black text-emerald-400 font-mono tabular-nums">{totalCapitalPool}</p>
+              <p className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-gray-400">Available Pool</p>
+              <p className="text-xs sm:text-sm font-black text-emerald-400 font-mono tabular-nums">{totalCapitalPool}</p>
             </div>
           </div>
 
-          <div className="bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2 hidden sm:flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-sm">
+          <div className="bg-white/5 border border-white/10 rounded-2xl px-3 py-1.5 sm:px-3.5 sm:py-2 hidden xl:flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-sm shrink-0">
               <Compass size={16} />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Coverage</p>
-              <p className="text-sm font-black text-cyan-300 font-mono">9/9 Provinces</p>
+              <p className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-gray-400">Coverage</p>
+              <p className="text-xs sm:text-sm font-black text-cyan-300 font-mono">9/9 Provinces</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Control Filter Toolbar */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4 z-10">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4 z-10 w-full min-w-0">
         {/* Search */}
-        <div className="md:col-span-4 relative">
+        <div className="md:col-span-4 min-w-0 relative">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -368,10 +368,10 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
         </div>
 
         {/* Funding Type Filter Tabs */}
-        <div className="md:col-span-5 flex items-center gap-1 p-1 bg-white/5 border border-white/10 rounded-xl overflow-x-auto scrollbar-none">
+        <div className="md:col-span-5 min-w-0 flex items-center gap-1 p-1 bg-white/5 border border-white/10 rounded-xl overflow-x-auto scrollbar-none">
           <button
             onClick={() => setSelectedType('ALL')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+            className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 ${
               selectedType === 'ALL'
                 ? 'bg-white/15 text-white shadow-sm'
                 : 'text-gray-400 hover:text-white'
@@ -381,7 +381,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
           </button>
           <button
             onClick={() => setSelectedType('GRANT')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               selectedType === 'GRANT'
                 ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/30'
                 : 'text-gray-400 hover:text-white'
@@ -392,7 +392,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
           </button>
           <button
             onClick={() => setSelectedType('LOAN')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               selectedType === 'LOAN'
                 ? 'bg-amber-500/25 text-amber-300 border border-amber-500/30'
                 : 'text-gray-400 hover:text-white'
@@ -403,7 +403,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
           </button>
           <button
             onClick={() => setSelectedType('EQUITY')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               selectedType === 'EQUITY'
                 ? 'bg-purple-500/25 text-purple-300 border border-purple-500/30'
                 : 'text-gray-400 hover:text-white'
@@ -415,7 +415,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
         </div>
 
         {/* Sector Dropdown */}
-        <div className="md:col-span-3">
+        <div className="md:col-span-3 min-w-0">
           <select
             value={selectedSector}
             onChange={(e) => setSelectedSector(e.target.value)}
@@ -431,10 +431,10 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
       </div>
 
       {/* Province Selector Bar */}
-      <div className="flex items-center gap-1.5 mb-4 z-10 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-white/10">
+      <div className="flex items-center gap-1.5 mb-4 z-10 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-white/10 w-full min-w-0 max-w-full">
         <button
           onClick={() => setSelectedProvinceId(null)}
-          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap uppercase tracking-wider ${
+          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap uppercase tracking-wider shrink-0 ${
             selectedProvinceId === null
               ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
               : 'bg-white/5 text-gray-400 hover:text-white border border-transparent'
@@ -451,7 +451,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
               onClick={() => setSelectedProvinceId(isSelected ? null : prov.id)}
               onMouseEnter={() => setHoveredProvinceId(prov.id)}
               onMouseLeave={() => setHoveredProvinceId(null)}
-              className={`px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
                 isSelected
                   ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
                   : 'bg-white/5 text-gray-300 hover:text-white hover:bg-white/10 border border-white/5'
@@ -467,7 +467,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
       </div>
 
       {/* Main Map Container */}
-      <div className="relative w-full flex-1 min-h-[460px] sm:min-h-[520px] flex items-center justify-center rounded-2xl bg-[#070b12] border border-white/5 overflow-hidden p-2 sm:p-4">
+      <div className="relative w-full flex-1 min-h-[380px] sm:min-h-[460px] lg:min-h-[500px] flex items-center justify-center rounded-2xl bg-[#070b12] border border-white/5 overflow-hidden p-2 sm:p-4 min-w-0 max-w-full">
         {/* Radar & Tactical Grid Background */}
         <div className="absolute inset-0 pointer-events-none opacity-40">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(56,189,248,0.06)_0%,transparent_65%)]" />
@@ -494,7 +494,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
         {/* SVG Visualization: Cut Out Silhouette of South Africa */}
         <svg
           viewBox={SOUTH_AFRICA_VIEWBOX}
-          className="w-full h-full max-h-[580px] select-none"
+          className="w-full h-auto max-h-[540px] select-none"
           style={{ filter: 'drop-shadow(0 20px 30px rgba(0,0,0,0.7))' }}
         >
           <defs>
@@ -914,26 +914,26 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
       </div>
 
       {/* Bottom Mission Control Footer: Legend & Map View Toggles */}
-      <div className="mt-4 pt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs z-10">
+      <div className="mt-4 pt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs z-10 w-full min-w-0">
         {/* Color Legend */}
-        <div className="flex items-center gap-4 flex-wrap text-gray-400">
-          <span className="text-[10px] uppercase font-mono tracking-wider text-gray-500 font-bold">Legend:</span>
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap text-gray-400 min-w-0">
+          <span className="text-[10px] uppercase font-mono tracking-wider text-gray-500 font-bold shrink-0">Legend:</span>
+          <div className="flex items-center gap-1.5 shrink-0">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />
             <span className="text-gray-300 font-medium">Grants (Non-repayable)</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b]" />
             <span className="text-gray-300 font-medium">Debt & Loans</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <span className="w-2.5 h-2.5 rounded-full bg-purple-400 shadow-[0_0_8px_#c084fc]" />
             <span className="text-gray-300 font-medium">Equity & Hybrid</span>
           </div>
         </div>
 
         {/* Layer Toggles */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
           <button
             onClick={() => setShowProvinces(!showProvinces)}
             className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition-all ${

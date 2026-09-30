@@ -21,6 +21,7 @@ import { ApplicationTracker } from '../components/ApplicationTracker';
 import DocumentsVault from '../components/DocumentsVault';
 import { WhatsAppIngestion } from '../components/WhatsAppIngestion';
 import FundingHeatmap from '../components/FundingHeatmap';
+import AIFundingInsights from '../components/AIFundingInsights';
 
 const XPCoin: React.FC<{ styleClass: string; index: number }> = ({ styleClass, index }) => (
   <motion.div
@@ -255,7 +256,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       Return a JSON object with "score" (0-100) representing funding readiness and "tips" (array of 3 short strings) to improve it.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: { 
           responseMimeType: 'application/json',
@@ -303,7 +304,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: { 
           responseMimeType: 'application/json',
@@ -409,7 +410,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-10 relative">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 relative min-w-0">
       {showFormDigitizer && (
         <FormDigitizer user={user} onClose={() => setShowFormDigitizer(false)} />
       )}
@@ -436,16 +437,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        <div className="flex-1 space-y-8">
+      <div className="flex flex-col lg:flex-row gap-6 xl:gap-8 items-start w-full min-w-0">
+        <div className="flex-1 min-w-0 w-full space-y-6 lg:space-y-8">
           {/* Welcome Card & Level Tracker */}
-          <div className="glass-panel rounded-3xl p-8 relative overflow-hidden group flex flex-col gap-6">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 blur-[60px] group-hover:bg-purple-600/20 transition-all"></div>
+          <div className="glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden group flex flex-col gap-6 w-full min-w-0">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 blur-[60px] group-hover:bg-purple-600/20 transition-all pointer-events-none"></div>
             
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative z-10">
-              <div>
-                <h2 className="text-3xl font-black mb-1">Welcome back{user ? `, ${user.email.split('@')[0]}` : ''}! 👋</h2>
-                <p className="text-gray-400 font-medium">{user?.businessName || 'New Entrepreneur'}</p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative z-10 w-full min-w-0">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-2xl sm:text-3xl font-black mb-1 truncate">Welcome back{user ? `, ${user.email.split('@')[0]}` : ''}! 👋</h2>
+                <p className="text-gray-400 font-medium truncate">{user?.businessName || 'New Entrepreneur'}</p>
               </div>
               <GlassAvatar 
                 initialLogoUrl={user?.logoUrl} 
@@ -472,27 +473,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
               const coinsToDisplay = Array.from({ length: coinCount }).map((_, i) => i);
 
               return (
-                <div className="mt-2 pt-6 border-t border-white/5 relative z-10">
-                  <div className="flex justify-between items-end mb-3">
-                    <div>
+                <div className="mt-2 pt-6 border-t border-white/5 relative z-10 w-full min-w-0">
+                  <div className="flex justify-between items-end mb-3 gap-2 flex-wrap sm:flex-nowrap">
+                    <div className="min-w-0">
                       <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Founder Level</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{level.icon}</span>
-                        <h3 className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
+                        <span className="text-2xl shrink-0">{level.icon}</span>
+                        <h3 className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400 truncate">
                           {level.name}
                         </h3>
                       </div>
                     </div>
-                    <div className="text-right flex flex-col items-end">
-                      <div className="flex items-center gap-3 mb-1">
-                        <div className="flex -space-x-2">
-                          {coinsToDisplay.map(i => (
+                    <div className="text-right flex flex-col items-end shrink-0 ml-auto">
+                      <div className="flex items-center gap-2 sm:gap-3 mb-1">
+                        <div className="flex -space-x-2 max-w-[140px] overflow-hidden">
+                          {coinsToDisplay.slice(0, 8).map(i => (
                             <XPCoin key={i} index={i} styleClass={level.coinStyle} />
                           ))}
                         </div>
-                        <p className="text-sm font-bold">{points} <span className="text-gray-500 font-normal">XP</span></p>
+                        <p className="text-sm font-bold whitespace-nowrap">{points} <span className="text-gray-500 font-normal">XP</span></p>
                       </div>
-                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{level.max - points} XP to next rank</p>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">{level.max - points} XP to next rank</p>
                     </div>
                   </div>
                   <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
@@ -507,29 +508,39 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-3 gap-3 md:gap-6">
+          <div className="grid grid-cols-3 gap-3 md:gap-4 xl:gap-6 w-full min-w-0">
             <StatCard label="Applications" value={applications.length} icon={<FileText size={24} />} />
             <StatCard label="Submitted" value={applications.filter(a => a.status === ApplicationStatus.SUBMITTED).length} icon={<CheckCircle size={24} />} colorClass="text-emerald-400" />
             <StatCard label="Documents" value={docCount} icon={<Upload size={24} />} colorClass="text-blue-400" />
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 w-full min-w-0">
             {activeTab === 'overview' && (
               <>
-                <div className="grid grid-cols-2 gap-3 md:gap-4">
-                  <button onClick={onCompleteProfile} className="glass-panel p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-3 md:gap-4 hover:bg-purple-600/10 border-t-4 md:border-t-0 border-purple-500 md:border-l-4 md:border-l-purple-500 transition-all group">
+                <div className="grid grid-cols-2 gap-3 md:gap-4 w-full min-w-0">
+                  <button onClick={onCompleteProfile} className="glass-panel p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-3 md:gap-4 hover:bg-purple-600/10 border-t-4 md:border-t-0 border-purple-500 md:border-l-4 md:border-l-purple-500 transition-all group min-w-0">
                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform shrink-0"><Plus size={20} className="md:w-6 md:h-6" /></div>
-                    <div><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal">Complete Profile</h4><p className="text-[10px] md:text-xs text-purple-400/80 font-bold tracking-wider mt-1 md:mt-0">Unlock Auto-Fill</p></div>
+                    <div className="min-w-0"><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal truncate">Complete Profile</h4><p className="text-[10px] md:text-xs text-purple-400/80 font-bold tracking-wider mt-1 md:mt-0 truncate">Unlock Auto-Fill</p></div>
                   </button>
-                  <button onClick={() => onBrowseFunding()} className="glass-panel p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-3 md:gap-4 hover:bg-emerald-600/10 border-t-4 md:border-t-0 border-emerald-500 md:border-l-4 md:border-l-emerald-500 transition-all group">
+                  <button onClick={() => onBrowseFunding()} className="glass-panel p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-3 md:gap-4 hover:bg-emerald-600/10 border-t-4 md:border-t-0 border-emerald-500 md:border-l-4 md:border-l-emerald-500 transition-all group min-w-0">
                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform shrink-0"><Search size={20} className="md:w-6 md:h-6" /></div>
-                    <div><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal">Browse Funding</h4><p className="text-[10px] md:text-xs text-emerald-400/80 font-bold tracking-wider mt-1 md:mt-0">Find perfect match</p></div>
+                    <div className="min-w-0"><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal truncate">Browse Funding</h4><p className="text-[10px] md:text-xs text-emerald-400/80 font-bold tracking-wider mt-1 md:mt-0 truncate">Find perfect match</p></div>
                   </button>
                 </div>
 
+                {/* AI Funding Insights: Industry Trends, Grant Inflows & Allocator Intelligence */}
+                <AIFundingInsights
+                  user={user}
+                  businessInfo={{
+                    ...businessInfo,
+                    name: businessInfo?.name || user?.businessName
+                  }}
+                  onExploreIndustry={(_industry) => onBrowseFunding()}
+                />
+
                 <FundingHeatmap onSelectOpportunity={(oppId) => onBrowseFunding(oppId)} />
 
-                <div className="space-y-4">
+                <div className="space-y-4 w-full min-w-0">
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-bold">Recent Applications</h3>
                     <button onClick={() => onNavigateToSection ? onNavigateToSection('applications') : setActiveTab('applications')} className="text-xs font-bold text-purple-400 hover:text-purple-300 uppercase tracking-wider">View All</button>
@@ -538,7 +549,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     applications.slice(0, 3).map(app => (
                       <div 
                         key={app.id} 
-                        className={`glass-panel p-5 rounded-2xl flex items-center justify-between group hover:border-white/20 transition-all cursor-pointer`}
+                        className={`glass-panel p-4 sm:p-5 rounded-2xl flex items-center justify-between group hover:border-white/20 transition-all cursor-pointer w-full min-w-0 gap-3`}
                         onClick={() => {
                           if (app.status === ApplicationStatus.DRAFT) {
                             onBrowseFunding(app.opportunityId || app.id, true, {
@@ -551,13 +562,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                           }
                         }}
                       >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-[#111] overflow-hidden flex items-center justify-center text-xl border border-white/10 shrink-0">
+                        <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#111] overflow-hidden flex items-center justify-center text-xl border border-white/10 shrink-0">
                             <ApplicationLogo app={app} />
                           </div>
-                          <div><h4 className="font-bold group-hover:text-purple-400 transition-colors">{app.opportunityTitle}</h4><p className="text-xs text-gray-500">{app.provider} • {app.date}</p></div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold group-hover:text-purple-400 transition-colors truncate">{app.opportunityTitle}</h4>
+                            <p className="text-xs text-gray-500 truncate">{app.provider} • {app.date}</p>
+                          </div>
                         </div>
-                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${getStatusStyle(app.status)}`}>
+                        <div className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider shrink-0 ${getStatusStyle(app.status)}`}>
                           {app.status === ApplicationStatus.DRAFT ? 'IN PROGRESS' : app.status.replace('_', ' ')}
                           {app.submissionMethod === 'DIRECT_API' && <Zap size={10} className="text-amber-400 fill-amber-400" title="Direct Connect Fast-Track" />}
                         </div>
@@ -619,14 +633,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                               <XCircle size={14} />
                             </div>
                           )}
-                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div className="flex items-center gap-4">
-                              <div className="w-14 h-14 rounded-2xl bg-[#111] overflow-hidden flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform border border-white/10 shrink-0">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 min-w-0 w-full">
+                            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                              <div className="w-12 sm:w-14 h-12 sm:h-14 rounded-2xl bg-[#111] overflow-hidden flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform border border-white/10 shrink-0">
                                 <ApplicationLogo app={app} />
                               </div>
-                              <div>
-                                <h4 className="text-lg font-bold group-hover:text-purple-400 transition-colors">{app.opportunityTitle}</h4>
-                                <p className="text-xs text-gray-500 font-medium">{app.provider} • Applied on {app.date}</p>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-base sm:text-lg font-bold group-hover:text-purple-400 transition-colors truncate">{app.opportunityTitle}</h4>
+                                <p className="text-xs text-gray-500 font-medium truncate">{app.provider} • Applied on {app.date}</p>
                               </div>
                             </div>
 
@@ -804,12 +818,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           </div>
         </div>
 
-        <div className="lg:w-80 space-y-8">
+        <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-6 lg:space-y-8 min-w-0">
           <ComplianceTracker items={complianceItems} />
           
           {/* AI Readiness Score Card */}
-          <div className="glass-panel rounded-3xl p-6 relative overflow-hidden group">
-            <div className="absolute top-[-20%] left-[-20%] w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl"></div>
+          <div className="glass-panel rounded-3xl p-5 sm:p-6 relative overflow-hidden group w-full min-w-0">
+            <div className="absolute top-[-20%] left-[-20%] w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
             <h3 className="text-lg font-bold flex items-center gap-2 mb-6">
               <Target size={18} className="text-cyan-400" /> Readiness Score
             </h3>
@@ -821,7 +835,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 <div className="h-4 bg-white/5 rounded w-2/3 animate-pulse"></div>
               </div>
             ) : readiness ? (
-              <div className="space-y-6">
+              <div className="space-y-6 w-full min-w-0">
                 <div className="flex flex-col items-center relative py-2">
                   {/* 3D Black Metal Base */}
                   <div className="relative w-36 h-36 rounded-full bg-gradient-to-br from-[#3a414c] via-[#0a0f16] to-[#000000] shadow-[0_15px_25px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-4px_8px_rgba(0,0,0,1)] p-[4px] flex items-center justify-center">
@@ -885,12 +899,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     </div>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><Sparkles size={12} className="text-cyan-400" /> AI Coaching Tips</p>
+                <div className="space-y-3 w-full min-w-0">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><Sparkles size={12} className="text-cyan-400 shrink-0" /> AI Coaching Tips</p>
                   {readiness.tips.map((tip, i) => (
-                    <div key={i} className="flex gap-2 items-start text-xs text-gray-400">
+                    <div key={i} className="flex gap-2 items-start text-xs text-gray-400 w-full min-w-0">
                       <div className="w-1 h-1 rounded-full bg-cyan-500 mt-1.5 shrink-0"></div>
-                      <p>{tip}</p>
+                      <p className="flex-1 min-w-0 leading-relaxed">{tip}</p>
                     </div>
                   ))}
                 </div>
@@ -903,9 +917,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
             )}
           </div>
 
-          <div className="glass-panel rounded-3xl p-6">
-            <h3 className="text-lg font-bold flex items-center gap-2 mb-6"><Star size={18} className="text-amber-400 fill-amber-400" /> Achievements</h3>
-            <div className="space-y-4">
+          <div className="glass-panel rounded-3xl p-5 sm:p-6 w-full min-w-0">
+            <h3 className="text-lg font-bold flex items-center gap-2 mb-6"><Star size={18} className="text-amber-400 fill-amber-400 shrink-0" /> Achievements</h3>
+            <div className="space-y-4 w-full min-w-0">
               {MOCK_ACHIEVEMENTS.map((achievement) => {
                 const isCompleted = achievement.completed || 
                                    (achievement.id === 'a3' && applications.length > 0) || 
@@ -913,18 +927,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                                    (achievement.id === 'a4' && applications.some(a => a.status === ApplicationStatus.APPROVED));
                 
                 return (
-                  <div key={achievement.id} className={`p-4 rounded-2xl border transition-all ${isCompleted ? 'bg-amber-500/5 border-amber-500/20 shadow-inner' : 'bg-white/5 border-white/5 opacity-50'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${isCompleted ? 'bg-amber-500/20 text-amber-500' : 'bg-gray-800 text-gray-500'}`}>
+                  <div key={achievement.id} className={`p-3.5 sm:p-4 rounded-2xl border transition-all w-full min-w-0 ${isCompleted ? 'bg-amber-500/5 border-amber-500/20 shadow-inner' : 'bg-white/5 border-white/5 opacity-50'}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`p-2 rounded-lg shrink-0 ${isCompleted ? 'bg-amber-500/20 text-amber-500' : 'bg-gray-800 text-gray-500'}`}>
                         {achievement.icon === 'trophy' ? <Trophy size={18} /> : 
                          achievement.icon === 'upload' ? <Upload size={18} /> :
                          achievement.icon === 'file-text' ? <FileText size={18} /> : <Star size={18} />}
                       </div>
-                      <div className="flex-1">
-                        <h4 className="text-sm font-bold">{achievement.title}</h4>
-                        <p className="text-[10px] text-gray-500">{achievement.description}</p>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-bold truncate">{achievement.title}</h4>
+                        <p className="text-[10px] text-gray-500 truncate">{achievement.description}</p>
                       </div>
-                      {isCompleted && <CheckCircle size={14} className="text-amber-500" />}
+                      {isCompleted && <CheckCircle size={14} className="text-amber-500 shrink-0 ml-auto" />}
                     </div>
                   </div>
                 );

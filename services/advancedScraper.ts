@@ -140,7 +140,7 @@ async function extractOpportunities(text: string, instName: string) {
 
   try {
     const res = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: `${prompt}\n\nCONTENT:\n${text}`,
       config: { responseMimeType: 'application/json' },
     });

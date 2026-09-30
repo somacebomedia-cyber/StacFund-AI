@@ -17,11 +17,20 @@ export function isRetryableError(error: any): boolean {
 
   return (
     code.includes('503') ||
+    code.includes('504') ||
+    code.includes('502') ||
     statusStr.includes('unavailable') ||
     errMsg.includes('503') ||
+    errMsg.includes('504') ||
+    errMsg.includes('502') ||
     errMsg.includes('high demand') ||
     errMsg.includes('try again later') ||
-    errMsg.includes('unavailable')
+    errMsg.includes('unavailable') ||
+    errMsg.includes('unexpected token') ||
+    errMsg.includes('<!doctype') ||
+    errMsg.includes('is not valid json') ||
+    errMsg.includes('failed to fetch') ||
+    errMsg.includes('networkerror')
   );
 }
 
@@ -47,12 +56,24 @@ function checkAndReportQuotaError(error: any) {
   }
 }
 
+// Helper to normalize any deprecated model names to modern supported models
+export function normalizeModelName(modelName?: string): string {
+  if (!modelName) return 'gemini-3.8-flash';
+  const lower = modelName.toLowerCase();
+  if (lower.includes('2.5-flash') || lower.includes('2.0-flash') || lower.includes('1.5-flash')) {
+    return 'gemini-3.8-flash';
+  }
+  if (lower.includes('2.5-pro') || lower.includes('2.0-pro') || lower.includes('1.5-pro')) {
+    return 'gemini-3.1-pro-preview';
+  }
+  return modelName;
+}
+
 // Helper to check if a model name is a standard flash model that can fall back to lite
 export function canFallbackToLite(modelName: string): boolean {
   if (!modelName) return false;
   const lower = modelName.toLowerCase();
-  // We can fall back from gemini-2.5-flash to gemini-2.5-flash-lite
-  return (lower.includes('2.5-flash') || lower.includes('2.0-flash')) && !lower.includes('image') && !lower.includes('lite');
+  return (lower.includes('3.8-flash') || lower.includes('flash')) && !lower.includes('image') && !lower.includes('lite');
 }
 
 const wrappedModels = new WeakMap<any, any>();
@@ -69,7 +90,7 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
       if (typeof rawModels.generateContent === 'function') {
         wrapper.generateContent = async function (params: any, ...args: any[]) {
           let lastError: any = null;
-          let currentModel = params?.model || 'gemini-2.5-flash';
+          let currentModel = normalizeModelName(params?.model);
           let retryCount = 0;
           const maxRetries = 3;
 
@@ -98,8 +119,8 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
 
               if (isRetryableError(error)) {
                 if (canFallbackToLite(currentModel)) {
-                  console.warn(`[Gemini Interceptor] High demand detected for ${currentModel}. Falling back to gemini-2.5-flash-lite.`);
-                  currentModel = 'gemini-2.5-flash-lite';
+                  console.warn(`[Gemini Interceptor] High demand detected for ${currentModel}. Falling back to gemini-3.1-flash-lite.`);
+                  currentModel = 'gemini-3.1-flash-lite';
                 }
 
                 retryCount++;
@@ -120,7 +141,7 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
       if (typeof rawModels.generateContentStream === 'function') {
         wrapper.generateContentStream = async function (params: any, ...args: any[]) {
           let lastError: any = null;
-          let currentModel = params?.model || 'gemini-2.5-flash';
+          let currentModel = normalizeModelName(params?.model);
           let retryCount = 0;
           const maxRetries = 3;
 
@@ -149,8 +170,8 @@ Object.defineProperty(GoogleGenAI.prototype, 'models', {
 
               if (isRetryableError(error)) {
                 if (canFallbackToLite(currentModel)) {
-                  console.warn(`[Gemini Interceptor] High demand detected for ${currentModel}. Falling back stream to gemini-2.5-flash-lite.`);
-                  currentModel = 'gemini-2.5-flash-lite';
+                  console.warn(`[Gemini Interceptor] High demand detected for ${currentModel}. Falling back stream to gemini-3.1-flash-lite.`);
+                  currentModel = 'gemini-3.1-flash-lite';
                 }
 
                 retryCount++;
@@ -197,7 +218,13 @@ Object.defineProperty(GoogleGenAI.prototype, 'chats', {
 
       if (typeof rawChats.create === 'function') {
         wrapper.create = function (config: any, ...args: any[]) {
+          if (config && config.model) {
+            config.model = normalizeModelName(config.model);
+          }
           const chatInstance = rawChats.create.call(rawChats, config, ...args);
+          if (chatInstance && chatInstance.model) {
+            chatInstance.model = normalizeModelName(chatInstance.model);
+          }
 
           // Wrap sendMessage on the returned chatInstance
           const originalSendMessage = chatInstance.sendMessage;
@@ -217,8 +244,8 @@ Object.defineProperty(GoogleGenAI.prototype, 'chats', {
 
                   if (isRetryableError(error)) {
                     if (canFallbackToLite(chatInstance.model)) {
-                      console.warn(`[Gemini Interceptor] High demand detected for ${chatInstance.model}. Falling back chat to gemini-2.5-flash-lite.`);
-                      chatInstance.model = 'gemini-2.5-flash-lite';
+                      console.warn(`[Gemini Interceptor] High demand detected for ${chatInstance.model}. Falling back chat to gemini-3.1-flash-lite.`);
+                      chatInstance.model = 'gemini-3.1-flash-lite';
                     }
 
                     retryCount++;
@@ -253,8 +280,8 @@ Object.defineProperty(GoogleGenAI.prototype, 'chats', {
 
                   if (isRetryableError(error)) {
                     if (canFallbackToLite(chatInstance.model)) {
-                      console.warn(`[Gemini Interceptor] High demand detected for ${chatInstance.model}. Falling back stream chat to gemini-2.5-flash-lite.`);
-                      chatInstance.model = 'gemini-2.5-flash-lite';
+                      console.warn(`[Gemini Interceptor] High demand detected for ${chatInstance.model}. Falling back stream chat to gemini-3.1-flash-lite.`);
+                      chatInstance.model = 'gemini-3.1-flash-lite';
                     }
 
                     retryCount++;

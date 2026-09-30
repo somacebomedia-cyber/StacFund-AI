@@ -348,7 +348,7 @@ South African context. All financial figures in ZAR.
 Output MUST be valid JSON matching the responseSchema. Array length must equal input length (${editedOutline.length}).`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',

@@ -15,6 +15,7 @@ import InstallPrompt from './components/InstallPrompt';
 import NotificationsPanel from './components/NotificationsPanel';
 import OnboardingWizard from './components/OnboardingWizard';
 import { User, AppNotification } from './types';
+import astronautBackground from './src/assets/images/astronaut_background_png_1779097044670.png';
 
 type Page = 'landing' | 'dashboard' | 'applications' | 'tools' | 'needs' | 'documents' | 'funding' | 'profile' | 'pricing' | 'auth';
 
@@ -537,15 +538,15 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen text-white relative flex"
-      style={{ backgroundImage: "linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510', backgroundAttachment: 'fixed' }}
+    <div className="min-h-screen text-white relative flex w-full max-w-full overflow-x-hidden"
+      style={{ backgroundImage: `linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url(${astronautBackground})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510', backgroundAttachment: 'fixed' }}
     >
       {/* Sidebar - Desktop */}
-      <aside className="w-64 border-r border-white/5 bg-[#050510]/80 backdrop-blur-xl hidden md:flex flex-col h-screen sticky top-0 z-50">
+      <aside className="w-64 border-r border-white/5 bg-[#050510]/80 backdrop-blur-xl hidden md:flex flex-col h-screen sticky top-0 z-50 shrink-0">
         {sidebarContent}
       </aside>
 
-      <div className="flex-1 flex flex-col h-screen hidden-scrollbar overflow-y-auto relative z-10">
+      <div className="flex-1 min-w-0 flex flex-col h-screen hidden-scrollbar overflow-y-auto overflow-x-hidden relative z-10 w-full">
         <InstallPrompt />
 
         {quotaError && (
@@ -647,7 +648,7 @@ const App: React.FC = () => {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 animate-in fade-in slide-in-from-bottom-2 duration-700 pb-safe">
+        <main className="flex-1 min-w-0 w-full animate-in fade-in slide-in-from-bottom-2 duration-700 pb-safe">
           {renderPage()}
         </main>
 

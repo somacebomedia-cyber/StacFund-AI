@@ -19,20 +19,20 @@ const ComplianceTracker: React.FC<ComplianceTrackerProps> = ({ items }) => {
   const progressPercent = items.length > 0 ? (completeCount / items.length) * 100 : 0;
 
   return (
-    <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
+    <div className="glass-panel p-5 sm:p-6 rounded-3xl relative overflow-hidden group w-full min-w-0">
       <div className="absolute top-[-20%] right-[-20%] w-48 h-48 bg-emerald-500/10 rounded-full blur-[60px] group-hover:bg-emerald-500/20 transition-all pointer-events-none"></div>
       
-      <div className="flex items-center gap-3 mb-6 relative z-10">
-        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+      <div className="flex items-center gap-3 mb-6 relative z-10 min-w-0">
+        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
           <Activity size={20} />
         </div>
-        <div>
-          <h3 className="text-xl font-black">Compliance Tracker</h3>
-          <p className="text-xs text-gray-400 font-medium">Keep your foundational docs up to date</p>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-lg sm:text-xl font-black truncate">Compliance Tracker</h3>
+          <p className="text-xs text-gray-400 font-medium truncate">Keep your foundational docs up to date</p>
         </div>
       </div>
 
-      <div className="mb-8 relative z-10">
+      <div className="mb-8 relative z-10 w-full min-w-0">
         <div className="flex justify-between text-xs font-bold mb-2">
           <span className="text-gray-400 uppercase tracking-widest">Progress</span>
           <span className="text-emerald-400">{Math.round(progressPercent)}%</span>
@@ -54,14 +54,14 @@ const ComplianceTracker: React.FC<ComplianceTrackerProps> = ({ items }) => {
         </div>
       </div>
 
-      <div className="space-y-4 relative z-10">
+      <div className="space-y-4 relative z-10 w-full min-w-0">
         {items.map((item, i) => (
           <motion.div 
             key={item.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.15 + 0.5, duration: 0.5 }}
-            className={`p-4 rounded-2xl border transition-all flex items-start gap-4 ${
+            className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex items-start gap-3 sm:gap-4 w-full min-w-0 ${
               item.isComplete 
                 ? 'bg-emerald-500/5 border-emerald-500/20' 
                 : 'bg-white/5 border-white/5 hover:border-white/10'
@@ -75,20 +75,20 @@ const ComplianceTracker: React.FC<ComplianceTrackerProps> = ({ items }) => {
               <Check size={14} />
             </div>
             
-            <div className="flex-1">
-              <h4 className={`text-sm font-bold ${item.isComplete ? 'text-white' : 'text-gray-300'}`}>
+            <div className="flex-1 min-w-0">
+              <h4 className={`text-sm font-bold truncate ${item.isComplete ? 'text-white' : 'text-gray-300'}`}>
                 {item.name}
               </h4>
-              <div className="flex items-center gap-2 mt-1">
-                <Clock className="text-gray-500" size={12} />
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+              <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
+                <Clock className="text-gray-500 shrink-0" size={12} />
+                <span className={`text-[10px] uppercase tracking-wider font-bold truncate ${
                   item.isComplete ? 'text-emerald-400/80' : 'text-amber-400/80'
                 }`}>
                   {item.isComplete ? 'Valid Until' : 'Action Required By'}: {item.dueDate}
                 </span>
               </div>
               {item.notes && !item.isComplete && (
-                <p className="text-[10px] text-gray-500 mt-2">{item.notes}</p>
+                <p className="text-[10px] text-gray-500 mt-2 line-clamp-2">{item.notes}</p>
               )}
             </div>
           </motion.div>

@@ -142,7 +142,7 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
         // Use Gemini to extract item name and price
         const ai = await createGeminiClient();
         const response = await ai.models.generateContent({
-             model: 'gemini-2.5-flash',
+             model: 'gemini-3.8-flash',
              contents: [
                 {
                    role: 'user',
@@ -329,7 +329,7 @@ WRITING REQUIREMENTS:
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json', responseSchema: pitchDeckSchema, maxOutputTokens: 8192 }
       });
@@ -838,7 +838,7 @@ WRITING REQUIREMENTS:
 `;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: batchPrompt,
           config: { 
             responseMimeType: 'application/json',

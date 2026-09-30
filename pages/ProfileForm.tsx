@@ -176,7 +176,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
       Return a JSON object with "registration", "industry", and "description".`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
@@ -226,7 +226,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
       Return a JSON object with any of these fields you can logically deduce: "name" (Business Name), "registration" (Registration Number), "industry" (Industry), and "description" (Business Description). Be creative but realistic based on the clues in the names! If there is no specific reg number, invent a realistic South African one.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
@@ -273,7 +273,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
       Return a JSON object with any of these fields you can logically deduce: "name" (Full Name), "idNumber" (South African ID Number), "race" (African, Coloured, Indian, White, Other), "gender" (Male, Female, Other), and "age". Be creative but realistic based on the clues in the names! If there is no specific ID number, invent a realistic 13-digit South African one.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
@@ -456,7 +456,7 @@ WRITING REQUIREMENTS:
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-pro',
+        model: 'gemini-3.1-pro-preview',
         contents: promptParts,
         config: { responseMimeType: 'application/json', responseSchema: pitchDeckSchema, maxOutputTokens: 8192 }
       });
@@ -1014,7 +1014,7 @@ WRITING REQUIREMENTS:
         while (retryCount <= maxRetries) {
           try {
             response = await ai.models.generateContent({
-              model: 'gemini-2.5-pro',
+              model: 'gemini-3.1-pro-preview',
               contents: promptParts,
               config: { 
                 responseMimeType: 'application/json',

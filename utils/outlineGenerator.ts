@@ -62,7 +62,7 @@ export async function generateSlideOutline(
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -125,7 +125,7 @@ export async function regenerateSingleSlide(
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',

@@ -78,7 +78,7 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: {
           parts: [
             { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },

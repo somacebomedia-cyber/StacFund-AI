@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   :root {
     /* ── Design tokens ──────────────────────────────────────────────────
        Anchored on the values already established across the app (not new
@@ -64,7 +69,7 @@
   .bg-space-auth,
   .bg-space-dashboard {
     background-color: hsl(var(--background));
-    background-image: linear-gradient(hsl(var(--background) / 0.75), hsl(var(--background) / 0.75)), url('/src/assets/images/astronaut_background_png_1779097044670.png');
+    background-image: linear-gradient(hsl(var(--background) / 0.75), hsl(var(--background) / 0.75)), url('./src/assets/images/astronaut_background_png_1779097044670.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;

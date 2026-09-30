@@ -13,6 +13,12 @@ export function isQuotaError(error: any): boolean {
   );
 }
 
+export function isHtmlGatewayError(error: any): boolean {
+  if (!error) return false;
+  const msg = (error.message || String(error)).toLowerCase();
+  return msg.includes('<!doctype') || msg.includes('unexpected token') || msg.includes('not valid json');
+}
+
 export function handleGeminiError(error: any) {
   if (isQuotaError(error)) {
     console.warn("Gemini Quota Error caught. Show UI warning.");
@@ -23,6 +29,8 @@ export function handleGeminiError(error: any) {
       }
     });
     window.dispatchEvent(customEvent);
+  } else if (isHtmlGatewayError(error)) {
+    console.warn("Gemini service temporarily unreachable or returned gateway response:", error?.message || error);
   } else {
     console.error("Gemini API Error caught:", error);
   }

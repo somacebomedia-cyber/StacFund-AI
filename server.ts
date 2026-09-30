@@ -6,7 +6,7 @@ import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
-import { createProxyMiddleware } from 'http-proxy-middleware';
+import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
@@ -318,12 +318,6 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json());
-
-  // Initialize the funding scraper (daily cron + manual trigger endpoint).
-  // Runs after Firebase Admin is set up so the scraper can write to Firestore.
-  startScraper(db);
-
   // CORS middleware for Gemini proxy endpoints
   app.use(['/api/gemini', '/api/v1beta', '/api/v1', '/v1beta', '/v1'], (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
@@ -335,7 +329,7 @@ async function startServer() {
     next();
   });
 
-  // Proxy for Gemini API
+  // Proxy for Gemini API (placed before express.json() so raw body streaming is preserved)
   app.use(
     ['/api/gemini', '/api/v1beta', '/api/v1', '/v1beta', '/v1'],
     optionalAuth,
@@ -344,28 +338,31 @@ async function startServer() {
       target: 'https://generativelanguage.googleapis.com',
       changeOrigin: true,
       pathRewrite: (path, req: any) => {
-        // Use req.originalUrl to preserve the unstripped path from Express
         let newPath = req.originalUrl || path;
-        if (newPath.startsWith('/api/gemini')) {
-          newPath = newPath.replace(/^\/api\/gemini/, '');
-        } else if (newPath.startsWith('/api/v1beta')) {
-          newPath = newPath.replace(/^\/api/, '');
-        } else if (newPath.startsWith('/api/v1')) {
-          newPath = newPath.replace(/^\/api/, '');
+        const [pathname, search] = newPath.split('?');
+        let cleanedPath = pathname;
+        if (cleanedPath.startsWith('/api/gemini')) {
+          cleanedPath = cleanedPath.replace(/^\/api\/gemini/, '');
+        } else if (cleanedPath.startsWith('/api/v1beta') || cleanedPath.startsWith('/api/v1')) {
+          cleanedPath = cleanedPath.replace(/^\/api/, '');
         }
-        if (newPath.includes('key=')) {
-          newPath = newPath.replace(/[?&]key=[^&]+/g, '');
-          newPath = newPath.replace(/\?$/, '');
-          newPath = newPath.replace(/\?&/, '?');
+        if (!cleanedPath.startsWith('/')) {
+          cleanedPath = '/' + cleanedPath;
         }
-        return newPath;
+        return search ? `${cleanedPath}?${search}` : cleanedPath;
       },
       on: {
         error: (err, req: any, res: any) => {
           console.error('[Gemini Proxy Error]:', err);
           if (!res.headersSent) {
             res.header('Access-Control-Allow-Origin', '*');
-            res.status(500).json({ error: 'Proxy error contacting Gemini API', details: err.message });
+            res.status(500).json({ 
+              error: {
+                code: 500,
+                message: `Proxy error contacting Gemini API: ${err.message}`,
+                status: 'INTERNAL'
+              }
+            });
           }
         },
         proxyReq: (proxyReq, req: any) => {
@@ -392,16 +389,18 @@ async function startServer() {
             proxyReq.path = targetPath;
           }
 
-          // Re-stream body because express.json() consumed it
-          if (req.body && Object.keys(req.body).length > 0) {
-            const bodyData = JSON.stringify(req.body);
-            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-            proxyReq.write(bodyData);
-          }
+          // In case express.json() or other parser was triggered upstream, restore body
+          fixRequestBody(proxyReq, req);
         },
       },
     })
   );
+
+  app.use(express.json());
+
+  // Initialize the funding scraper (daily cron + manual trigger endpoint).
+  // Runs after Firebase Admin is set up so the scraper can write to Firestore.
+  startScraper(db);
 
   // API route to initialize a Paystack transaction
   app.post("/api/paystack/initialize", requireAuth, paystackLimiter, async (req, res) => {
