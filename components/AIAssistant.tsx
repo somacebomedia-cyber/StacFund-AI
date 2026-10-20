@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, X, Send, Sparkles, Loader2, Bot, Minimize2, ArrowUpRight, Mic, MicOff, RotateCcw, Zap, Command, CreditCard, Shield } from 'lucide-react';
+import { MessageSquare, X, Send, Sparkles, Loader2, Bot, Minimize2, ArrowUpRight, Mic, MicOff, RotateCcw, Zap, Command, CreditCard, Shield, Paperclip, FileText, Image as ImageIcon } from 'lucide-react';
 import { GoogleGenAI, GenerateContentResponse, Type, FunctionDeclaration } from '@google/genai';
 import { createGeminiClient } from '../services/geminiClient';
 import { collection, getDocs, updateDoc, doc, query, deleteDoc, setDoc } from 'firebase/firestore';
@@ -10,9 +10,25 @@ import { User, Application } from '../types';
 import { MOCK_FUNDING } from '../constants';
 import { handleGeminiError } from '../services/geminiError';
 
+export interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+  base64: string;
+  previewUrl: string;
+  isImage: boolean;
+}
+
 interface Message {
   role: 'user' | 'model';
   text: string;
+  attachment?: {
+    name: string;
+    type: string;
+    previewUrl?: string;
+    isImage: boolean;
+    size: number;
+  };
 }
 
 interface AIAssistantProps {
@@ -28,9 +44,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
   const [isTyping, setIsTyping] = useState(false);
   const [isActing, setIsActing] = useState(false); // New state for tool execution
   const [isListening, setIsListening] = useState(false);
+  const [attachment, setAttachment] = useState<FileAttachment | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<any>(null);
   const recognitionRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Tools Configuration
   const tools: { functionDeclarations: FunctionDeclaration[] } = {
@@ -237,19 +255,62 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
     localStorage.removeItem(`stacfund_chat_history_${user.id}`);
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File size exceeds 10MB limit. Please attach a smaller file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Clean = result.split(',')[1] || '';
+      const isImg = file.type.startsWith('image/');
+
+      setAttachment({
+        name: file.name,
+        type: file.type || (isImg ? 'image/jpeg' : 'application/pdf'),
+        size: file.size,
+        base64: base64Clean,
+        previewUrl: isImg ? result : '',
+        isImage: isImg
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const handleSendMessage = async (e?: React.FormEvent, presetMessage?: string) => {
     e?.preventDefault();
-    const messageText = presetMessage || input;
-    if (!messageText.trim() || isTyping || isActing) return;
+    const rawText = (presetMessage || input).trim();
+    if ((!rawText && !attachment) || isTyping || isActing) return;
 
-    const userMessage: Message = { role: 'user', text: messageText };
+    const fileToSend = attachment;
+    const messageText = rawText || (fileToSend ? `Please review my attached document "${fileToSend.name}" for funding readiness and pitch feedback.` : '');
+
+    const userMessage: Message = { 
+      role: 'user', 
+      text: messageText,
+      attachment: fileToSend ? {
+        name: fileToSend.name,
+        type: fileToSend.type,
+        previewUrl: fileToSend.previewUrl,
+        isImage: fileToSend.isImage,
+        size: fileToSend.size
+      } : undefined
+    };
+
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    setAttachment(null);
     setIsTyping(true);
 
     if (!user) {
       setTimeout(() => {
-        setMessages(prev => [...prev, { role: 'ai', text: 'You need to be logged in to chat with StacFund AI. Please log in or create an account to continue.' }]);
+        setMessages(prev => [...prev, { role: 'model', text: 'You need to be logged in to chat with StacFund AI. Please log in or create an account to continue.' }]);
         setIsTyping(false);
       }, 500);
       return;
@@ -284,6 +345,14 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
           - Business Name: ${user?.businessName || 'N/A'}
           - Full Profile Data: ${JSON.stringify(parsedProfile || {})}
           
+          MULTIMODAL DOCUMENT & IMAGE ANALYSIS:
+          - When the user attaches an image or PDF document, analyze it in detail for funding readiness, compliance, and pitch clarity.
+          - State what the document is (e.g. Pitch deck slide, Financial projection, Quotation, B-BBEE affidavit, CIPC certificate, Prototype photo).
+          - Provide structured feedback:
+            1. Key Strengths (what institutional funders will look for)
+            2. Missing Items / Red Flags (common rejection reasons)
+            3. Actionable Next Steps (concrete fixes to make it fundable)
+          
           BEHAVIOR:
           1. Actively use 'read_document' if the user asks about their business plan, pitch deck, or what documents they have. Read the document to answer their question!
           2. Use 'edit_document' if they ask you to modify, add to, or rewrite a section of a document.
@@ -295,7 +364,20 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
         },
       });
 
-      const response = await sessionChat.sendMessage({ message: messageText });
+      let messagePayload: any = messageText;
+      if (fileToSend && fileToSend.base64) {
+        messagePayload = [
+          { text: messageText },
+          {
+            inlineData: {
+              mimeType: fileToSend.type,
+              data: fileToSend.base64
+            }
+          }
+        ];
+      }
+
+      const response = await sessionChat.sendMessage({ message: messagePayload });
       
       // Handle Function Calls
       if (response.functionCalls && response.functionCalls.length > 0) {
@@ -528,6 +610,28 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
                       ? 'bg-gradient-to-br from-purple-600 to-indigo-700 text-white rounded-tr-none shadow-[0_10px_30px_-5px_rgba(139,92,246,0.3)]' 
                       : 'bg-white/[0.03] border border-white/10 text-gray-200 rounded-tl-none backdrop-blur-md'
                   }`}>
+                    {msg.attachment && (
+                      <div className="mb-2.5 p-2 rounded-2xl bg-black/40 border border-white/10 overflow-hidden">
+                        {msg.attachment.isImage && msg.attachment.previewUrl ? (
+                          <img 
+                            src={msg.attachment.previewUrl} 
+                            alt={msg.attachment.name} 
+                            className="max-h-36 w-auto rounded-xl object-contain mx-auto mb-1.5"
+                          />
+                        ) : null}
+                        <div className="flex items-center gap-2 text-xs">
+                          {msg.attachment.isImage ? (
+                            <ImageIcon size={14} className="text-cyan-400 shrink-0" />
+                          ) : (
+                            <FileText size={14} className="text-rose-400 shrink-0" />
+                          )}
+                          <span className="font-bold truncate text-[11px] max-w-[160px]">{msg.attachment.name}</span>
+                          <span className="text-[10px] text-gray-400 font-mono ml-auto">
+                            {(msg.attachment.size / 1024).toFixed(0)} KB
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     {msg.text}
                     {msg.role === 'model' && (
                       <div className="absolute -left-2 top-0 w-2 h-2 text-white/10">
@@ -553,38 +657,86 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
             </div>
 
             {/* Input Area */}
-            <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-3xl">
+            <div className="p-5 border-t border-white/5 bg-black/40 backdrop-blur-3xl">
+              {/* Attachment Preview Card */}
+              {attachment && (
+                <div className="mb-3 p-2.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {attachment.isImage && attachment.previewUrl ? (
+                      <img src={attachment.previewUrl} alt={attachment.name} className="w-9 h-9 rounded-lg object-cover border border-white/10 shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                        <FileText size={18} />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate max-w-[200px]">{attachment.name}</p>
+                      <p className="text-[10px] text-gray-400 font-mono">{(attachment.size / 1024).toFixed(0)} KB • Ready for AI review</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAttachment(null)}
+                    className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                    title="Remove attachment"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              )}
+
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*,application/pdf" 
+                className="hidden" 
+                onChange={handleFileSelect} 
+              />
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <motion.button 
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all shadow-xl shrink-0 ${
+                    attachment 
+                      ? 'bg-purple-600 text-white shadow-purple-600/30' 
+                      : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/10'
+                  }`}
+                  title="Attach image or PDF document"
+                >
+                  <Paperclip size={18} />
+                </motion.button>
+                <motion.button 
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
                   onClick={toggleListening}
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-xl ${
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all shadow-xl shrink-0 ${
                     isListening 
                       ? 'bg-red-500 text-white animate-pulse' 
                       : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/10'
                   }`}
                 >
-                  {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                  {isListening ? <MicOff size={18} /> : <Mic size={18} />}
                 </motion.button>
-                <form onSubmit={handleSendMessage} className="relative flex-1 group">
+                <form onSubmit={handleSendMessage} className="relative flex-1 group min-w-0">
                   <input 
                     type="text"
-                    placeholder={isActing ? "Performing task..." : isListening ? "Listening..." : "How can I assist your business today?"}
+                    placeholder={attachment ? `Ask AI about ${attachment.name}...` : isActing ? "Performing task..." : isListening ? "Listening..." : "How can I assist your business today?"}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-gray-600"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-gray-600"
                   />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center">
                     <motion.button 
                       whileHover={{ scale: 1.1, x: 2 }}
                       whileTap={{ scale: 0.9 }}
                       type="submit"
-                      disabled={!input.trim() || isTyping || isActing}
-                      className="p-2.5 bg-gradient-to-tr from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-30 disabled:grayscale text-white rounded-xl transition-all shadow-lg"
+                      disabled={(!input.trim() && !attachment) || isTyping || isActing}
+                      className="p-2 bg-gradient-to-tr from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-30 disabled:grayscale text-white rounded-xl transition-all shadow-lg"
                     >
-                      <Send size={18} />
+                      <Send size={16} />
                     </motion.button>
                   </div>
                 </form>

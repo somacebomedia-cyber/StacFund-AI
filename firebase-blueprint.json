@@ -76,6 +76,7 @@
         "status": { "type": "string", "enum": ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"] },
         "type": { "type": "string" },
         "date": { "type": "string" },
+        "deadline": { "type": "string" },
         "data": { "type": "object" }
       },
       "required": ["opportunityId", "status"]
@@ -91,6 +92,20 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["name", "type"]
+    },
+    "AppNotification": {
+      "title": "User Notification",
+      "description": "Notification or deadline alert for user",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "date": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["info", "success", "warning", "alert"] },
+        "actionPage": { "type": "string" }
+      },
+      "required": ["title", "message", "date", "isRead"]
     }
   },
   "firestore": {
@@ -113,6 +128,10 @@
     "/users/{userId}/documents/{docId}": {
       "schema": "AppDocument",
       "description": "User's uploaded business documents"
+    },
+    "/users/{userId}/notifications/{notifId}": {
+      "schema": "AppNotification",
+      "description": "User notification messages and cutoff alerts"
     }
   }
 }

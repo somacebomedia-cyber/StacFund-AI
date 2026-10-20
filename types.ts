@@ -95,6 +95,7 @@ export interface Application {
   date: string;
   type: FundingType;
   submissionMethod?: string;
+  deadline?: string;
 }
 
 export interface AppDocument {
@@ -140,9 +141,36 @@ export interface AppNotification {
   date: string;
   type?: 'info' | 'success' | 'warning' | 'alert';
   actionPage?: string;
+  opportunityId?: string;
+  cutoffDate?: string;
 }
 
 export interface ReadinessInfo {
   score: number;
   tips: string[];
 }
+
+export interface FundingDeadlineItem {
+  id: string;
+  opportunityId: string;
+  title: string;
+  provider: string;
+  logoUrl?: string;
+  type: FundingType | string;
+  amountText: string;
+  cutoffDate: string; // ISO string or parsable date
+  urgency: 'critical' | 'imminent' | 'upcoming' | 'passed';
+  hoursRemaining: number;
+  totalSecondsRemaining: number;
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  isApplication?: boolean;
+  applicationId?: string;
+  applicationStatus?: ApplicationStatus;
+  requiredDocs?: string[];
+  eligibilitySummary?: string;
+  applicationUrl?: string;
+}
+

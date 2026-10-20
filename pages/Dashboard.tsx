@@ -22,6 +22,10 @@ import DocumentsVault from '../components/DocumentsVault';
 import { WhatsAppIngestion } from '../components/WhatsAppIngestion';
 import FundingHeatmap from '../components/FundingHeatmap';
 import AIFundingInsights from '../components/AIFundingInsights';
+import FundingCountdown from '../components/FundingCountdown';
+import FundingAnalyticsSection from '../components/FundingAnalyticsSection';
+import ApplicationFunnelChart from '../components/ApplicationFunnelChart';
+import { compileUserDeadlines, getCutoffCountdown, parseCutoffDate } from '../services/fundingDeadlineService';
 
 const XPCoin: React.FC<{ styleClass: string; index: number }> = ({ styleClass, index }) => (
   <motion.div
@@ -194,6 +198,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     window.addEventListener('update_dashboard_tab', handleUpdateTab);
     return () => window.removeEventListener('update_dashboard_tab', handleUpdateTab);
   }, [onNavigateToSection]);
+
+  useEffect(() => {
+    const handleOpenOppFromNotif = (event: any) => {
+      if (event.detail?.opportunityId) {
+        onBrowseFunding(event.detail.opportunityId);
+      }
+    };
+    window.addEventListener('open_opportunity_from_notification', handleOpenOppFromNotif);
+    return () => window.removeEventListener('open_opportunity_from_notification', handleOpenOppFromNotif);
+  }, [onBrowseFunding]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -528,6 +542,42 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                   </button>
                 </div>
 
+                {/* Funding Analytics & Application Stage Funnel (Recharts) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full min-w-0">
+                  <FundingAnalyticsSection
+                    user={user}
+                    applications={applications}
+                    opportunities={MOCK_FUNDING}
+                    onBrowseFunding={() => onBrowseFunding()}
+                    onOpenNeedsTracker={() => {
+                      if (onNavigateToSection) onNavigateToSection('needs');
+                      else setActiveTab('needs');
+                    }}
+                  />
+                  <ApplicationFunnelChart
+                    applications={applications}
+                    onBrowseFunding={() => onBrowseFunding()}
+                    onNavigateToApplications={() => {
+                      if (onNavigateToSection) onNavigateToSection('applications');
+                      else setActiveTab('applications');
+                    }}
+                  />
+                </div>
+
+                {/* Funding Countdown & Cutoff Deadlines */}
+                <FundingCountdown
+                  user={user}
+                  applications={applications}
+                  opportunities={MOCK_FUNDING}
+                  onOpenApplication={(oppId, isDraft, fallback) => {
+                    onBrowseFunding(oppId, isDraft, fallback);
+                  }}
+                  onNavigateToApplications={() => {
+                    if (onNavigateToSection) onNavigateToSection('applications');
+                    else setActiveTab('applications');
+                  }}
+                />
+
                 {/* AI Funding Insights: Industry Trends, Grant Inflows & Allocator Intelligence */}
                 <AIFundingInsights
                   user={user}
@@ -640,7 +690,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                               </div>
                               <div className="min-w-0 flex-1">
                                 <h4 className="text-base sm:text-lg font-bold group-hover:text-purple-400 transition-colors truncate">{app.opportunityTitle}</h4>
-                                <p className="text-xs text-gray-500 font-medium truncate">{app.provider} • Applied on {app.date}</p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-xs text-gray-500 font-medium truncate">{app.provider} • Applied on {app.date}</p>
+                                  {(() => {
+                                    const matchingOpp = MOCK_FUNDING.find(o => o.opportunity_id === app.opportunityId);
+                                    const cutoffDate = parseCutoffDate(app.deadline || matchingOpp?.closing_date);
+                                    const countdown = cutoffDate ? getCutoffCountdown(cutoffDate) : null;
+                                    if (!countdown || countdown.passed) return null;
+                                    return (
+                                      <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                        countdown.urgency === 'critical' 
+                                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse' 
+                                          : countdown.urgency === 'imminent'
+                                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                            : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                                      }`}>
+                                        <Clock size={10} />
+                                        {countdown.urgency === 'critical' && <Zap size={10} className="fill-rose-400 text-rose-400" />}
+                                        Cutoff: {countdown.days > 0 ? `${countdown.days}d ${countdown.hours}h` : `${countdown.hours}h ${countdown.minutes}m`}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                             </div>
 
@@ -819,6 +890,60 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         </div>
 
         <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-6 lg:space-y-8 min-w-0">
+          {/* Cutoff Radar Widget */}
+          {(() => {
+            const deadlines = compileUserDeadlines(applications, MOCK_FUNDING);
+            const criticalDeadlines = deadlines.filter(d => d.urgency === 'critical');
+            const nextDeadline = deadlines[0];
+
+            return (
+              <div className="glass-panel rounded-3xl p-5 sm:p-6 relative overflow-hidden group w-full min-w-0">
+                <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-bold flex items-center gap-2">
+                    <Clock size={16} className="text-rose-400" /> Cutoff Radar
+                  </h3>
+                  {criticalDeadlines.length > 0 ? (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center gap-1 animate-pulse">
+                      <Zap size={9} className="fill-rose-400" /> {criticalDeadlines.length} Critical
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-white/5 text-gray-400">
+                      {deadlines.length} Active
+                    </span>
+                  )}
+                </div>
+
+                {nextDeadline ? (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Next Cutoff</span>
+                      <h4 className="text-xs font-bold text-white truncate mb-1.5">{nextDeadline.title}</h4>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-purple-400 truncate max-w-[130px]">{nextDeadline.provider}</span>
+                        <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded-md ${
+                          nextDeadline.urgency === 'critical' ? 'bg-rose-500/20 text-rose-400' : 'bg-white/10 text-white'
+                        }`}>
+                          {nextDeadline.days > 0 ? `${nextDeadline.days}d ${nextDeadline.hours}h` : `${nextDeadline.hours}h ${nextDeadline.minutes}m`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => onBrowseFunding(nextDeadline.opportunityId)}
+                      className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
+                    >
+                      View Deadline Details <ChevronRight size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No active cutoff windows right now.</p>
+                )}
+              </div>
+            );
+          })()}
+
           <ComplianceTracker items={complianceItems} />
           
           {/* AI Readiness Score Card */}

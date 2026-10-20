@@ -75,8 +75,14 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ user, onClose, 
     switch (type) {
       case 'success':
         return <CheckCircle2 size={20} className={isRead ? 'text-gray-500' : 'text-emerald-400'} />;
-      case 'warning':
       case 'alert':
+        return (
+          <div className="relative">
+            <AlertCircle size={20} className={isRead ? 'text-gray-500' : 'text-rose-400 animate-pulse'} />
+            {!isRead && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500 animate-ping" />}
+          </div>
+        );
+      case 'warning':
         return <AlertCircle size={20} className={isRead ? 'text-gray-500' : 'text-amber-400'} />;
       default:
         return <Info size={20} className={isRead ? 'text-gray-500' : 'text-purple-400'} />;
@@ -86,6 +92,9 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ user, onClose, 
   const handleNotificationClick = (n: AppNotification) => {
     if (!n.isRead && user) {
        updateDoc(doc(db, 'users', user.id, 'notifications', n.id), { isRead: true }).catch(console.error);
+    }
+    if (n.opportunityId) {
+       window.dispatchEvent(new CustomEvent('open_opportunity_from_notification', { detail: { opportunityId: n.opportunityId } }));
     }
     if (n.actionPage && onNavigate) {
        onNavigate(n.actionPage);
@@ -150,6 +159,11 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ user, onClose, 
                      <p className={`text-xs mb-2 ${!n.isRead ? 'text-gray-300' : 'text-gray-500'}`}>
                         {n.message}
                      </p>
+                     {n.cutoffDate && (
+                       <div className="mb-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                         ⏰ Cutoff: {new Date(n.cutoffDate).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' })}
+                       </div>
+                     )}
                      <p className="text-[10px] text-gray-500 font-medium">
                         {new Date(n.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
                      </p>

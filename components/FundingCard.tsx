@@ -115,9 +115,17 @@ const getUrgencyIndicator = (opportunity: FundingOpportunityDb) => {
 
   const closeDate = new Date(opportunity.closing_date);
   const diffTime = closeDate.getTime() - new Date().getTime();
+  const diffHours = diffTime / (1000 * 60 * 60);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays <= 7) {
+  if (diffHours <= 48 && diffHours > 0) {
+    return { 
+      color: 'text-rose-400', 
+      bg: 'bg-rose-500/20', 
+      border: 'border-rose-500/40',
+      label: `⚡ Critical: < 48H Cutoff (${Math.max(1, Math.round(diffHours))}h left)` 
+    };
+  } else if (diffDays <= 7) {
     return { 
       color: 'text-red-400', 
       bg: 'bg-red-500/10', 
