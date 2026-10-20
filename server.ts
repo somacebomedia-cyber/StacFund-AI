@@ -370,7 +370,7 @@ async function startServer() {
           
           // Use client's custom API key if provided, otherwise fallback to server's key
           const customKey = req.headers['x-custom-gemini-key'];
-          const apiKeyToUse = customKey || process.env.GEMINI_API_KEY;
+          const apiKeyToUse = customKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.API_KEY;
 
           if (apiKeyToUse) {
             proxyReq.setHeader('x-goog-api-key', apiKeyToUse);

@@ -22,6 +22,7 @@ import DocumentsVault from '../components/DocumentsVault';
 import { WhatsAppIngestion } from '../components/WhatsAppIngestion';
 import FundingHeatmap from '../components/FundingHeatmap';
 import AIFundingInsights from '../components/AIFundingInsights';
+import AIGatewayPanel from '../components/AIGatewayPanel';
 import FundingCountdown from '../components/FundingCountdown';
 import FundingAnalyticsSection from '../components/FundingAnalyticsSection';
 import ApplicationFunnelChart from '../components/ApplicationFunnelChart';
@@ -589,6 +590,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 />
 
                 <FundingHeatmap onSelectOpportunity={(oppId) => onBrowseFunding(oppId)} />
+
+                {/* AI Gateway status — provider health + the user's rolling 24h usage */}
+                <div className="glass-panel p-4 sm:p-5 rounded-2xl">
+                  <AIGatewayPanel />
+                </div>
 
                 <div className="space-y-4 w-full min-w-0">
                   <div className="flex justify-between items-center">

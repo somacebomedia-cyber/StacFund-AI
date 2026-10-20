@@ -243,7 +243,7 @@ const OutlineEditor: React.FC<OutlineEditorProps> = ({
               >
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-sm font-black text-white">{s.name}</h4>
-                  <span className="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">{s.slideCount}</span>
+                  <span className="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">{s.slides.length} slides</span>
                 </div>
                 <p className="text-xs text-gray-400 mb-2 leading-snug">{s.description}</p>
                 <p className="text-[10px] text-gray-500 leading-tight">
