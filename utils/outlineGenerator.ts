@@ -92,27 +92,8 @@ export async function generateSlideOutline(
       id: `slide_${idx}_${Date.now()}`
     }));
   } catch (error) {
-    console.warn('AI outline generation unavailable (or no API key), activating zero-key synthesis fallback:', error);
-    const bName = businessName || 'Enterprise';
-    return (strategy?.slides || []).map((templateSlide: any, idx: number) => ({
-      id: `slide_${idx}_${Date.now()}`,
-      title: `${templateSlide.title} · ${bName}`,
-      type: templateSlide.type,
-      layout: templateSlide.layout,
-      copyFormula: templateSlide.copyFormula,
-      emotion: templateSlide.emotion,
-      role: templateSlide.role,
-      points: templateSlide.type === 'cover' 
-        ? [`Strategic expansion proposal for ${bName} in the South African market.`]
-        : templateSlide.type === 'data'
-        ? ['R3.5M:Projected Annual Revenue', '14:Sustainable Jobs Created', '24%:Net Operating Margin']
-        : [
-            `Accelerated operational turnaround addressing verified domestic market needs.`,
-            `Robust supply chain foundations and active customer pipeline.`,
-            `Full regulatory compliance: CIPC registered and B-BBEE aligned.`
-          ],
-      visualPrompt: `Clean modern presentation visual for ${templateSlide.title} in a corporate South African business context.`
-    }));
+    console.error('Error generating slide outline:', error);
+    throw error;
   }
 }
 
@@ -168,12 +149,8 @@ export async function regenerateSingleSlide(
       visualPrompt: parsed.visualPrompt || slide.visualPrompt
     };
   } catch (error) {
-    console.warn('AI slide regeneration unavailable, falling back to heuristic polish:', error);
-    return {
-      ...slide,
-      title: `${slide.title}`,
-      points: slide.points.length > 0 ? slide.points : [`Optimized execution strategy for ${businessName || 'the enterprise'}.`]
-    };
+    console.error('Error regenerating single slide:', error);
+    throw error;
   }
 }
 

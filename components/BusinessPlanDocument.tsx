@@ -61,29 +61,39 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
     }
   };
 
-  const PageStyle = {
-    background: 'linear-gradient(135deg, #3B0764 0%, #6D28D9 50%, #9333EA 100%)',
-  };
+const PageStyle = {
+  background: 'linear-gradient(135deg, #3B0764 0%, #6D28D9 50%, #9333EA 100%)',
+};
 
-  const Blob = () => (
-    <div
-      className="absolute pointer-events-none"
-      style={{
-        top: '20%',
-        left: '-15%',
-        width: '70%',
-        height: '60%',
-        background: 'rgba(255,255,255,0.07)',
-        borderRadius: '60% 40% 70% 30% / 50% 60% 40% 50%',
-        filter: 'blur(0px)',
-        zIndex: 0,
-      }}
-    />
-  );
+interface BusinessPlanContextValue {
+  businessInfo: any;
+}
 
-  const LogoHeader = () => (
+const BusinessPlanContext = React.createContext<BusinessPlanContextValue>({
+  businessInfo: {},
+});
+
+const Blob = () => (
+  <div
+    className="absolute pointer-events-none"
+    style={{
+      top: '20%',
+      left: '-15%',
+      width: '70%',
+      height: '60%',
+      background: 'rgba(255,255,255,0.07)',
+      borderRadius: '60% 40% 70% 30% / 50% 60% 40% 50%',
+      filter: 'blur(0px)',
+      zIndex: 0,
+    }}
+  />
+);
+
+const LogoHeader = () => {
+  const { businessInfo } = React.useContext(BusinessPlanContext);
+  return (
     <div className="flex items-center gap-3 relative z-10" style={{ marginBottom: 24 }} {...el(ELEMENT_TAXONOMY.LOGO_HEADER)}>
-      {businessInfo.logoUrl ? (
+      {businessInfo?.logoUrl ? (
         <div
           style={{
             width: 64,
@@ -106,124 +116,129 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
         </div>
       ) : null}
       <span style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-        {businessInfo.name || 'Business Name'}
+        {businessInfo?.name || 'Business Name'}
       </span>
     </div>
   );
+};
 
-  const ContactFooter = () => (
+const ContactFooter = () => {
+  const { businessInfo } = React.useContext(BusinessPlanContext);
+  return (
     <div className="relative z-10 mt-auto pt-4 flex justify-between items-center" style={{ borderTop: '1px solid rgba(255,255,255,0.20)' }} {...el(ELEMENT_TAXONOMY.FOOTER_SECTION)}>
       <div className="flex items-center gap-2">
         <div style={{ width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 14 }}>📞</span>
         </div>
-        <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>{businessInfo.whatsapp || '+27 79 448 6843'}</span>
+        <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>{businessInfo?.whatsapp || '+27 79 448 6843'}</span>
       </div>
       <div className="flex items-center gap-2">
         <div style={{ width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 14 }}>✉</span>
         </div>
-        <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>{businessInfo.email || 'contact@business.com'}</span>
+        <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>{businessInfo?.email || 'contact@business.com'}</span>
       </div>
     </div>
   );
+};
 
-  const SectionHeading = ({ number, title }: { number: string; title: string }) => (
-    <h2 className="relative z-10 text-white mb-8" {...el(ELEMENT_TAXONOMY.HEADING_SECTION)}>
-      <span className="text-7xl font-light opacity-40 mr-2">{number}.</span>
-      <span className="text-4xl font-black">{title}</span>
-    </h2>
-  );
+const SectionHeading = ({ number, title }: { number: string; title: string }) => (
+  <h2 className="relative z-10 text-white mb-8" {...el(ELEMENT_TAXONOMY.HEADING_SECTION)}>
+    <span className="text-7xl font-light opacity-40 mr-2">{number}.</span>
+    <span className="text-4xl font-black">{title}</span>
+  </h2>
+);
 
-  const Card = ({ children, className = '', style = {} }: any) => (
-    <div
-      className={className}
-      style={{
-        background: 'rgba(255,255,255,0.10)',
-        border: '1px solid rgba(255,255,255,0.20)',
-        borderRadius: 16,
-        padding: 24,
-        position: 'relative',
-        zIndex: 1,
-        ...style
-      }}
-      {...el(ELEMENT_TAXONOMY.CARD)}
-    >
-      {children}
-    </div>
-  );
+const Card = ({ children, className = '', style = {} }: any) => (
+  <div
+    className={className}
+    style={{
+      background: 'rgba(255,255,255,0.10)',
+      border: '1px solid rgba(255,255,255,0.20)',
+      borderRadius: 16,
+      padding: 24,
+      position: 'relative',
+      zIndex: 1,
+      ...style
+    }}
+    {...el(ELEMENT_TAXONOMY.CARD)}
+  >
+    {children}
+  </div>
+);
 
-  const DiamondImage = ({ url }: { url?: string }) => (
-    <div style={{ width: 140, height: 140, transform: 'rotate(45deg)', overflow: 'hidden', borderRadius: 20, border: '4px solid white', boxShadow: '0 8px 24px rgba(0,0,0,0.35)', flexShrink: 0 }} {...el(ELEMENT_TAXONOMY.IMAGE_SLIDE)}>
-      {url ? (
-         <img src={url} alt="Visual" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'rotate(-45deg) scale(1.5)' }} />
-      ) : (
-         <div style={{ width: '100%', height: '100%', background: 'rgba(0,0,0,0.1)' }} />
-      )}
-    </div>
-  );
-  
-  const PageWrapper = ({ children }: any) => (
-    <div className="w-full min-h-[297mm] p-16 pdf-page page-break flex flex-col relative overflow-hidden" style={PageStyle} {...el(ELEMENT_TAXONOMY.PAGE_WRAPPER)}>
-      <Blob />
-      {children}
-    </div>
-  );
-  
-  const RenderTable = ({ columns, data, columnAlignments }: any) => (
-    <div style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.20)', borderRadius: 16, padding: '12px', position: 'relative', zIndex: 1 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', position: 'relative', zIndex: 1 }}>
-        <thead>
-          <tr style={{ background: 'rgba(109, 40, 217, 0.85)' }}>
-            {columns.map((col: string, i: number) => (
-              <th key={i} style={{ color: 'white', fontWeight: 800, padding: '8px 12px', textAlign: columnAlignments && columnAlignments[i] ? columnAlignments[i] : 'left', fontSize: 12, letterSpacing: '0.05em' }}>
-                {col}
-              </th>
+const DiamondImage = ({ url }: { url?: string }) => (
+  <div style={{ width: 140, height: 140, transform: 'rotate(45deg)', overflow: 'hidden', borderRadius: 20, border: '4px solid white', boxShadow: '0 8px 24px rgba(0,0,0,0.35)', flexShrink: 0 }} {...el(ELEMENT_TAXONOMY.IMAGE_SLIDE)}>
+    {url ? (
+       <img src={url} alt="Visual" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'rotate(-45deg) scale(1.5)' }} />
+    ) : (
+       <div style={{ width: '100%', height: '100%', background: 'rgba(0,0,0,0.1)' }} />
+    )}
+  </div>
+);
+
+const PageWrapper = ({ children }: any) => (
+  <div className="w-full min-h-[297mm] p-16 pdf-page page-break flex flex-col relative overflow-hidden" style={PageStyle} {...el(ELEMENT_TAXONOMY.PAGE_WRAPPER)}>
+    <Blob />
+    {children}
+  </div>
+);
+
+const RenderTable = ({ columns, data, columnAlignments }: any) => (
+  <div style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.20)', borderRadius: 16, padding: '12px', position: 'relative', zIndex: 1 }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', position: 'relative', zIndex: 1 }}>
+      <thead>
+        <tr style={{ background: 'rgba(109, 40, 217, 0.85)' }}>
+          {columns.map((col: string, i: number) => (
+            <th key={i} style={{ color: 'white', fontWeight: 800, padding: '8px 12px', textAlign: columnAlignments && columnAlignments[i] ? columnAlignments[i] : 'left', fontSize: 12, letterSpacing: '0.05em' }}>
+              {col}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((item: any, i: number) => (
+          <tr key={i} style={{ background: i % 2 === 0 ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.80)', borderBottom: '1px solid rgba(109,40,217,0.20)' }}>
+            {item.map((val: any, j: number) => (
+              <td key={j} style={{ color: '#1e1b4b', padding: '6px 12px', fontSize: 12, fontWeight: 500, textAlign: columnAlignments && columnAlignments[j] ? columnAlignments[j] : 'left' }}>
+                {typeof val === 'string' && val.trim() === 'RO' ? 'R0' : val}
+              </td>
             ))}
           </tr>
-        </thead>
-        <tbody>
-          {data.map((item: any, i: number) => (
-            <tr key={i} style={{ background: i % 2 === 0 ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.80)', borderBottom: '1px solid rgba(109,40,217,0.20)' }}>
-              {item.map((val: any, j: number) => (
-                <td key={j} style={{ color: '#1e1b4b', padding: '6px 12px', fontSize: 12, fontWeight: 500, textAlign: columnAlignments && columnAlignments[j] ? columnAlignments[j] : 'left' }}>
-                  {typeof val === 'string' && val.trim() === 'RO' ? 'R0' : val}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-
-  const getFinancialColumns = (firstCol: string, rows: any[]) => {
-    let maxVals = 0;
-    rows?.forEach((r: any) => {
-      if (!r.isHeader && r.values && r.values.length > maxVals) {
-        maxVals = r.values.length;
-      }
-    });
-    if (maxVals === 0) maxVals = 3;
-    return [firstCol, ...Array.from({ length: maxVals }, (_, i) => `Year ${i + 1}`)];
-  };
-
-  const getFinancialAlignments = (colCount: number) => {
-    return ['left', ...Array.from({ length: colCount - 1 }, () => 'right')];
-  };
-
-  const renderText = (text: string | undefined) => {
-    if (!text) return null;
-    return (
-      <>
-        {text.split(/(?:\\n\\n|\n\n+)/).map((para, i) => (
-          para.trim() && <p key={i} className="mb-3">{para.trim().replace(/\\n/g, '\n')}</p>
         ))}
-      </>
-    );
-  };
+      </tbody>
+    </table>
+  </div>
+);
+
+const getFinancialColumns = (firstCol: string, rows: any[]) => {
+  let maxVals = 0;
+  rows?.forEach((r: any) => {
+    if (!r.isHeader && r.values && r.values.length > maxVals) {
+      maxVals = r.values.length;
+    }
+  });
+  if (maxVals === 0) maxVals = 3;
+  return [firstCol, ...Array.from({ length: maxVals }, (_, i) => `Year ${i + 1}`)];
+};
+
+const getFinancialAlignments = (colCount: number) => {
+  return ['left', ...Array.from({ length: colCount - 1 }, () => 'right')];
+};
+
+const renderText = (text: string | undefined) => {
+  if (!text) return null;
+  return (
+    <>
+      {text.split(/(?:\\n\\n|\n\n+)/).map((para, i) => (
+        para.trim() && <p key={i} className="mb-3">{para.trim().replace(/\\n/g, '\n')}</p>
+      ))}
+    </>
+  );
+};
 
   return (
+    <BusinessPlanContext.Provider value={{ businessInfo }}>
     <div className="fixed inset-0 z-[200] flex flex-col items-center p-4 bg-black/95 overflow-y-auto w-full custom-scrollbar">
       <style>{`
         @media print {
@@ -1287,6 +1302,7 @@ const BusinessPlanDocument: React.FC<BusinessPlanDocumentProps> = ({ data, busin
 
       </div>
     </div>
+    </BusinessPlanContext.Provider>
   );
 };
 

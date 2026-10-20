@@ -21,6 +21,12 @@ export interface PitchStrategy {
   id: string;
   name: string;
   description: string;
+  /**
+   * Short, UI-friendly tagline shown under the strategy name in the picker
+   * (e.g. "SA public & private funders"). Distinct from `description`, which
+   * is the longer explanation shown as the body text.
+   */
+  bestFor: string;
   slides: Omit<SlideOutline, 'id' | 'points' | 'visualPrompt'>[];
 }
 
@@ -31,6 +37,7 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
     id: 'sa-funding',
     name: 'SA Funding Pitch (Local Standard)',
     description: 'Tailored for South African public and private funding institutions (Seda, sefa, NEF, IDC, banks). Emphasizes local economic development, BEE compliance, and jobs.',
+    bestFor: 'SA public & private funders',
     slides: [
       { title: 'Executive Introduction', type: 'cover', layout: 'heroic-split', copyFormula: 'Vision + South African Context', emotion: 'Confident & Inspiring', role: 'Establish identity and mission' },
       { title: 'The Local Market Problem', type: 'content', layout: 'problem-split', copyFormula: 'Pain Point + Local Relevance', emotion: 'Empathetic & Urgent', role: 'Explain the market need' },
@@ -47,6 +54,7 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
     id: 'yc-seed',
     name: 'YC Seed Pitch (Silicon Valley Style)',
     description: 'High-energy, hyper-focused structure favored by accelerators like Y Combinator. Moves rapidly from problem/solution to traction and team.',
+    bestFor: 'Accelerators & seed VCs',
     slides: [
       { title: 'Company Name & Mission', type: 'cover', layout: 'minimal-centered', copyFormula: 'X for Y (High Concept Pitch)', emotion: 'Ambitious & Direct', role: 'Instant clarity on what you do' },
       { title: 'The Massive Problem', type: 'content', layout: 'problem-split', copyFormula: 'Huge, Growing, Expensive Pain', emotion: 'Urgent & Compelling', role: 'Prove this is a hair-on-fire problem' },
@@ -62,6 +70,7 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
     id: 'kawasaki',
     name: 'Kawasaki 10/20/30 Rule',
     description: 'The legendary Guy Kawasaki pitch layout: exactly 10 slides, 20 minutes, 30pt font. Simple, highly memorable, and universally accepted.',
+    bestFor: 'Universal 10-slide format',
     slides: [
       { title: 'Title & Contact Info', type: 'cover', layout: 'minimal-centered', copyFormula: 'Brand Name + Slogan', emotion: 'Professional & Accessible', role: 'Standard introduction' },
       { title: 'Problem & Opportunity', type: 'content', layout: 'problem-split', copyFormula: 'User Pain + Market Opportunity', emotion: 'Empathetic & Urgent', role: 'Identify the gap' },
@@ -79,6 +88,7 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
     id: 'sales',
     name: 'Consultative Sales Pitch',
     description: 'Designed for pitching products or enterprise services directly to B2B clients. Focuses on client alignment, trust, and clear ROI.',
+    bestFor: 'B2B enterprise sales',
     slides: [
       { title: 'Joint Success Partnership', type: 'cover', layout: 'heroic-split', copyFormula: 'Client Name + Our Solution', emotion: 'Partner-focused & Warm', role: 'Frame the pitch as a collaborative effort' },
       { title: 'Your Critical Challenges', type: 'content', layout: 'problem-split', copyFormula: 'Client Obstacles + Financial Impact', emotion: 'Deeply Empathetic', role: 'Show total alignment with client pain' },
@@ -93,6 +103,7 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
     id: 'product',
     name: 'Product Demo & Launch',
     description: 'Optimized for physical or digital product launches. Places the spotlight on aesthetics, user experience, and spectacular product features.',
+    bestFor: 'Product launches & demos',
     slides: [
       { title: 'Introducing our New Product', type: 'cover', layout: 'heroic-split', copyFormula: 'Product Name + One Sentence Description', emotion: 'Awe-inspiring & Sleek', role: 'Create a wow factor immediately' },
       { title: 'The Way it Used to Be', type: 'content', layout: 'problem-split', copyFormula: 'Clunky, Outdated Alternatives', emotion: 'Frustrated & Disappointed', role: 'Highlight how bad existing products are' },
@@ -106,6 +117,7 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
     id: 'prob-sol-ben',
     name: 'Problem-Solution-Benefit',
     description: 'The standard classic framework. Perfect for general business introductions, networking events, or standard pitch decks.',
+    bestFor: 'Networking & general intros',
     slides: [
       { title: 'Business Profile', type: 'cover', layout: 'minimal-centered', copyFormula: 'Name + Value Statement', emotion: 'Polished & Professional', role: 'Introduce the brand' },
       { title: 'The Problem Statement', type: 'content', layout: 'problem-split', copyFormula: 'What is broken in the market', emotion: 'Empathetic & Urgent', role: 'Describe market friction' },
@@ -119,6 +131,7 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
     id: 'case-study',
     name: 'Case Study & Proof',
     description: 'A metric-dense pitch focusing heavily on real-world results, a specific client narrative, and proof of concept.',
+    bestFor: 'Proven results & client wins',
     slides: [
       { title: 'The Business Impact Case', type: 'cover', layout: 'heroic-split', copyFormula: 'Client Case Study Name + Core Success', emotion: 'Grounded & Proven', role: 'Introduce the proof-of-concept case' },
       { title: 'The Challenge Faced', type: 'content', layout: 'problem-split', copyFormula: 'Client Pre-intervention Metrics', emotion: 'Empathetic & Serious', role: 'Frame the business difficulty' },
@@ -132,6 +145,7 @@ export const PITCH_STRATEGIES: PitchStrategy[] = [
     id: 'series-a',
     name: 'Series A Growth Pitch',
     description: 'Designed for post-revenue startups ready to scale operations, expand markets, and accelerate hiring with venture capital.',
+    bestFor: 'Scale-up venture rounds',
     slides: [
       { title: 'Series A Growth Pitch', type: 'cover', layout: 'heroic-split', copyFormula: 'Company name + scale goal', emotion: 'Massive & Audacious', role: 'Declare the growth intent' },
       { title: 'Our Scaling Engine', type: 'content', layout: 'problem-split', copyFormula: 'Traction to date + product-market fit', emotion: 'Proud & Highly Profitable', role: 'Summarize current operational victory' },

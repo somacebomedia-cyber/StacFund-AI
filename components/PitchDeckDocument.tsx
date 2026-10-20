@@ -79,63 +79,83 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
     }
   };
 
-  const SlideStyle = {
-    background: 'linear-gradient(135deg, #3B0764 0%, #6D28D9 50%, #9333EA 100%)',
-  };
+const SlideStyle = {
+  background: 'linear-gradient(135deg, #3B0764 0%, #6D28D9 50%, #9333EA 100%)',
+};
 
-  const Blob = () => (
-    <div
-      className="absolute pointer-events-none"
-      style={{
-        top: '10%', left: '-10%', width: '55%', height: '70%',
-        background: 'rgba(255,255,255,0.07)',
-        borderRadius: '60% 40% 70% 30% / 50% 60% 40% 50%',
-        zIndex: 0,
-      }}
-    />
-  );
+interface PitchDeckContextValue {
+  businessInfo: any;
+  slideWidthPx: number;
+  slideHeightPx: number;
+}
 
-  const LogoHeader = () => (
+const PitchDeckContext = React.createContext<PitchDeckContextValue>({
+  businessInfo: {},
+  slideWidthPx: 1280,
+  slideHeightPx: 720,
+});
+
+const Blob = () => (
+  <div
+    className="absolute pointer-events-none"
+    style={{
+      top: '10%', left: '-10%', width: '55%', height: '70%',
+      background: 'rgba(255,255,255,0.07)',
+      borderRadius: '60% 40% 70% 30% / 50% 60% 40% 50%',
+      zIndex: 0,
+    }}
+  />
+);
+
+const LogoHeader = () => {
+  const { businessInfo } = React.useContext(PitchDeckContext);
+  return (
     <div className="flex items-center gap-3 relative z-10" style={{ marginBottom: 16 }} {...el(ELEMENT_TAXONOMY.LOGO_HEADER)}>
-      {businessInfo.logoUrl ? (
+      {businessInfo?.logoUrl ? (
         <div style={{ width: 44, height: 44, background: 'white', borderRadius: 12, padding: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', flexShrink: 0 }}>
           <img src={businessInfo.logoUrl} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
         </div>
       ) : null}
       <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-        {businessInfo.name || 'Business Name'}
+        {businessInfo?.name || 'Business Name'}
       </span>
     </div>
   );
+};
 
-  const SlideFooter = ({ pageNum }: { pageNum: number }) => (
+const SlideFooter = ({ pageNum }: { pageNum: number }) => {
+  const { businessInfo } = React.useContext(PitchDeckContext);
+  return (
     <div className="absolute bottom-6 left-12 right-12 z-10 flex justify-between items-center text-white/40 text-[10px] font-bold tracking-widest" {...el(ELEMENT_TAXONOMY.FOOTER_SECTION)}>
-      <span>{(businessInfo.whatsapp || '+27 79 448 6843')} · {(businessInfo.email || 'contact@business.com')}</span>
+      <span>{(businessInfo?.whatsapp || '+27 79 448 6843')} · {(businessInfo?.email || 'contact@business.com')}</span>
       <span>{String(pageNum).padStart(2, '0')} / 12</span>
     </div>
   );
+};
 
-  const SlideHeading = ({ title: t, kicker }: { title: string; kicker?: string }) => (
-    <div className="relative z-10 mb-6" {...el(ELEMENT_TAXONOMY.HEADING_PRIMARY)}>
-      {kicker && <p className="text-[#A3E635] text-xs font-black uppercase tracking-[0.25em] mb-2">{kicker}</p>}
-      <h2 className="text-4xl font-black text-white leading-tight">{t}</h2>
-    </div>
-  );
+const SlideHeading = ({ title: t, kicker }: { title: string; kicker?: string }) => (
+  <div className="relative z-10 mb-6" {...el(ELEMENT_TAXONOMY.HEADING_PRIMARY)}>
+    {kicker && <p className="text-[#A3E635] text-xs font-black uppercase tracking-[0.25em] mb-2">{kicker}</p>}
+    <h2 className="text-4xl font-black text-white leading-tight">{t}</h2>
+  </div>
+);
 
-  const Card = ({ children, className = '', style = {} }: any) => (
-    <div
-      className={className}
-      style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.20)', borderRadius: 16, padding: 20, position: 'relative', zIndex: 1, ...style }}
-      {...el(ELEMENT_TAXONOMY.CARD)}
-    >
-      {children}
-    </div>
-  );
+const Card = ({ children, className = '', style = {} }: any) => (
+  <div
+    className={className}
+    style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.20)', borderRadius: 16, padding: 20, position: 'relative', zIndex: 1, ...style }}
+    {...el(ELEMENT_TAXONOMY.CARD)}
+  >
+    {children}
+  </div>
+);
 
-  const Slide = ({ children, pageNum }: { children: React.ReactNode; pageNum: number }) => (
+const Slide = ({ children, pageNum }: { children: React.ReactNode; pageNum: number }) => {
+  const { slideWidthPx, slideHeightPx } = React.useContext(PitchDeckContext);
+  return (
     <div
       className="deck-slide page-break relative flex flex-col overflow-visible"
-      style={{ width: SLIDE_WIDTH_PX, height: SLIDE_HEIGHT_PX, padding: '48px 64px', ...SlideStyle }}
+      style={{ width: slideWidthPx, height: slideHeightPx, padding: '48px 64px', ...SlideStyle }}
       {...el(ELEMENT_TAXONOMY.CONTAINER_SLIDE)}
     >
       <Blob />
@@ -143,23 +163,25 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
       <SlideFooter pageNum={pageNum} />
     </div>
   );
+};
 
-  const ViabilityDonut = ({ score }: { score: number }) => (
-    <div className="relative w-44 h-44 flex items-center justify-center shrink-0">
-      <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full -rotate-90">
-        <circle cx="100" cy="100" r="80" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="16" />
-        <circle cx="100" cy="100" r="80" fill="none" stroke="#A3E635" strokeWidth="16" strokeLinecap="round" strokeDasharray={`${(score / 100) * 502} 502`} />
-      </svg>
-      <div className="flex flex-col items-center justify-center relative z-10 gap-0.5">
-        <span className="text-4xl font-black text-white leading-none">{score}</span>
-        <span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">/ 100</span>
-      </div>
+const ViabilityDonut = ({ score }: { score: number }) => (
+  <div className="relative w-44 h-44 flex items-center justify-center shrink-0">
+    <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full -rotate-90">
+      <circle cx="100" cy="100" r="80" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="16" />
+      <circle cx="100" cy="100" r="80" fill="none" stroke="#A3E635" strokeWidth="16" strokeLinecap="round" strokeDasharray={`${(score / 100) * 502} 502`} />
+    </svg>
+    <div className="flex flex-col items-center justify-center relative z-10 gap-0.5">
+      <span className="text-4xl font-black text-white leading-none">{score}</span>
+      <span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">/ 100</span>
     </div>
-  );
+  </div>
+);
 
   const productImages: string[] = data.productImages || [];
 
   return (
+    <PitchDeckContext.Provider value={{ businessInfo, slideWidthPx: SLIDE_WIDTH_PX, slideHeightPx: SLIDE_HEIGHT_PX }}>
     <div className="fixed inset-0 z-[200] flex flex-col items-center p-4 bg-black/95 overflow-y-auto w-full custom-scrollbar">
       <div className="fixed top-6 right-6 z-50 flex flex-col items-end gap-2 no-print">
         <div className="flex gap-4">
@@ -485,6 +507,7 @@ const PitchDeckDocument: React.FC<PitchDeckDocumentProps> = ({ data, businessInf
 
       </div>
     </div>
+    </PitchDeckContext.Provider>
   );
 };
 

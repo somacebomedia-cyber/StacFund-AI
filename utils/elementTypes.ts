@@ -14,28 +14,34 @@ export const ELEMENT_TAXONOMY = {
   SECTION_ROOT: 'section-root',
   CONTAINER_COVER: 'container-cover',
   CONTAINER_SLIDE: 'container-slide',
+  CONTAINER_SECTION: 'container-section',
   CONTAINER_GRID: 'container-grid',
   CONTAINER_ROW: 'container-row',
   CONTAINER_COLUMN: 'container-column',
-  
+
+  // Backgrounds & Decoration
+  DECORATIVE_BG: 'decorative-bg',
+
   // Header / Footer Meta
   HEADER_SECTION: 'header-section',
   FOOTER_SECTION: 'footer-section',
   LOGO_HEADER: 'logo-header',
   SLIDE_NUMBER: 'slide-number',
   METADATA_LINE: 'metadata-line',
-  
+
   // Typography & Headings
   HEADING_PRIMARY: 'heading-primary',
   HEADING_SECONDARY: 'heading-secondary',
   HEADING_TERTIARY: 'heading-tertiary',
   HEADING_SECTION: 'heading-section',
+  HEADING_TITLE: 'heading-title',
   TITLE_COVER: 'title-cover',
   SUBTITLE_COVER: 'subtitle-cover',
   TEXT_BODY: 'text-body',
   TEXT_CAPTION: 'text-caption',
   TEXT_LEAD: 'text-lead',
-  
+  BODY_LEAD: 'body-lead',
+
   // Lists & Items
   LIST_BULLET: 'list-bullet',
   LIST_NUMBERED: 'list-numbered',
@@ -43,7 +49,7 @@ export const ELEMENT_TAXONOMY = {
   TEXT_BULLET_ITEM: 'text-bullet-item',
   CHECKLIST_ROOT: 'checklist-root',
   CHECKLIST_ITEM: 'checklist-item',
-  
+
   // Interactive Elements & Cards
   CARD: 'card',
   CARD_HEADER: 'card-header',
@@ -54,7 +60,7 @@ export const ELEMENT_TAXONOMY = {
   PILL: 'pill',
   BADGE: 'badge',
   ICON_WRAPPER: 'icon-wrapper',
-  
+
   // Visual Media
   IMAGE_SLIDE: 'image-slide',
   IMAGE_BACKGROUND: 'image-background',
@@ -66,13 +72,13 @@ export const ELEMENT_TAXONOMY = {
   CHART_LINE: 'chart-line',
   VECTOR_DECORATIVE: 'vector-decorative',
   VECTOR_BLOB: 'vector-blob',
-  
+
   // Complex Editorial Components
   QUOTE_CONTAINER: 'quote-container',
   QUOTE_TEXT: 'quote-text',
   QUOTE_AUTHOR: 'quote-author',
   TESTIMONIAL: 'testimonial',
-  
+
   // Compliance & SA Specifics
   SA_COMPLIANCE_WIDGET: 'sa-compliance-widget',
   COMPLIANCE_ITEM: 'compliance-item',
@@ -80,7 +86,7 @@ export const ELEMENT_TAXONOMY = {
   BEE_SCORE_CARD: 'bee-score-card',
   TAX_CLEARANCE_STATUS: 'tax-clearance-status',
   CIPC_DETAILS: 'cipc-details',
-  
+
   // Financial Specifics
   FINANCIAL_TABLE: 'financial-table',
   FINANCIAL_ROW: 'financial-row',

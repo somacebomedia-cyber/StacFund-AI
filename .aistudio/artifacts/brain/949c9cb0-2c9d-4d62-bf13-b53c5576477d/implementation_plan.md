@@ -1,124 +1,102 @@
-# Hybrid AI Proposal & Business Plan Generator
+# Step-by-Step Testing Guide: StacFund AI
 
-An intelligent proposal synthesis engine for StacFund that generates comprehensive South African funding proposals and pitch presentations instantly without requiring user API keys, while automatically upgrading with live Gemini AI when backend credentials are present.
-
-> [!IMPORTANT]
-> **User Confirmed Decisions from Phase 1:**
-> - **Operational Mode**: Hybrid mode featuring instant, zero-key offline synthesis with seamless Gemini AI live upgrade.
-> - **Proposal Depth**: Comprehensive proposal including Executive Summary, Financial Requirements, Use of Funds breakdown, and Milestones & Projections.
-> - **UI Provenance Indicator**: Automatic fallback with a subtle generation source badge ("Smart Synthesis" vs "Gemini AI") ensuring complete transparency and zero dead-end errors.
+This guide walks you through testing all 4 key areas in order:
+1. **AI Gateway & Provider Health Panel** (Newly upgraded multi-provider system)
+2. **Funding Application & AI Business Plan Generator** (4-Step workflow with AI drafting)
+3. **Presentation Pitch Deck Designer & Outline Editor** (Strategy selector, slide outlining & editing)
+4. **Onboarding & Full Dashboard Overview** (Gamification, compliance, analytics & quick actions)
 
 ---
 
-### 1. Overview & Core Concept
+## Stage 1: AI Gateway & Provider Health Panel
 
-Currently, when users attempt to generate a business plan or funding proposal in the application workflow, the system attempts a direct call to Gemini (`gemini-3.1-pro-preview`). If no API key is configured or the upstream request fails, the application halts with an alert (`Failed to generate business plan`), blocking the applicant.
+### Objective
+Verify that the multi-provider routing engine, circuit breaker, usage tracking, and the live status panel on the Dashboard are operational.
 
-The **Hybrid Proposal Generator** removes this bottleneck entirely:
-- **Zero-Key Capability**: Can run 100% locally in the browser or on the server without any external API keys or third-party service dependencies.
-- **South African Funder Context**: The offline generator contains domain-grounded synthesis heuristics customized for South African public and private funding bodies (SEFA, IDC, NEF, NYDA, DTIC, Technology Innovation Agency, Casidra, provincial development corporations).
-- **Comprehensive Structure**: Accurately computes financial allocations, budget distributions matching the requested funding amount, compliance narrative, and operational roadmap milestones.
-- **Graceful Gemini Integration**: Whenever server credentials (`process.env.GEMINI_API_KEY`) are available, it queries modern `gemini-3.8-flash` for customized prose. If unavailable or rate-limited, it automatically falls back without blocking the user.
-
----
-
-### 2. User Experience & Visual Design
-
-#### Key User Flows
-1. **Initiate Generation in Application Workflow (Step 2)**:
-   - User reviews their auto-filled business profile and funding purpose in Step 1.
-   - User clicks **"Generate Business Plan & Pitch"**.
-2. **Dual-Path Generation with Instant Feedback**:
-   - The engine initiates the live AI call (`gemini-3.8-flash`) with a fast 6-second timeout.
-   - If the API succeeds, the proposal renders with a subtle `Gemini AI` badge.
-   - If the API key is absent, expired, or unavailable, the synthesis engine instantly constructs a comprehensive proposal and displays a `Smart Synthesis` badge.
-3. **Interactive Visual Pitch & Proposal Preview**:
-   - The Gamma-style visual pitch layout launches immediately with all sections populated:
-     - Slide 1: Cover & Mission Statement
-     - Slide 2: Problem & Market Opportunity in South Africa
-     - Slide 3: Solution & Business Model
-     - Slide 4: Detailed Financial Plan & Fund Allocation
-     - Slide 5: Execution Milestones & Projected Growth
-     - Slide 6: Compliance & Governance (CIPC, SARS Tax, B-BBEE)
-   - User can edit fields directly, download the pitch deck/proposal as PDF, and advance seamlessly to Step 3 (Compliance Documents).
-
-#### Visual Styling & Restraint
-- **Dark Glassmorphism Architecture**: Deep violet/slate background (`#0A0A1A` to `#130F26`), 1px translucent borders (`border-white/10`), and crisp high-contrast typography.
-- **Zero-Pill Metadata**: Provenance indicators displayed as unobtrusive inline text badges with subtle icons (`Sparkles` for Gemini, `Cpu` for Smart Synthesis) without garish nested pill sandwiches.
-- **Tabular Figures**: All financial currency figures formatted in monospace tabular nums (`font-mono tabular-nums`).
+### Test Steps
+1. **Open the Dashboard**:
+   - Navigate to the **Dashboard** view (`/` after login or demo sign-in).
+   - Scroll down to the **AI Gateway Status** section (embedded right below the Funding Heatmap).
+2. **Inspect Provider Health**:
+   - Verify that **Google Gemini** shows as **Healthy** (with model `gemini-3.8-flash`).
+   - Check that secondary providers (GroqCloud, OpenRouter, Hugging Face) display their status gracefully (marked as disabled or standby when their individual API keys are not supplied in `.env`).
+3. **Verify Quota & Usage Metering**:
+   - Note the rolling 24-hour quota cards: **Daily Requests** (e.g. `0 / 60`) and **Daily Tokens** (e.g. `0 / 200,000`).
+   - Verify that your user plan (Free/Pro/Business) is accurately reflected.
+4. **Active Probe (Admin test)**:
+   - If an admin secret is configured, clicking **Probe Providers** will ping the health check endpoints and refresh the latencies and failure counts live.
 
 ---
 
-### 3. Key Product Decisions & Trade-Offs
+## Stage 2: Funding Application & Business Plan Generator
 
-#### Decision 1: Heuristic Engine Architecture
-- **Chosen Approach**: Client-side domain synthesis utility (`utils/proposalSynthesisEngine.ts`) capable of generating tailored JSON matching the exact schema expected by `GammaPitchLayout` and `BusinessPlanDocument`.
-- **Why**: Zero latency, zero external API costs, works completely offline, and guarantees 100% uptime for applicants regardless of API quotas.
-- **Alternatives Considered**: Rejecting requests without API keys (leads to user churn and broken demo experience).
+### Objective
+Verify the end-to-end 4-step funding application flow and confirm that the AI proposal/business plan generation triggers and handles responses cleanly.
 
-#### Decision 2: Model Selection for Live AI
-- **Chosen Approach**: Update the model identifier from deprecated `gemini-3.1-pro-preview` to standard `gemini-3.8-flash` via the server proxy with environment variable fallback (`GEMINI_API_KEY` or `GOOGLE_GENAI_API_KEY`).
-- **Why**: `gemini-3.8-flash` provides fast JSON generation within standard quotas and conforms strictly to the AI Studio SDK guidelines.
-
-#### Decision 3: Document Integration
-- **Chosen Approach**: Ensure both `GammaPitchLayout` and `BusinessPlanDocument` consume the unified output schema, supporting one-click PDF export, slide editing, and auto-attachment to the application submission pack.
+### Test Steps
+1. **Browse Funding Opportunities**:
+   - Click **Explore Funding** on the top navigation bar or **Browse Opportunities** from the dashboard.
+   - Pick an opportunity (e.g., Seda Technology Program, sefa Small Business Fund, or NEF Women Empowerment Fund).
+   - Click **Apply Now** to launch the modal workflow.
+2. **Step 1: Application Form**:
+   - Fill in or review the pre-filled business details: Business Name, CIPC Registration Number, Contact Phone, and Funding Requested amount.
+   - Click **Continue to Business Plan**.
+3. **Step 2: AI Business Plan Generation**:
+   - Click **Generate Proposal & Pitch Deck** (or **Generate with AI**).
+   - Verify the loading indicator ("Compiling Proposal..." / "Drafting Proposal...").
+   - Upon completion, verify that the executive summary, market analysis, and use of funds cards appear.
+   - Click **View Pitch Deck** to open the full-screen Gamma-style presentation modal.
+   - Click the left/right arrows to flip through slides, then click **X** to return.
+   - Click **Next: Compliance**.
+4. **Step 3: Compliance Documents**:
+   - Select the required compliance checklist items (CIPC Certificate, Tax Clearance, BEE Certificate, Bank Statements).
+   - Click **Next: Submit**.
+5. **Step 4: Submission Review**:
+   - Review the submission package overview.
+   - Click **Submit Application** and verify the success confirmation.
 
 ---
 
-### 4. Technical Architecture & Data Strategy
+## Stage 3: Presentation Pitch Deck Designer & Outline Editor
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    ApplicationWorkflow                        │
-│                 (Step 2: Proposal Generator)                 │
-└──────────────┬───────────────────────────────┬───────────────┘
-               │                               │
-       [Try Live Gemini]             [Fallback / Zero-Key]
-               │                               │
-               ▼                               ▼
-┌──────────────────────────────┐ ┌─────────────────────────────┐
-│  services/geminiClient.ts    │ │ utils/                      │
-│   POST /api/gemini/          │ │ proposalSynthesisEngine.ts   │
-│   (model: gemini-3.8-flash)  │ │ (Heuristic Domain Engine)   │
-└──────────────┬───────────────┘ └─────────────┬───────────────┘
-               │                               │
-               └───────────────┬───────────────┘
-                               │
-                               ▼
-               ┌───────────────────────────────┐
-               │    Comprehensive Proposal     │
-               │   - Executive Summary         │
-               │   - Financial Allocations     │
-               │   - Operational Milestones    │
-               │   - Market & Risk Strategy    │
-               └───────────────┬───────────────┘
-                               │
-               ┌───────────────┴───────────────┐
-               ▼                               ▼
-┌──────────────────────────────┐ ┌─────────────────────────────┐
-│      GammaPitchLayout        │ │    BusinessPlanDocument     │
-│   (Interactive Deck Preview) │ │   (Printable A4 / PDF)      │
-└──────────────────────────────┘ └─────────────────────────────┘
-```
+### Objective
+Verify the slide strategy selector, outline generator, and visual deck customizer.
 
-#### Data Entities & Schema
-The proposal output schema matches the comprehensive layout:
-```ts
-export interface GeneratedProposal {
-  executiveSummary: string;
-  marketAnalysis: {
-    targetMarket: string;
-    competitiveAdvantage: string;
-    industrySector: string;
-  };
-  financialPlan: {
-    fundingRequirement: string;
-    useOfFunds: Array<{ category: string; amount: string; percentage: number }>;
-    projectedRoiMonths: number;
-  };
-  milestones: Array<{ phase: string; title: string; timeframe: string; deliverable: string }>;
-  riskAndMitigation: Array<{ risk: string; mitigation: string }>;
-  conclusion: string;
-  generationSource: 'gemini' | 'synthesis';
-}
-```
+### Test Steps
+1. **Launch Pitch Deck Designer**:
+   - On the Dashboard, find the **Pitch Deck** card or quick action, or open **Presentation Designer**.
+2. **Test Outline Strategy Picker**:
+   - In the outline generator, inspect the pitch strategy cards:
+     - **SA Funding Pitch (Local Standard)**: Verify the subtitle "SA public & private funders" and the 8-slide count tag.
+     - **YC Seed Pitch (Silicon Valley Style)**: Verify the subtitle "Accelerators & seed VCs" and the 7-slide count tag.
+     - **Kawasaki 10/20/30 Rule**: Verify the 10-slide count tag.
+   - Select a strategy and click **Generate Outline**.
+3. **Test Outline Editor**:
+   - Verify that generated slides appear with titles, copy formulas, emotions, and bullet points.
+   - Edit slide titles or bullet points directly in the card editors.
+   - Drag or re-order slides if applicable.
+4. **Open in Canvas Designer**:
+   - Click **Customize in Designer** / **Open Deck**.
+   - Verify that slide elements (headings, lead text, decorative backgrounds, container sections) render without console errors.
+   - Test changing themes, fonts, or previewing in presentation mode.
+
+---
+
+## Stage 4: Onboarding & Full Dashboard Overview
+
+### Objective
+Validate user onboarding, gamified progress scoring, financial analytics, and responsive dark glassmorphism layout.
+
+### Test Steps
+1. **User Profile & Readiness Score**:
+   - Go to **Profile** or click your user avatar in the top right.
+   - Update company stage, annual turnover, and BBBEE level.
+   - Check the **Funding Readiness Score** gauge on the dashboard to confirm it updates dynamically based on compliance and profile completion.
+2. **Compliance Tracker**:
+   - On the Dashboard, review the **Compliance Tracker** card.
+   - Verify status badges for CIPC, SARS Tax Clearance, and B-BBEE.
+3. **Analytics & Funnel Charts**:
+   - Check the **Application Funnel Chart** showing Stage progression (Drafted → Submitted → Under Review → Approved).
+   - Verify the **Funding Countdown** timers for open grant deadlines.
+4. **Mobile & Dark Theme Check**:
+   - Resize the browser or switch to mobile view to confirm all glassmorphism cards, modals, and nav bars adapt smoothly without horizontal overflow.

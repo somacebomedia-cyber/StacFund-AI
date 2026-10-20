@@ -104,6 +104,12 @@ async function waitForImages(element: HTMLElement, timeoutMs = 4000): Promise<vo
  * the full scrollHeight. Errors are returned, not thrown, so a batch export
  * can isolate a single bad page instead of aborting entirely.
  */
+/**
+ * Captures one DOM element to a canvas at its natural content height.
+ * Never crops — omitting `height`/`windowHeight` lets html2canvas capture
+ * the full scrollHeight. Errors are returned, not thrown, so a batch export
+ * can isolate a single bad page instead of aborting entirely.
+ */
 export async function captureElementToCanvas(
   element: HTMLElement,
   opts: { scale?: number; backgroundColor?: string; widthPx: number }
@@ -112,14 +118,38 @@ export async function captureElementToCanvas(
   await waitForFonts();
   await waitForImages(element);
 
+  // Safeguard: html2canvas traverses the document starting from element.ownerDocument.documentElement.
+  // If the element is detached (e.g., from a React component remounting during progress state updates),
+  // html2canvas fails with "Unable to find element in cloned iframe".
+  // Attaching a detached element to document.body ensures it is discovered during cloning.
+  let tempHost: HTMLElement | null = null;
+  let targetEl = element;
+
+  if (!targetEl.isConnected) {
+    console.warn('[captureElementToCanvas] Element was detached from DOM before capture; attaching temporary container');
+    tempHost = document.createElement('div');
+    tempHost.style.position = 'fixed';
+    tempHost.style.left = '-10000px';
+    tempHost.style.top = '0';
+    tempHost.style.width = `${opts.widthPx}px`;
+    tempHost.style.visibility = 'visible';
+    tempHost.style.opacity = '1';
+    tempHost.style.zIndex = '-9999';
+    tempHost.appendChild(targetEl);
+    document.body.appendChild(tempHost);
+  }
+
   try {
-    const canvas = await html2canvasLib(element, {
+    const canvas = await html2canvasLib(targetEl, {
       scale: opts.scale ?? 2,
       useCORS: true,
       backgroundColor: opts.backgroundColor ?? '#3B0764',
       logging: false,
       width: opts.widthPx,
       windowWidth: opts.widthPx,
+      ignoreElements: (node) =>
+        node.nodeType === Node.ELEMENT_NODE &&
+        (node as HTMLElement).classList?.contains('no-print'),
       // No height / windowHeight override: capturing at natural scrollHeight
       // is what prevents the clipping bug. Normal-length content still looks
       // identical to before; only overflow content is now actually captured.
@@ -127,6 +157,10 @@ export async function captureElementToCanvas(
     return { canvas };
   } catch (err) {
     return { canvas: null, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    if (tempHost && tempHost.parentNode) {
+      tempHost.parentNode.removeChild(tempHost);
+    }
   }
 }
 
@@ -244,7 +278,27 @@ export async function exportElementsToPdf(
     }
     opts.onProgress?.(i + 1, elements.length);
 
-    const { canvas, error } = await captureElementToCanvas(elements[i], {
+    // Yield control for 40ms to let any React progress state updates complete without locking the thread
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    let currentEl = elements[i];
+
+    // If a React re-render detached currentEl, dynamically re-fetch from the live DOM
+    if (!currentEl.isConnected) {
+      const selector = currentEl.classList.contains('deck-slide')
+        ? '.deck-slide'
+        : currentEl.classList.contains('pdf-page')
+        ? '.pdf-page'
+        : null;
+      if (selector) {
+        const liveNodes = document.querySelectorAll(selector);
+        if (liveNodes[i] && (liveNodes[i] as HTMLElement).isConnected) {
+          currentEl = liveNodes[i] as HTMLElement;
+        }
+      }
+    }
+
+    const { canvas, error } = await captureElementToCanvas(currentEl, {
       scale: opts.scale,
       backgroundColor: opts.backgroundColor,
       widthPx: opts.widthPx,

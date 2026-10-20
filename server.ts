@@ -187,7 +187,16 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
-  if (req.headers['x-custom-gemini-key']) {
+  // SECURITY (2026-10-20): The legacy `x-custom-gemini-key` header previously
+  // bypassed authentication entirely on this route. That allowed any client
+  // to consume the server's proxy with their own Gemini key — but it also
+  // allowed anonymous abuse of any other logic chained behind requireAuth.
+  //
+  // The header is now DISABLED by default. To re-enable the BYOK mechanism
+  // (e.g. for local development where you want to test with your own key),
+  // set STACFUND_ALLOW_CUSTOM_GEMINI_KEY=true. In production, leave it off
+  // and keep all provider credentials server-side only.
+  if (req.headers['x-custom-gemini-key'] && process.env.STACFUND_ALLOW_CUSTOM_GEMINI_KEY === 'true') {
     return next();
   }
   const authHeader = req.headers.authorization;
@@ -370,7 +379,7 @@ async function startServer() {
           
           // Use client's custom API key if provided, otherwise fallback to server's key
           const customKey = req.headers['x-custom-gemini-key'];
-          const apiKeyToUse = customKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.API_KEY;
+          const apiKeyToUse = customKey || process.env.GEMINI_API_KEY;
 
           if (apiKeyToUse) {
             proxyReq.setHeader('x-goog-api-key', apiKeyToUse);
@@ -397,6 +406,36 @@ async function startServer() {
   );
 
   app.use(express.json());
+
+  // Initialise the AI Gateway usage tracker with Firestore (for durable usage records).
+  // Falls back to in-memory only if Firestore is unavailable. The gateway itself
+  // is loaded lazily on first request, so we don't fail boot if a provider key is missing.
+  try {
+    const { initUsageTracker, gateway } = await import('./services/ai-gateway');
+    initUsageTracker(db);
+    // Eagerly init the gateway so provider init errors surface at boot, not first request.
+    gateway.getConfigs();
+    console.log('[Server] AI Gateway initialised.');
+  } catch (e) {
+    console.error('[Server] AI Gateway failed to initialise:', e);
+  }
+
+  // Mount the multi-provider AI Gateway routes under /api/ai/gateway/*.
+  // These routes require Firebase auth (via optionalAuth set earlier in the chain).
+  try {
+    const { mountGatewayRoutes } = await import('./services/ai-gateway/httpRoutes');
+    // Apply auth + CORS to the gateway routes
+    app.use('/api/ai/gateway', (req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      if (req.method === 'OPTIONS') return res.sendStatus(204);
+      next();
+    }, optionalAuth);
+    mountGatewayRoutes(app);
+  } catch (e) {
+    console.error('[Server] Failed to mount AI Gateway routes:', e);
+  }
 
   // Initialize the funding scraper (daily cron + manual trigger endpoint).
   // Runs after Firebase Admin is set up so the scraper can write to Firestore.
