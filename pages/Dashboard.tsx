@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Trash2, MessageCircle } from 'lucide-react';
+import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Building2, Trash2, MessageCircle } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createGeminiClient } from '../services/geminiClient';
 import { motion } from 'motion/react';
@@ -10,6 +10,7 @@ import { handleGeminiError } from '../services/geminiError';
 import StatCard from '../components/StatCard';
 import ComplianceTracker from '../components/ComplianceTracker';
 import GlassAvatar from '../components/GlassAvatar';
+import PremierFundingGuideModal from '../components/PremierFundingGuideModal';
 import { MOCK_ACHIEVEMENTS, MOCK_FUNDING } from '../constants';
 import { User, Application, ApplicationStatus, FundingType, AppDocument, FundingOpportunityDb, ReadinessInfo } from '../types';
 import FormDigitizer from '../components/FormDigitizer';
@@ -137,6 +138,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   const [showLogoGenerator, setShowLogoGenerator] = useState(false);
   const [showAdvertGenerator, setShowAdvertGenerator] = useState(false);
   const [showWhatsAppIngestion, setShowWhatsAppIngestion] = useState(false);
+  const [showOtpGuide, setShowOtpGuide] = useState(false);
   const [initialAdvertPrompt, setInitialAdvertPrompt] = useState('');
   
   const [prevTotalCoins, setPrevTotalCoins] = useState(-1);
@@ -541,6 +543,45 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform shrink-0"><Search size={20} className="md:w-6 md:h-6" /></div>
                     <div className="min-w-0"><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal truncate">Browse Funding</h4><p className="text-[10px] md:text-xs text-emerald-400/80 font-bold tracking-wider mt-1 md:mt-0 truncate">Find perfect match</p></div>
                   </button>
+                </div>
+
+                {/* Office of the Premier (OTP) Spotlight Banner */}
+                <div className="glass-panel p-5 sm:p-6 rounded-2xl relative overflow-hidden group border border-cyan-500/20 bg-gradient-to-r from-cyan-950/30 via-slate-900/60 to-indigo-950/30">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 text-xs font-bold text-cyan-400 uppercase tracking-widest">
+                        <Building2 size={15} />
+                        <span>Provincial Government Spotlight</span>
+                        <span>·</span>
+                        <span className="text-emerald-400">R1k – R2M Grants</span>
+                      </div>
+                      <h4 className="text-base sm:text-lg font-black text-white">
+                        Office of the Premier (OTP) Youth Development Funds
+                      </h4>
+                      <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
+                        Non-repayable equipment and capital assets for 100% youth-owned businesses (KZN KZNYEF, Eastern Cape Isiqalo, Mpumalanga PYDF & Gauteng Moswa Kgwebong).
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setShowOtpGuide(true)}
+                        className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-xs transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
+                      >
+                        <ShieldCheck size={15} />
+                        <span>Audit OTP Readiness</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onBrowseFunding('kznotp_yef_001')}
+                        className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white font-semibold text-xs transition-colors border border-white/10 flex items-center justify-center gap-1.5"
+                      >
+                        <span>View Funds</span>
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Funding Analytics & Application Stage Funnel (Recharts) */}
@@ -1085,6 +1126,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           onClose={() => setSelectedApplicationForTracker(null)} 
         />
       )}
+
+      {/* Office of the Premier Guide Modal */}
+      <PremierFundingGuideModal
+        isOpen={showOtpGuide}
+        onClose={() => setShowOtpGuide(false)}
+        onFilterPremierFunds={() => {
+          setShowOtpGuide(false);
+          onBrowseFunding('kznotp_yef_001');
+        }}
+        onSelectOpportunity={(oppId) => {
+          setShowOtpGuide(false);
+          onBrowseFunding(oppId);
+        }}
+      />
     </div>
   );
 };

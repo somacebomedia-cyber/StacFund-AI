@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck, Server, Mic, AlertCircle } from 'lucide-react';
+import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck, Server, Mic, AlertCircle, Building2 } from 'lucide-react';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { MOCK_FUNDING } from '../constants';
 import { FundingType, User, ApplicationStatus, FundingOpportunityDb, UserBusinessProfile } from '../types';
 import FundingCard from '../components/FundingCard';
 import ApplicationWorkflow from '../components/ApplicationWorkflow';
+import PremierFundingGuideModal from '../components/PremierFundingGuideModal';
 import { calculateMatch, getMatchMeOpportunities, getApplyReadyOpportunities } from '../services/matchingEngine';
 import { useSpeechRecognition } from '../utils/useSpeechRecognition';
 
@@ -28,6 +29,8 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info' | 'error'}>({ show: false, message: '', type: 'success' });
   const [selectedOpp, setSelectedOpp] = useState<FundingOpportunityDb | null>(null);
   const [workflowOpp, setWorkflowOpp] = useState<FundingOpportunityDb | null>(null);
+  const [showOtpGuide, setShowOtpGuide] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'OTP' | 'GRANT' | 'LOAN' | 'EQUITY'>('ALL');
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
   
   // The Encyclopedia State
@@ -200,17 +203,39 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   const displayOpportunities = useMemo(() => {
      const q = searchQuery.trim().toLowerCase();
      const filtered = opportunities.filter(item => {
+        // Category / Issuer filter
+        if (categoryFilter === 'OTP') {
+           const isOtp = (item.issuer_type || '').toLowerCase().includes('otp') ||
+                         (item.programme_name || '').toLowerCase().includes('premier') ||
+                         (item.issuer_name || '').toLowerCase().includes('premier');
+           if (!isOtp) return false;
+        } else if (categoryFilter === 'GRANT') {
+           if (item.funding_type !== FundingType.GRANT && item.funding_type !== 'GRANT') return false;
+        } else if (categoryFilter === 'LOAN') {
+           if (item.funding_type !== FundingType.LOAN && item.funding_type !== 'LOAN') return false;
+        } else if (categoryFilter === 'EQUITY') {
+           const isEquityOrHybrid = item.funding_type === FundingType.EQUITY || 
+                                   item.funding_type === 'EQUITY' || 
+                                   item.funding_type === FundingType.HYBRID || 
+                                   item.funding_type === 'HYBRID';
+           if (!isEquityOrHybrid) return false;
+        }
+
         if (!q) return true;
         const progName = (item.programme_name || '').toLowerCase();
         const eligSumm = (item.eligibility_summary || '').toLowerCase();
         const issuerName = (item.issuer_name || '').toLowerCase();
         const fundingType = (item.funding_type || '').toLowerCase();
+        const issuerType = (item.issuer_type || '').toLowerCase();
+        const geoScope = (item.geo_scope || '').toLowerCase();
         const sectorMatch = (item.sector_tags || []).some(t => t.toLowerCase().includes(q));
         
         return progName.includes(q) || 
                eligSumm.includes(q) || 
                issuerName.includes(q) || 
                fundingType.includes(q) || 
+               issuerType.includes(q) || 
+               geoScope.includes(q) || 
                sectorMatch;
      });
 
@@ -230,7 +255,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
         }
      }
      return [];
-  }, [opportunities, searchQuery, mode, userProfile]);
+  }, [opportunities, searchQuery, mode, categoryFilter, userProfile]);
 
   const handleStartApplication = React.useCallback(async (opportunityId: string) => {
     if (!user) {
@@ -384,6 +409,14 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                    <span className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
                      <Server size={14} className="text-emerald-400" /> Centrally Maintained
                    </span>
+                   <button 
+                     type="button"
+                     onClick={() => setShowOtpGuide(true)}
+                     className="flex items-center gap-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 px-3 py-1.5 rounded-lg border border-cyan-500/30 transition-all font-bold"
+                   >
+                     <Building2 size={14} className="text-cyan-400" />
+                     <span>Office of the Premier (OTP) Guide</span>
+                   </button>
                  </div>
                </div>
              </div>
@@ -503,6 +536,77 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
             </div>
           )}
         </div>
+      </div>
+
+      {/* Category and Provincial Fast-Filters */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-white/[0.03] rounded-xl border border-white/5">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('ALL')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+              categoryFilter === 'ALL'
+                ? 'bg-cyan-500 text-white shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            All Categories
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('OTP')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+              categoryFilter === 'OTP'
+                ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-md'
+                : 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10'
+            }`}
+          >
+            <Building2 size={13} />
+            <span>Office of the Premier (OTP)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('GRANT')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+              categoryFilter === 'GRANT'
+                ? 'bg-emerald-500 text-white shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Grants
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('LOAN')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+              categoryFilter === 'LOAN'
+                ? 'bg-blue-500 text-white shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Loans
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('EQUITY')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+              categoryFilter === 'EQUITY'
+                ? 'bg-purple-500 text-white shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Equity / Blended
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowOtpGuide(true)}
+          className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-colors"
+        >
+          <Building2 size={13} />
+          <span>OTP Guide & Readiness Auditor</span>
+        </button>
       </div>
 
       {/* Results Grid */}
@@ -653,6 +757,24 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
           }}
         />
       )}
+
+      {/* Office of the Premier Guide and Readiness Modal */}
+      <PremierFundingGuideModal
+        isOpen={showOtpGuide}
+        onClose={() => setShowOtpGuide(false)}
+        onFilterPremierFunds={() => {
+          setCategoryFilter('OTP');
+          setMode('DISCOVER');
+          setShowOtpGuide(false);
+          triggerToast("Filtered for Office of the Premier (OTP) funds", "info");
+        }}
+        onSelectOpportunity={(oppId) => {
+          const opp = opportunities.find(o => o.opportunity_id === oppId);
+          if (opp) {
+            setSelectedOpp(opp);
+          }
+        }}
+      />
     </div>
   );
 };

@@ -1,102 +1,94 @@
-# Step-by-Step Testing Guide: StacFund AI
+# South African Office of the Premier (OTP) Funding Suite
 
-This guide walks you through testing all 4 key areas in order:
-1. **AI Gateway & Provider Health Panel** (Newly upgraded multi-provider system)
-2. **Funding Application & AI Business Plan Generator** (4-Step workflow with AI drafting)
-3. **Presentation Pitch Deck Designer & Outline Editor** (Strategy selector, slide outlining & editing)
-4. **Onboarding & Full Dashboard Overview** (Gamification, compliance, analytics & quick actions)
+Integrating comprehensive provincial Office of the Premier (OTP) funding intelligence, verified opportunities (KZN Youth Empowerment Fund, EC Isiqalo Youth Fund, Mpumalanga PYDF, Gauteng Youth Enterprise Fund), and an interactive OTP eligibility and compliance readiness toolkit into StacFund.
 
----
+## User Review & Critical Decisions
 
-## Stage 1: AI Gateway & Provider Health Panel
+> [!IMPORTANT]
+> In South Africa, the Office of the Premier (OTP) in each province administers high-impact youth, enterprise, and skills funding programs rather than running a single national office. Below are the confirmed structural decisions for integrating these into StacFund:
 
-### Objective
-Verify that the multi-provider routing engine, circuit breaker, usage tracking, and the live status panel on the Dashboard are operational.
-
-### Test Steps
-1. **Open the Dashboard**:
-   - Navigate to the **Dashboard** view (`/` after login or demo sign-in).
-   - Scroll down to the **AI Gateway Status** section (embedded right below the Funding Heatmap).
-2. **Inspect Provider Health**:
-   - Verify that **Google Gemini** shows as **Healthy** (with model `gemini-3.8-flash`).
-   - Check that secondary providers (GroqCloud, OpenRouter, Hugging Face) display their status gracefully (marked as disabled or standby when their individual API keys are not supplied in `.env`).
-3. **Verify Quota & Usage Metering**:
-   - Note the rolling 24-hour quota cards: **Daily Requests** (e.g. `0 / 60`) and **Daily Tokens** (e.g. `0 / 200,000`).
-   - Verify that your user plan (Free/Pro/Business) is accurately reflected.
-4. **Active Probe (Admin test)**:
-   - If an admin secret is configured, clicking **Probe Providers** will ping the health check endpoints and refresh the latencies and failure counts live.
+- **Confirmed Decision 1 (Provincial Scope)**: Incorporate real, verified provincial OTP funds into StacFund's database (`constants.ts`), prioritizing the major active funds: **KZN Youth Empowerment Fund** (R1k–R2M tiered grant), **Eastern Cape Isiqalo Youth Fund** (R10k–R500k), **Mpumalanga Premier's Youth Development Fund** (up to R1M+), and **Gauteng Enterprise Propeller / NYDA Moswa Kgwebong Blended Fund** (R1M 50/50 grant-loan).
+- **Confirmed Decision 2 (Explorer & Matching Integration)**: Enhance the `issuer_type` classification in `types.ts` to support `"Provincial Government / OTP"` alongside `"Government Agency"` and `"Development Finance Institution"`, allowing one-click filtering by South African province in the Funding Explorer.
+- **Confirmed Decision 3 (OTP Compliance & Readiness Checklist)**: Provide an interactive OTP readiness modal and checklist in the dashboard covering strict provincial requirements (100% Youth ownership 18–35, provincial proof of residence, CIPC registration, SARS Tax Pin, valid supplier quotations, and job creation commitments).
 
 ---
 
-## Stage 2: Funding Application & Business Plan Generator
+## 1. Overview & Core Concept
 
-### Objective
-Verify the end-to-end 4-step funding application flow and confirm that the AI proposal/business plan generation triggers and handles responses cleanly.
-
-### Test Steps
-1. **Browse Funding Opportunities**:
-   - Click **Explore Funding** on the top navigation bar or **Browse Opportunities** from the dashboard.
-   - Pick an opportunity (e.g., Seda Technology Program, sefa Small Business Fund, or NEF Women Empowerment Fund).
-   - Click **Apply Now** to launch the modal workflow.
-2. **Step 1: Application Form**:
-   - Fill in or review the pre-filled business details: Business Name, CIPC Registration Number, Contact Phone, and Funding Requested amount.
-   - Click **Continue to Business Plan**.
-3. **Step 2: AI Business Plan Generation**:
-   - Click **Generate Proposal & Pitch Deck** (or **Generate with AI**).
-   - Verify the loading indicator ("Compiling Proposal..." / "Drafting Proposal...").
-   - Upon completion, verify that the executive summary, market analysis, and use of funds cards appear.
-   - Click **View Pitch Deck** to open the full-screen Gamma-style presentation modal.
-   - Click the left/right arrows to flip through slides, then click **X** to return.
-   - Click **Next: Compliance**.
-4. **Step 3: Compliance Documents**:
-   - Select the required compliance checklist items (CIPC Certificate, Tax Clearance, BEE Certificate, Bank Statements).
-   - Click **Next: Submit**.
-5. **Step 4: Submission Review**:
-   - Review the submission package overview.
-   - Click **Submit Application** and verify the success confirmation.
+- **What It Does**: Equips South African entrepreneurs and youth-led SMMEs with end-to-end guidance, verified data, and direct application readiness for funding programs issued by the provincial Offices of the Premier (OTP).
+- **Target Audience / Persona**: South African youth entrepreneurs (aged 18–35), township enterprises, cooperatives, and emerging startups seeking capital expenditure grants, asset finance, and working capital without the debt burden of commercial banks.
+- **Key Value**: Demystifies fragmented provincial government funding rounds, establishes exact tier thresholds (e.g. KZN's 3-tier job creation matrix: 2 jobs for R100k, 4 jobs for R500k, 10 jobs for R2M), and accelerates application document preparation.
 
 ---
 
-## Stage 3: Presentation Pitch Deck Designer & Outline Editor
+## 2. User Experience & Visual Design
 
-### Objective
-Verify the slide strategy selector, outline generator, and visual deck customizer.
+### Key User Flows
+1. **Discover via Funding Explorer**:
+   - User navigates to the Explorer and filters by "Provincial / Office of the Premier" or selects their specific Province (e.g., KwaZulu-Natal, Eastern Cape, Gauteng, Mpumalanga).
+   - Premier fund cards display verified funding tags, minimum/maximum grant amounts, job creation requirements, and direct application links.
+2. **Premier Funding Intelligence Dossier (Modal & Guide)**:
+   - Clicking a Premier Opportunity or "OTP Funding Guide" opens a dark glassmorphic dossier detailing:
+     - **Funding Mechanism**: Non-repayable grants vs blended grant/loan packages.
+     - **Job Creation Math**: Mandatory job creation covenants by funding threshold.
+     - **Submission Method**: Specific submission rules (e.g., KZN physical district municipality delivery vs Gauteng digital SMME portal).
+3. **Interactive OTP Document Readiness Checklist**:
+   - Step-by-step audit of the 7 mandatory OTP documents: CIPC Registration, certified ID copies ($\le 3$ months), SARS Tax Compliance Status PIN, municipal utility bill / letter from traditional authority, business bank statement ($\ge 3$ months), detailed operational plan/business plan, and signed 3x supplier quotations.
 
-### Test Steps
-1. **Launch Pitch Deck Designer**:
-   - On the Dashboard, find the **Pitch Deck** card or quick action, or open **Presentation Designer**.
-2. **Test Outline Strategy Picker**:
-   - In the outline generator, inspect the pitch strategy cards:
-     - **SA Funding Pitch (Local Standard)**: Verify the subtitle "SA public & private funders" and the 8-slide count tag.
-     - **YC Seed Pitch (Silicon Valley Style)**: Verify the subtitle "Accelerators & seed VCs" and the 7-slide count tag.
-     - **Kawasaki 10/20/30 Rule**: Verify the 10-slide count tag.
-   - Select a strategy and click **Generate Outline**.
-3. **Test Outline Editor**:
-   - Verify that generated slides appear with titles, copy formulas, emotions, and bullet points.
-   - Edit slide titles or bullet points directly in the card editors.
-   - Drag or re-order slides if applicable.
-4. **Open in Canvas Designer**:
-   - Click **Customize in Designer** / **Open Deck**.
-   - Verify that slide elements (headings, lead text, decorative backgrounds, container sections) render without console errors.
-   - Test changing themes, fonts, or previewing in presentation mode.
+### Visual Identity & Theme
+- **Aesthetic Direction**: Dark glassmorphic financial terminal consistent with StacFund's existing palette (`#0F172A` neutral canvas, translucent backdrop blur `rgba(15, 23, 42, 0.75)`, hairline dividers `rgba(255, 255, 255, 0.08)`).
+- **Typography & Formatting**: Clean unboxed metadata with bullet separators (`·`), strict tabular figures (`tabular-nums font-mono`) for currency amounts (e.g., `R100,000` to `R2,000,000`) and job metrics.
+- **Accents**: Subtle emerald (`#10B981`) for grant classification, sky blue (`#0284C7`) for provincial government tags, and amber (`#F59E0B`) for submission deadline warnings.
 
 ---
 
-## Stage 4: Onboarding & Full Dashboard Overview
+## 3. Key Product Decisions & Trade-Offs
 
-### Objective
-Validate user onboarding, gamified progress scoring, financial analytics, and responsive dark glassmorphism layout.
+- **Decision 1: Direct Database Integration vs Standalone Article**:
+  - *Chosen Approach*: Add the verified Premier funds directly into `constants.ts` with complete `FundingOpportunityDb` properties while providing an educational overview modal.
+  - *Why*: Allows StacFund's existing AI Matching Engine, Compliance Tracker, and Funding Needs Calculator to natively match users with OTP funds without redundant code paths.
+  - *Alternatives Considered*: A static markdown article; rejected because users wouldn't be able to bookmark, track applications, or generate AI pitch documents tailored to the OTP fund.
 
-### Test Steps
-1. **User Profile & Readiness Score**:
-   - Go to **Profile** or click your user avatar in the top right.
-   - Update company stage, annual turnover, and BBBEE level.
-   - Check the **Funding Readiness Score** gauge on the dashboard to confirm it updates dynamically based on compliance and profile completion.
-2. **Compliance Tracker**:
-   - On the Dashboard, review the **Compliance Tracker** card.
-   - Verify status badges for CIPC, SARS Tax Clearance, and B-BBEE.
-3. **Analytics & Funnel Charts**:
-   - Check the **Application Funnel Chart** showing Stage progression (Drafted → Submitted → Under Review → Approved).
-   - Verify the **Funding Countdown** timers for open grant deadlines.
-4. **Mobile & Dark Theme Check**:
-   - Resize the browser or switch to mobile view to confirm all glassmorphism cards, modals, and nav bars adapt smoothly without horizontal overflow.
+- **Decision 2: Physical Submission Cautions**:
+  - *Chosen Approach*: Prominently highlight official submission logistics in the opportunity details (e.g., KZN OTP requiring physical submission at district municipal offices rather than emails).
+  - *Why*: Disqualifications frequently happen because entrepreneurs email applications to unmonitored provincial inboxes.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+### System Flow Diagram
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    StacFund Client (Vite/React)              │
+│                                                              │
+│  ┌─────────────────────────┐    ┌─────────────────────────┐  │
+│  │   Funding Explorer      │    │  Premier Intelligence   │  │
+│  │  - Filter: Provincial   │    │  - Provincial Breakdown │  │
+│  │  - Geo Scope Filters    │    │  - Tier Job Requirements│  │
+│  └───────────┬─────────────┘    └────────────┬────────────┘  │
+│              │                               │               │
+│              ▼                               ▼               │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │               MOCK_FUNDING (constants.ts)              │  │
+│  │  - kznotp_yef_001 (KZN Youth Empowerment Fund)         │  │
+│  │  - ecotp_isiqalo_002 (EC Isiqalo Youth Fund)           │  │
+│  │  - mp_pydf_003 (Mpumalanga Premier's Youth Dev Fund)   │  │
+│  │  - gpg_moswa_004 (Gauteng NYDA/GEP Enterprise Fund)    │  │
+│  └───────────────────────────┬────────────────────────────┘  │
+│                              │                               │
+│              ┌───────────────┴───────────────┐               │
+│              ▼                               ▼               │
+│  ┌─────────────────────────┐    ┌─────────────────────────┐  │
+│  │    Matching Engine      │    │  Application Tracker /  │  │
+│  │  (services/matching.ts) │    │  Compliance Vault       │  │
+│  └─────────────────────────┘    └─────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Data Additions to `constants.ts`:
+1. `kznotp_yef_001`: KwaZulu-Natal Youth Empowerment Fund (R1k - R2M, Grant, 3 thresholds, job creation stipulations).
+2. `ecotp_isiqalo_002`: Eastern Cape Isiqalo Youth Development Fund (R10k - R500k, Grant/Asset finance, OTP).
+3. `mp_pydf_003`: Mpumalanga Premier’s Youth Development Fund (R50k - R1M, Grant).
+4. `gpg_moswa_004`: Gauteng GEP/NYDA Moswa Kgwebong Youth Enterprise Fund (R100k - R1M, Blended 50% Grant / 50% Loan).

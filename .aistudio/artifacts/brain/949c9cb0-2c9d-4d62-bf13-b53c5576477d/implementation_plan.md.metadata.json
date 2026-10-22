@@ -1,6 +1,6 @@
 {
-  "summary": "Step-by-step test guide covering the AI Gateway & Provider Health Panel, 4-Step Funding Application & Business Plan Generator, Presentation Pitch Deck Designer & Outline Editor, and Onboarding & Dashboard Overview in sequential order.",
-  "updatedAt": "2026-10-20T13:46:53.525419790Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Implementation plan for integrating South African Office of the Premier (OTP) funding intelligence, verified provincial funding opportunities (KZN, Eastern Cape, Mpumalanga, Gauteng), provincial filtering, and an interactive OTP compliance checklist in StacFund.",
+  "updatedAt":  "2026-10-22T18:19:42.758747364Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }
