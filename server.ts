@@ -32,6 +32,10 @@ if (fs.existsSync(envPath)) {
 }
 
 import { startScraper, runAdvancedScraper } from './services/advancedScraper';
+import { registerIntakeRoutes } from './services/intakeRoutes';
+import { getAlertPrefs } from './services/userAlerts';
+import { chromium } from 'playwright';
+import type { Browser } from 'playwright';
 
 // Initialize Firebase Admin
 let db: FirebaseFirestore.Firestore | null = null;
@@ -187,18 +191,8 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
-  // SECURITY (2026-10-20): The legacy `x-custom-gemini-key` header previously
-  // bypassed authentication entirely on this route. That allowed any client
-  // to consume the server's proxy with their own Gemini key — but it also
-  // allowed anonymous abuse of any other logic chained behind requireAuth.
-  //
-  // The header is now DISABLED by default. To re-enable the BYOK mechanism
-  // (e.g. for local development where you want to test with your own key),
-  // set STACFUND_ALLOW_CUSTOM_GEMINI_KEY=true. In production, leave it off
-  // and keep all provider credentials server-side only.
-  if (req.headers['x-custom-gemini-key'] && process.env.STACFUND_ALLOW_CUSTOM_GEMINI_KEY === 'true') {
-    return next();
-  }
+  // SECURITY FIX: this used to call next() for ANY request that carried an `x-custom-gemini-key`
+  // header, which let anyone skip sign-in on every requireAuth route. That header only matters to the Gemini proxy.
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: "Unauthorized: Missing token" });
@@ -315,7 +309,8 @@ async function searchPixabay(apiKey: string, query: string, orientation: 'landsc
 async function startServer() {
   const app = express();
   app.set('trust proxy', 1);
-  const PORT = 3000;
+  // PORT env var respected (most PaaS hosts inject it); 3000 locally.
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use((req, res, next) => {
     const url = req.originalUrl || req.url;
@@ -405,37 +400,11 @@ async function startServer() {
     })
   );
 
+  // Admin intake / review-queue routes. They accept uploads larger than express.json()'s default
+  // 100 kB limit, so they parse their own bodies and MUST be registered before the global parser below.
+  registerIntakeRoutes(app, { db, adminAuth });
+
   app.use(express.json());
-
-  // Initialise the AI Gateway usage tracker with Firestore (for durable usage records).
-  // Falls back to in-memory only if Firestore is unavailable. The gateway itself
-  // is loaded lazily on first request, so we don't fail boot if a provider key is missing.
-  try {
-    const { initUsageTracker, gateway } = await import('./services/ai-gateway');
-    initUsageTracker(db);
-    // Eagerly init the gateway so provider init errors surface at boot, not first request.
-    gateway.getConfigs();
-    console.log('[Server] AI Gateway initialised.');
-  } catch (e) {
-    console.error('[Server] AI Gateway failed to initialise:', e);
-  }
-
-  // Mount the multi-provider AI Gateway routes under /api/ai/gateway/*.
-  // These routes require Firebase auth (via optionalAuth set earlier in the chain).
-  try {
-    const { mountGatewayRoutes } = await import('./services/ai-gateway/httpRoutes');
-    // Apply auth + CORS to the gateway routes
-    app.use('/api/ai/gateway', (req, res, next) => {
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-      if (req.method === 'OPTIONS') return res.sendStatus(204);
-      next();
-    }, optionalAuth);
-    mountGatewayRoutes(app);
-  } catch (e) {
-    console.error('[Server] Failed to mount AI Gateway routes:', e);
-  }
 
   // Initialize the funding scraper (daily cron + manual trigger endpoint).
   // Runs after Firebase Admin is set up so the scraper can write to Firestore.
@@ -717,6 +686,76 @@ Include these slides:
     res.json({ status: 'started', message: 'Scraper running in background' });
   });
 
+  // ─── User alert preferences ───────────────────────────────────────────────
+  // Each signed-in user can opt into email / push / WhatsApp alerts for
+  // new funding matches. The doc lives at users/{uid}/alert_prefs/main.
+  // Firestore rules block browser writes to anything outside users/{uid}/*
+  // owned by the caller, so this endpoint is just a thin wrapper that
+  // validates the body shape.
+  app.get("/api/alerts/prefs", requireAuth, async (req, res) => {
+    if (!db) return res.status(503).json({ error: "Database is not configured" });
+    const uid = (req as any).user?.uid as string | undefined;
+    if (!uid) return res.status(401).json({ error: "No user on token" });
+    try {
+      const prefs = await getAlertPrefs(db, uid);
+      res.json(prefs);
+    } catch (e: any) {
+      console.error("[Alerts] GET /prefs failed:", e);
+      res.status(500).json({ error: "Could not read alert preferences" });
+    }
+  });
+
+  app.put("/api/alerts/prefs", requireAuth, async (req, res) => {
+    if (!db) return res.status(503).json({ error: "Database is not configured" });
+    const uid = (req as any).user?.uid as string | undefined;
+    if (!uid) return res.status(401).json({ error: "No user on token" });
+    const body = req.body ?? {};
+    // Whitelist + normalise. Unknown keys are dropped; required booleans
+    // default to false; phone numbers are stripped to digits-with-plus.
+    const prefs: Record<string, unknown> = {
+      emailOptIn: Boolean(body.emailOptIn),
+      whatsappOptIn: Boolean(body.whatsappOptIn),
+      pushOptIn: Boolean(body.pushOptIn),
+      whatsappNumber: typeof body.whatsappNumber === 'string' && body.whatsappNumber.trim()
+        ? ('+' + body.whatsappNumber.replace(/[^\d]/g, '')) // e.g. +27821234567
+        : null,
+      email: typeof body.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim())
+        ? body.email.trim().toLowerCase()
+        : null,
+      digest: body.digest === 'daily' ? 'daily' : 'immediate',
+      updated_at: new Date().toISOString(),
+    };
+    try {
+      await db.collection('users').doc(uid).collection('alert_prefs').doc('main').set(prefs, { merge: true });
+      res.json(prefs);
+    } catch (e: any) {
+      console.error("[Alerts] PUT /prefs failed:", e);
+      res.status(500).json({ error: "Could not save alert preferences" });
+    }
+  });
+
+  // Register a device token for push notifications. Called by the browser
+  // when it gets an FCM token. Token lives at users/{uid}/device_tokens/{token}.
+  app.post("/api/alerts/device-token", requireAuth, async (req, res) => {
+    if (!db) return res.status(503).json({ error: "Database is not configured" });
+    const uid = (req as any).user?.uid as string | undefined;
+    if (!uid) return res.status(401).json({ error: "No user on token" });
+    const token = typeof req.body?.token === 'string' ? req.body.token.trim().slice(0, 500) : '';
+    if (!token) return res.status(400).json({ error: "token is required" });
+    try {
+      await db.collection('users').doc(uid).collection('device_tokens').doc(token).set({
+        token,
+        registered_at: new Date().toISOString(),
+        platform: typeof req.body?.platform === 'string' ? req.body.platform.slice(0, 30) : 'web',
+      });
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("[Alerts] POST /device-token failed:", e);
+      res.status(500).json({ error: "Could not register device token" });
+    }
+  });
+
+
   // ─── Stock Photos API (Pexels + Pixabay proxy) ────────────────────────────
   // Provides a unified endpoint for the client to search stock photos from
   // both Pexels and Pixabay in parallel. Used as a fallback (or alternative)
@@ -796,6 +835,162 @@ Include these slides:
       res.status(500).json({ error: 'Failed to search stock photos', details: error.message });
     }
   });
+
+  // ─── Business plan PDF export (text-based, Chromium print) ───────────────
+  // The client sends the fully-paginated, inline-styled page HTML as a
+  // text/plain body (express.json skips it; this route parses it with a
+  // larger limit). Chromium prints it to a real A4 text PDF — selectable,
+  // searchable, a fraction of image-PDF size. Each .pdf-page div maps to
+  // exactly one A4 page via the embedded @page CSS.
+  app.post(
+    "/api/plan/export-pdf",
+    requireAuth,
+    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '32mb' }),
+    async (req, res) => {
+      try {
+        const html = typeof req.body === 'string' ? req.body : '';
+        if (!html || html.length < 200) {
+          return res.status(400).json({ error: 'Empty document — nothing to export.' });
+        }
+        if (html.length > 30_000_000) {
+          return res.status(413).json({ error: 'Document too large to render.' });
+        }
+        const filename =
+          String(req.query.filename || 'Business_Plan.pdf')
+            .replace(/[^\w.\- ]/g, '')
+            .slice(0, 140) || 'Business_Plan.pdf';
+
+        let browser: Browser | null = null;
+        try {
+          browser = await chromium.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
+          });
+          const page = await browser.newPage();
+          await page.setContent(html, { waitUntil: 'networkidle', timeout: 90_000 });
+          // Ensure web fonts (Source Serif 4 / Inter) are fully loaded before print.
+          await page.evaluate(() => {
+            const d = document as Document & { fonts?: { ready: Promise<unknown> } };
+            return d.fonts ? d.fonts.ready.then(() => undefined) : Promise.resolve();
+          });
+          await page.emulateMedia({ media: 'print' });
+          const pdfBuffer = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            preferCSSPageSize: true,
+            margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
+          });
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          res.setHeader('Content-Length', pdfBuffer.length);
+          return res.send(pdfBuffer);
+        } finally {
+          if (browser) await browser.close().catch(() => undefined);
+        }
+      } catch (error: any) {
+        console.error('[Plan Export] PDF rendering failed:', error?.message || error);
+        return res.status(500).json({ error: 'PDF rendering failed on the server. Try again or use the image-PDF fallback.' });
+      }
+    }
+  );
+
+  // ─── Word (.docx) exports — plan + proposal ──────────────────────────────
+  // Same transport pattern as the PDF export above: the typed document JSON
+  // arrives as a text/plain body (bypasses the global express.json 100kb
+  // limit; this route parses it with an explicit larger limit), and the
+  // server builds a real, fully editable .docx with the `docx` package.
+  // requireAuth prevents anonymous build-quota burn.
+  const sanitizeDocxBrand = (raw: any): {
+    businessName?: string;
+    tagline?: string;
+    logoDataUrl?: string;
+    logoWidth?: number;
+    logoHeight?: number;
+    accentColor?: string;
+  } | undefined => {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const logo = String(raw.logoDataUrl || '');
+    const safeLogo =
+      /^data:image\/(png|jpe?g);base64,/i.test(logo) && logo.length < 600_000 ? logo : undefined;
+    const accent = /^#?[0-9a-fA-F]{6}$/.test(String(raw.accentColor || '').trim())
+      ? String(raw.accentColor).trim()
+      : undefined;
+    return {
+      businessName: raw.businessName ? String(raw.businessName).slice(0, 120) : undefined,
+      tagline: raw.tagline ? String(raw.tagline).slice(0, 200) : undefined,
+      logoDataUrl: safeLogo,
+      logoWidth: Number(raw.logoWidth) || undefined,
+      logoHeight: Number(raw.logoHeight) || undefined,
+      accentColor: accent,
+    };
+  };
+
+  app.post(
+    "/api/plan/export-docx",
+    requireAuth,
+    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '12mb' }),
+    async (req, res) => {
+      try {
+        let payload: any;
+        try {
+          payload = JSON.parse(typeof req.body === 'string' ? req.body : '{}');
+        } catch {
+          return res.status(400).json({ error: 'Malformed request body.' });
+        }
+        const plan = payload?.plan;
+        if (!plan || !Array.isArray(plan.chapters) || !plan.chapters.length) {
+          return res.status(400).json({ error: 'No business plan document supplied.' });
+        }
+        if (JSON.stringify(plan).length > 10_000_000) {
+          return res.status(413).json({ error: 'Plan too large to convert.' });
+        }
+        const filename =
+          String(req.query.filename || 'Business_Plan.docx').replace(/[^\w.\- ]/g, '').slice(0, 140) ||
+          'Business_Plan.docx';
+        const { planDocxBuffer } = await import('./services/docx/planDocx');
+        const buffer = await planDocxBuffer(plan, sanitizeDocxBrand(payload?.brand));
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', buffer.length);
+        return res.send(buffer);
+      } catch (error: any) {
+        console.error('[Plan Export] DOCX build failed:', error?.message || error);
+        return res.status(500).json({ error: 'Word export failed on the server. Please try again.' });
+      }
+    }
+  );
+
+  app.post(
+    "/api/proposal/export-docx",
+    requireAuth,
+    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '6mb' }),
+    async (req, res) => {
+      try {
+        let payload: any;
+        try {
+          payload = JSON.parse(typeof req.body === 'string' ? req.body : '{}');
+        } catch {
+          return res.status(400).json({ error: 'Malformed request body.' });
+        }
+        const proposal = payload?.proposal;
+        if (!proposal || !Array.isArray(proposal.sections)) {
+          return res.status(400).json({ error: 'No proposal document supplied.' });
+        }
+        const filename =
+          String(req.query.filename || 'Funding_Proposal.docx').replace(/[^\w.\- ]/g, '').slice(0, 140) ||
+          'Funding_Proposal.docx';
+        const { proposalDocxBuffer } = await import('./services/docx/proposalDocx');
+        const buffer = await proposalDocxBuffer(proposal, sanitizeDocxBrand(payload?.brand));
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', buffer.length);
+        return res.send(buffer);
+      } catch (error: any) {
+        console.error('[Proposal Export] DOCX build failed:', error?.message || error);
+        return res.status(500).json({ error: 'Word export failed on the server. Please try again.' });
+      }
+    }
+  );
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

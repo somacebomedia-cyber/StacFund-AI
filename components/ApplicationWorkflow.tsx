@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, FileText, Download, Loader2, ArrowRight, ArrowLeft, FileSignature, Briefcase, ShieldCheck, FileCheck, Upload, Wand2, Sparkles, Building, Hash, Phone, Banknote, HelpCircle, Check, Send, Zap } from 'lucide-react';
+import { X, CheckCircle2, FileText, Download, Loader2, ArrowRight, ArrowLeft, FileSignature, Briefcase, ShieldCheck, FileCheck, Upload, Wand2, Sparkles, Building, Hash, Phone, Banknote, HelpCircle, Check, Send, Zap, AlertTriangle } from 'lucide-react';
 import { FundingOpportunityDb, User, ApplicationStatus, AppDocument } from '../types';
-import { createGeminiClient } from '../services/geminiClient';
-import { handleGeminiError } from '../services/geminiError';
+import { buildAutofillContext } from '../services/autofillContext';
+import type { AutofillContext } from '../services/autofillContext';
 import { db } from '../services/firebase';
 import { addDoc, collection, updateDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../services/firebase';
 
-import GammaPitchLayout from './templates/GammaPitchLayout';
+import BusinessPlanStudio from './businessPlan/BusinessPlanStudio';
 
 interface ApplicationWorkflowProps {
   opportunity: FundingOpportunityDb;
@@ -35,8 +35,7 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   const [isDirectSubmitting, setIsDirectSubmitting] = useState(false);
   const [directSubmitStatus, setDirectSubmitStatus] = useState('');
   
-  const [previewData, setPreviewData] = useState<any>(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [planStudioOpen, setPlanStudioOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     businessName: user.businessName || '',
@@ -47,6 +46,18 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
     contactEmail: user.email || '',
     contactPhone: user.whatsapp || ''
   });
+
+  // Autofill context: pulled once on mount. Contains the opportunity's
+  // eligibility rules, funding tiers, required-document list, the user's
+  // profile + document vault, and the eligibility verdict.
+  const [autofillCtx, setAutofillCtx] = useState<AutofillContext | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    buildAutofillContext(user.id, opportunity).then((ctx) => {
+      if (!cancelled) setAutofillCtx(ctx);
+    }).catch((e) => console.warn('[ApplicationWorkflow] autofill context failed', e));
+    return () => { cancelled = true; };
+  }, [user.id, opportunity.opportunity_id]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -90,102 +101,51 @@ const ApplicationWorkflow: React.FC<ApplicationWorkflowProps> = ({ opportunity, 
   const handleAutoFill = async () => {
     setIsAutoFilling(true);
     try {
-      const userDocRef = doc(db, 'users', user.id);
-      const userDoc = await getDoc(userDocRef);
+      // The autofill context was built on mount. If it's not ready yet, fall
+      // back to the legacy "just read users/{uid}.profile" path so the button
+      // still works for users who open the workflow before Firestore resolves.
       let parsed: any = {};
-      if (userDoc.exists() && userDoc.data().profile) {
-        parsed = userDoc.data().profile;
+      if (autofillCtx) {
+        parsed = autofillCtx.profile;
+      } else {
+        const userDocRef = doc(db, 'users', user.id);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists() && userDoc.data().profile) {
+          parsed = userDoc.data().profile;
+        }
       }
-      
+
+      // Pick the right funding tier if the opportunity has named tiers and
+      // the user hasn't typed an amount yet — prefill the smallest tier's max.
+      let suggestedFunding = '';
+      if (autofillCtx?.suggestedTier) {
+        const t = autofillCtx.suggestedTier;
+        suggestedFunding = t.amount_max !== null ? String(t.amount_max) : (t.amount_min !== null ? String(t.amount_min) : '');
+      }
+
       setFormData(prev => ({
         ...prev,
-        businessName: parsed.name || user.businessName || prev.businessName,
-        registrationNumber: parsed.registration || prev.registrationNumber,
+        businessName: (parsed.name as string) || user.businessName || prev.businessName,
+        registrationNumber: (parsed.registration as string) || prev.registrationNumber,
         contactEmail: user.email || prev.contactEmail,
-        contactPhone: user.whatsapp || prev.contactPhone,
+        contactPhone: user.whatsapp || (parsed.whatsapp as string) || prev.contactPhone,
+        // Only auto-fill the amount if the user hasn't typed one yet (don't overwrite).
+        fundingRequested: prev.fundingRequested || suggestedFunding,
       }));
     } catch (error) {
       console.error('Error auto-filling from profile', error);
     }
-    
+
     setTimeout(() => setIsAutoFilling(false), 800);
   };
 
-  const generateBusinessPlan = async () => {
-    setIsLoading(true);
-    try {
-      const ai = await createGeminiClient();
-      
-      const prompt = `You are a South African business consultant writing a targeted business plan proposal.
-Generate flawless JSON for ${formData.businessName}.
-
-APPLICANT DETAILS:
-- Name: ${formData.businessName}
-- Registration: ${formData.registrationNumber || 'Not provided'}
-- Funding Requested: ${formData.fundingRequested}
-- Stated Purpose: ${formData.purpose}
-- Contact: ${formData.contactName}, ${formData.contactEmail}, ${formData.contactPhone}
-
-OPPORTUNITY CONTEXT:
-- Issuer: ${opportunity.issuer_name || 'Funder'}
-- Programme: ${opportunity.programme_name || 'Funding Programme'}
-- Type: ${opportunity.funding_type || 'Funding'}
-- Eligibility: ${opportunity.eligibility_criteria?.join('; ') || 'General requirements'}
-
-RULES:
-1. Output MUST be valid JSON only. No markdown fences, no \`\`\`json wrappers.
-2. The schema MUST match:
-{
-  "executiveSummary": "string (3-4 paragraphs)",
-  "financialPlan": {
-    "fundingRequirement": "string (the exact requested amount)",
-    "useOfFunds": [
-      { "category": "string", "amount": "string" }
-    ]
-  },
-  "conclusion": "string"
-}
-3. useOfFunds MUST contain 3-5 realistic categories derived from the stated purpose.
-4. The amounts in useOfFunds MUST sum to the requested total.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-      });
-      
-      let parsed = {};
-      try {
-        let text = (response.text || '').trim();
-        if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-        parsed = JSON.parse(text || '{}');
-      } catch (e) {
-        console.warn("JSON Parse failed, attempting recovery", e);
-        let text = (response.text || '').trim();
-        if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-        const lastBrace = text.lastIndexOf('}');
-        if (lastBrace !== -1) {
-            text = text.substring(0, lastBrace + 1);
-            try { parsed = JSON.parse(text); } catch(e2) {
-               console.warn("Extreme fallback failed", e2);
-               throw e2;
-            }
-        } else {
-            if (text.startsWith('{')) { text += '}'; parsed = JSON.parse(text); }
-        }
-      }
-      
-      // AUTO-OPEN GAMMA VISUAL PITCH DECK FIRST
-      setPreviewData(parsed);
-      setIsPreviewOpen(true);
-      
-    } catch (error) {
-      
-      handleGeminiError(error);
-      alert('Failed to generate business plan. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+  // ── Business plan: open the long-form Business Plan Studio ───────────────
+  // The old single-shot Gemini call produced ~800 words (2–3 pages). The
+  // full 70–120 page funder-ready plan (Venturekit-class: text-first,
+  // professional, sober) is generated by the Business Plan Studio, which
+  // reuses THIS opportunity's autofill context, amount and purpose.
+  const openBusinessPlanStudio = () => {
+    setPlanStudioOpen(true);
   };
 
   const toggleDocSelection = (docId: string) => {
@@ -388,7 +348,18 @@ RULES:
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
       <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={onClose}></div>
-      {isPreviewOpen && <GammaPitchLayout data={previewData} businessInfo={formData} onClose={() => { setIsPreviewOpen(false); setStep(3); }} />}
+      {planStudioOpen && (
+        <BusinessPlanStudio
+          user={user}
+          onClose={() => setPlanStudioOpen(false)}
+          prefill={{
+            opportunityId: opportunity.opportunity_id,
+            amount: formData.fundingRequested,
+            purpose: formData.purpose,
+            businessName: formData.businessName,
+          }}
+        />
+      )}
       
       <div className="relative bg-[#0a0a1a] border border-white/10 rounded-[2rem] w-full max-w-5xl h-[90vh] flex flex-col md:flex-row shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
         
@@ -442,8 +413,49 @@ RULES:
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-[#0a0a1a] to-[#12122b]">
-          
+
           <div className="flex-1 overflow-y-auto p-6 md:p-12 custom-scrollbar relative z-10">
+            {/* Eligibility verdict banner — shown on every step. Saves the
+                user from filling out the form when they obviously don't
+                qualify (age, province, excluded sector). */}
+            {autofillCtx && !autofillCtx.eligibility.eligible && (
+              <div className="max-w-2xl mx-auto mb-6 rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 animate-in slide-in-from-top-4 fade-in">
+                <div className="flex items-center gap-2 font-black uppercase tracking-wider text-[10px] text-rose-300 mb-2">
+                  <AlertTriangle size={14} /> Hard-rule issues
+                </div>
+                <ul className="space-y-1 text-xs text-rose-200/90">
+                  {autofillCtx.eligibility.blockingReasons.map((r, i) => (
+                    <li key={i}>• {r}</li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-rose-300/70 mt-2">
+                  You can still fill out the form, but the funder is likely to reject it. Update your profile if any of this is wrong.
+                </p>
+              </div>
+            )}
+            {autofillCtx && autofillCtx.eligibility.eligible && autofillCtx.eligibility.hasUnknowns && (
+              <div className="max-w-2xl mx-auto mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 animate-in slide-in-from-top-4 fade-in">
+                <div className="flex items-center gap-2 font-black uppercase tracking-wider text-[10px] text-amber-300 mb-2">
+                  <AlertTriangle size={14} /> Missing profile data
+                </div>
+                <ul className="space-y-1 text-xs text-amber-200/90">
+                  {autofillCtx.eligibility.missingDataReasons.map((r, i) => (
+                    <li key={i}>• {r}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {autofillCtx && autofillCtx.missingDocuments.length > 0 && (
+              <div className="max-w-2xl mx-auto mb-6 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-4 animate-in slide-in-from-top-4 fade-in">
+                <div className="flex items-center gap-2 font-black uppercase tracking-wider text-[10px] text-cyan-300 mb-2">
+                  <FileText size={14} /> Documents to attach
+                </div>
+                <p className="text-xs text-cyan-100/80">
+                  This funder asks for: <span className="font-bold">{autofillCtx.missingDocuments.join(', ')}</span>.
+                  Upload these in your Document Vault before you submit — the compliance step will not let you continue without them.
+                </p>
+              </div>
+            )}
             {/* STEP 1: Form */}
             {step === 1 && (
               <div className="max-w-2xl mx-auto animate-in slide-in-from-right-8 fade-in duration-500">
@@ -520,25 +532,17 @@ RULES:
                   
                   <h3 className="text-3xl font-black mb-4">Generate Business Plan</h3>
                   <p className="text-gray-400 max-w-md mx-auto mb-10 text-sm leading-relaxed">
-                    We will use our AI to draft a tailored, professional business plan based on your application form. This will form the core of your proposal to <span className="text-white font-bold">{opportunity.issuer_name}</span>.
+                    Our AI writes a full {opportunity.issuer_name ? `${opportunity.issuer_name}-ready` : 'funder-ready'} business plan — 70 to 120 pages depending on the amount requested — professional and sober, with financials, compliance and impact chapters. Edit every line, then download a searchable PDF.
                   </p>
                   
                   <button 
-                    onClick={generateBusinessPlan}
-                    disabled={isLoading}
+                    onClick={openBusinessPlanStudio}
                     className="relative inline-flex items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-purple-500 to-indigo-600 px-8 py-5 font-black text-white drop-shadow-[0_10px_30px_rgba(168,85,247,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100"
                   >
-                     {isLoading ? (
-                       <span className="flex items-center gap-3">
-                         <Loader2 className="animate-spin text-purple-200" size={24} />
-                         Drafting Proposal...
-                       </span>
-                     ) : (
-                       <span className="flex items-center gap-3">
-                         <Wand2 size={24} />
-                         Generate with AI
-                       </span>
-                     )}
+                     <span className="flex items-center gap-3">
+                       <Wand2 size={24} />
+                       Open Business Plan Studio
+                     </span>
                   </button>
                   <p className="text-xs text-gray-500 mt-6 font-medium uppercase tracking-widest flex items-center justify-center gap-2">
                     <ShieldCheck size={14} className="text-gray-600" /> Secure Processing

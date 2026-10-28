@@ -17,7 +17,7 @@ import {
   CheckCircle2,
   DollarSign
 } from 'lucide-react';
-import { MOCK_FUNDING } from '../constants';
+import { useOpportunities } from '../services/opportunitiesStore';
 import { FundingType, FundingOpportunityDb } from '../types';
 import { 
   SOUTH_AFRICA_VIEWBOX, 
@@ -89,6 +89,9 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
     return SOUTH_AFRICA_PROVINCES.map(p => p.name);
   }, []);
 
+  // Built-in list + published records, so a newly published opportunity gets a dot too
+  const { opportunities } = useOpportunities();
+
   // Compute glowing dots strictly inside South Africa's landmass
   const allPlacedDots = useMemo(() => {
     const dots: PlacedOpportunityDot[] = [];
@@ -108,7 +111,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
 
     let nationalCounter = 0;
 
-    MOCK_FUNDING.forEach((opp, oppIndex) => {
+    opportunities.forEach((opp, oppIndex) => {
       // 1. Determine target province
       let targetProvince = '';
       const geo = opp.geo_scope || 'National';
@@ -201,7 +204,7 @@ export const FundingHeatmap: React.FC<FundingHeatmapProps> = ({ onSelectOpportun
     });
 
     return dots;
-  }, [citiesByProvince, provinceNamesList]);
+  }, [citiesByProvince, provinceNamesList, opportunities]);
 
   // Province counts & stats
   const provinceStats = useMemo(() => {

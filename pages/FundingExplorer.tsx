@@ -1,14 +1,26 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck, Server, Mic, AlertCircle, Building2 } from 'lucide-react';
-import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
-import { MOCK_FUNDING } from '../constants';
+import { loadOpportunities } from '../services/opportunitiesStore';
 import { FundingType, User, ApplicationStatus, FundingOpportunityDb, UserBusinessProfile } from '../types';
 import FundingCard from '../components/FundingCard';
 import ApplicationWorkflow from '../components/ApplicationWorkflow';
 import PremierFundingGuideModal from '../components/PremierFundingGuideModal';
+import { describeClosing } from '../services/opportunityStatus';
+import { findFormTemplate } from '../services/formTemplates';
+import { findPortalTemplate } from '../services/portalFormTemplates';
+import type { FormTemplate, PortalFormTemplate } from '../services/formModel';
 import { calculateMatch, getMatchMeOpportunities, getApplyReadyOpportunities } from '../services/matchingEngine';
+import { evaluateEligibility } from '../services/eligibilityEngine';
 import { useSpeechRecognition } from '../utils/useSpeechRecognition';
+
+/** Returns the PDF template if one matches, otherwise the portal template, otherwise null. */
+const autofillTemplateFor = (opp: Parameters<typeof findFormTemplate>[0]): FormTemplate | PortalFormTemplate | null =>
+  findFormTemplate(opp) ?? findPortalTemplate(opp);
+
+// The PDF filler (pdf-lib, ~214 KB) is only downloaded when someone opens the wizard.
+const FormAutofillWizard = React.lazy(() => import('../components/FormAutofillWizard'));
 
 interface FundingExplorerProps {
   user: User | null;
@@ -29,6 +41,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info' | 'error'}>({ show: false, message: '', type: 'success' });
   const [selectedOpp, setSelectedOpp] = useState<FundingOpportunityDb | null>(null);
   const [workflowOpp, setWorkflowOpp] = useState<FundingOpportunityDb | null>(null);
+  const [autofillOpp, setAutofillOpp] = useState<FundingOpportunityDb | null>(null);
   const [showOtpGuide, setShowOtpGuide] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'OTP' | 'GRANT' | 'LOAN' | 'EQUITY'>('ALL');
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
@@ -93,20 +106,30 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
         const userDocRef = doc(db, 'users', user.id);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists() && userDoc.data().profile) {
-          const p = userDoc.data().profile;
+          const data = userDoc.data();
+          const p = data.profile;
+          const owner = data.ownerInfo || {};
+          // Pull the user's province if the profile form has captured one (it's
+          // optional; defaults to 'National' so nationwide opportunities stay
+          // eligible). Same for age — ownerInfo.age is a string in the form.
+          const province = (p.province || p.location || '').toString().trim();
+          const ageNum = Number(owner.age);
+          const age = Number.isFinite(ageNum) && ageNum > 0 ? ageNum : 0;
           setUserProfile({
             user_id: user.id,
             business_status: p.registered === 'Yes' ? 'REGISTERED' : 'CONCEPT',
-            entity_type: p.type || 'PTY_LTD',
-            industry: p.sector || 'Technology',
-            location: 'National',
-            revenue_band: 'PRE_REVENUE',
-            staff_count: 1,
-            has_bank_account: true,
-            has_sars_tax: true,
-            has_cipc_registration: p.registered === 'Yes',
-            age: 0,
-            documents_ready: ['CIPC', 'TAX_CLEARANCE', 'ID', 'BANK_STATEMENT']
+            entity_type: p.type || p.entity_type || 'PTY_LTD',
+            industry: p.sector || p.industry || 'Technology',
+            location: province || 'National',
+            revenue_band: (p.revenue_band || p.revenue || 'PRE_REVENUE').toString().toUpperCase().replace(/\s+/g, '_'),
+            staff_count: Number(p.employees || p.staff_count || 1) || 1,
+            has_bank_account: Boolean(p.has_bank_account ?? true),
+            has_sars_tax: Boolean(p.has_sars_tax ?? true),
+            has_cipc_registration: p.registered === 'Yes' || Boolean(p.has_cipc_registration),
+            age,
+            documents_ready: Array.isArray(p.documents_ready) && p.documents_ready.length
+              ? p.documents_ready
+              : ['CIPC', 'TAX_CLEARANCE', 'ID', 'BANK_STATEMENT']
           });
         }
       } catch (e) {
@@ -116,32 +139,13 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
     fetchProfile();
   }, [user?.id]);
 
-  // Initialize Data from Firestore
+  // Initialize Data from Firestore + built-in fallback (admin-published records replace the built-in entries).
   useEffect(() => {
+    let cancelled = false;
     const fetchOpportunities = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'funding_opportunities'));
-        let ops: FundingOpportunityDb[] = [];
-        
-        const existingIds = new Set<string>();
-        querySnapshot.forEach((docSnap) => {
-          ops.push(docSnap.data() as FundingOpportunityDb);
-          existingIds.add(docSnap.id);
-        });
-
-        // Sync new central registry items that aren't in Firestore yet
-        const missingOps = MOCK_FUNDING.filter(op => !existingIds.has(op.opportunity_id));
-        if (missingOps.length > 0) {
-          const seedPromises = missingOps.map(async (op) => {
-            const opRef = doc(db, 'funding_opportunities', op.opportunity_id);
-            await setDoc(opRef, op);
-            return op;
-          });
-          
-          await Promise.all(seedPromises);
-          ops = [...ops, ...missingOps];
-        }
-        
+        const ops = await loadOpportunities();
+        if (cancelled) return;
         setOpportunities(ops);
 
         // Also sync active & resume IDs based on the fetched global list
@@ -149,7 +153,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
           const opp = ops.find(o => o.opportunity_id === activeOpportunityId);
           if (opp) setSelectedOpp(opp);
         }
-        
+
         if (resumeOpportunityId) {
           let opp = ops.find(o => o.opportunity_id === resumeOpportunityId);
           if (!opp && fallbackOpportunity) {
@@ -183,20 +187,29 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
           }
           if (opp) setWorkflowOpp(opp);
         }
-
       } catch (error) {
         console.error('Error fetching global opportunities', error);
-        // Fallback to MOCK_FUNDING on fail
-        setOpportunities(MOCK_FUNDING as FundingOpportunityDb[]);
+        // Hard fallback: read the cache (which contains only the built-in list when Firestore is unreachable).
+        const fallback = await loadOpportunities().catch(() => []);
+        if (!cancelled) setOpportunities(fallback);
       }
     };
-    
+
     fetchOpportunities();
+
+    // Live-refresh when an admin publishes/rejects from the intake screen.
+    const handleInvalidate = () => fetchOpportunities();
+    window.addEventListener('stacfund_opportunities_invalidated', handleInvalidate);
 
     const storedTime = localStorage.getItem('stacfund_last_scan');
     if (storedTime) {
       setLastUpdated(storedTime);
     }
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('stacfund_opportunities_invalidated', handleInvalidate);
+    };
   }, [activeOpportunityId, resumeOpportunityId, fallbackOpportunity?.id]);
 
   // Compute what to display based on mode
@@ -239,8 +252,16 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                sectorMatch;
      });
 
+     // DISCOVER / TIMELINE: include the hard-rule verdict on each card so the
+     // user can see why something does or does not work for them — but never
+     // exclude an opportunity just because it failed a rule (DISCOVER is the
+     // "browse everything" view).
      if (mode === 'DISCOVER' || mode === 'TIMELINE') {
-        return filtered.map(item => ({ item }));
+        if (!userProfile) return filtered.map(item => ({ item }));
+        return filtered.map(item => {
+          const hardRules = evaluateEligibility(userProfile, item);
+          return { item, hardRules, reason: undefined as string | undefined };
+        });
      } else if (mode === 'MATCH_ME') {
         if (userProfile) {
            return getMatchMeOpportunities(userProfile, filtered);
@@ -621,6 +642,8 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                   key={res.item.opportunity_id}
                   opportunity={res.item} 
                   matchScore={res.score}
+                  eligibilityReport={res.hardRules}
+                  matchReason={res.reason}
                   onViewDetails={handleViewDetails}
                   onStartApplication={handleStartApplication}
                   onDownloadForm={handleDownloadForm}
@@ -640,6 +663,8 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                   key={res.item.opportunity_id}
                   opportunity={res.item} 
                   matchScore={res.score}
+                  eligibilityReport={res.hardRules}
+                  matchReason={res.reason}
                   onViewDetails={handleViewDetails}
                   onStartApplication={handleStartApplication}
                   onDownloadForm={handleDownloadForm}
@@ -659,6 +684,8 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                   key={res.item.opportunity_id}
                   opportunity={res.item} 
                   matchScore={res.score}
+                  eligibilityReport={res.hardRules}
+                  matchReason={res.reason}
                   onViewDetails={handleViewDetails}
                   onStartApplication={handleStartApplication}
                   onDownloadForm={handleDownloadForm}
@@ -678,6 +705,8 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
               <FundingCard 
                 opportunity={res.item} 
                 matchScore={res.score}
+                eligibilityReport={res.hardRules}
+                matchReason={res.reason}
                 onViewDetails={handleViewDetails}
                 onStartApplication={handleStartApplication}
                 onDownloadForm={handleDownloadForm}
@@ -722,9 +751,93 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                    <p className="text-2xl font-black text-white">R{selectedOpp.amount_min.toLocaleString()} - R{selectedOpp.amount_max.toLocaleString()}</p>
                  </div>
                )}
+
+               {selectedOpp.closing_date && (
+                 <div className="bg-white/5 p-6 rounded-2xl">
+                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">Closing date</h4>
+                   <p className="text-xl font-black text-white">{describeClosing(selectedOpp.closing_date)}</p>
+                   {selectedOpp.opening_date && <p className="text-sm text-gray-400 mt-1">Opened {describeClosing(selectedOpp.opening_date).replace(/ \(.*\)$/, '')}</p>}
+                 </div>
+               )}
+
+               {selectedOpp.thresholds && selectedOpp.thresholds.length > 0 && (
+                 <div className="bg-white/5 p-6 rounded-2xl">
+                   <h4 className="text-sm font-bold text-gray-500 mb-3 uppercase">Funding tiers</h4>
+                   <ul className="space-y-3 text-sm text-gray-300">
+                     {selectedOpp.thresholds.map((t) => (
+                       <li key={t.name}>
+                         <p className="font-bold text-white">{t.name}</p>
+                         <p>
+                           {t.amount_min != null && t.amount_max != null ? `R${t.amount_min.toLocaleString()} to R${t.amount_max.toLocaleString()}` : 'Amount not stated'}
+                           {t.min_jobs != null ? `, at least ${t.min_jobs} jobs to be created` : ''}
+                         </p>
+                       </li>
+                     ))}
+                   </ul>
+                 </div>
+               )}
+
+               {(selectedOpp.how_to_apply || selectedOpp.application_channel) && (
+                 <div className="bg-white/5 p-6 rounded-2xl">
+                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">How to apply</h4>
+                   {selectedOpp.how_to_apply && <p className="text-gray-300">{selectedOpp.how_to_apply}</p>}
+                   {selectedOpp.emailed_applications_accepted === false && <p className="mt-2 text-sm font-bold text-amber-300">Emailed applications are not accepted.</p>}
+                 </div>
+               )}
+
+               {selectedOpp.required_documents && selectedOpp.required_documents.length > 0 && (
+                 <div className="bg-white/5 p-6 rounded-2xl">
+                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">Documents you need</h4>
+                   <ul className="list-disc space-y-1 pl-5 text-sm text-gray-300">
+                     {selectedOpp.required_documents.map((d) => <li key={d}>{d}</li>)}
+                   </ul>
+                 </div>
+               )}
+
+               {selectedOpp.eligibility_rules && selectedOpp.eligibility_rules.sectors_excluded.length > 0 && (
+                 <div className="bg-white/5 p-6 rounded-2xl">
+                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">Not funded</h4>
+                   <ul className="list-disc space-y-1 pl-5 text-sm text-gray-300">
+                     {selectedOpp.eligibility_rules.sectors_excluded.map((x) => <li key={x}>{x}</li>)}
+                   </ul>
+                 </div>
+               )}
+
+               {(selectedOpp.contact_email || selectedOpp.contact_phone || selectedOpp.last_verified_at) && (
+                 <div className="bg-white/5 p-6 rounded-2xl text-sm text-gray-300">
+                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">Contact and checking</h4>
+                   {selectedOpp.contact_email && <p>{selectedOpp.contact_email}</p>}
+                   {selectedOpp.contact_phone && <p>{selectedOpp.contact_phone}</p>}
+                   {selectedOpp.review_status === 'published' && selectedOpp.last_verified_at && (
+                     <p className="mt-2 text-xs text-gray-500">
+                       Checked by a person on {new Date(selectedOpp.last_verified_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}
+                       {selectedOpp.official_status ? ' against the funder’s official channel.' : '.'}
+                     </p>
+                   )}
+                 </div>
+               )}
             </div>
 
-            <div className="mt-8 flex gap-4">
+            <div className="mt-8 flex flex-col sm:flex-row gap-4">
+              {autofillTemplateFor(selectedOpp) && (
+                <button
+                  onClick={() => {
+                    if (!user) {
+                      onLogin();
+                      return;
+                    }
+                    // Filling official funder forms is a Pro capability.
+                    if (user.subscriptionPlan === 'free') {
+                      onUpgrade();
+                      return;
+                    }
+                    setAutofillOpp(selectedOpp);
+                  }}
+                  className="flex-1 border border-cyan-400/50 text-cyan-300 hover:bg-cyan-500/10 font-black py-4 rounded-xl flex justify-center"
+                >
+                  Fill the official form
+                </button>
+              )}
               <button 
                 onClick={() => {
                   handleStartApplication(selectedOpp.opportunity_id);
@@ -737,6 +850,12 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
             </div>
           </div>
         </div>
+      )}
+
+      {autofillOpp && user && autofillTemplateFor(autofillOpp) && (
+        <React.Suspense fallback={null}>
+          <FormAutofillWizard template={autofillTemplateFor(autofillOpp)!} user={user} onClose={() => setAutofillOpp(null)} />
+        </React.Suspense>
       )}
 
       {workflowOpp && user && (

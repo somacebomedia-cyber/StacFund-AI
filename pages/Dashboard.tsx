@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Building2, Trash2, MessageCircle } from 'lucide-react';
+import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Building2, Trash2, MessageCircle, BookOpen } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createGeminiClient } from '../services/geminiClient';
 import { motion } from 'motion/react';
@@ -10,11 +10,13 @@ import { handleGeminiError } from '../services/geminiError';
 import StatCard from '../components/StatCard';
 import ComplianceTracker from '../components/ComplianceTracker';
 import GlassAvatar from '../components/GlassAvatar';
-import PremierFundingGuideModal from '../components/PremierFundingGuideModal';
-import { MOCK_ACHIEVEMENTS, MOCK_FUNDING } from '../constants';
+import { MOCK_ACHIEVEMENTS } from '../constants';
+import { loadOpportunities } from '../services/opportunitiesStore';
 import { User, Application, ApplicationStatus, FundingType, AppDocument, FundingOpportunityDb, ReadinessInfo } from '../types';
 import FormDigitizer from '../components/FormDigitizer';
 import PresentationDesigner from '../components/PresentationDesigner';
+import ProposalStudio from '../components/proposal/ProposalStudio';
+import BusinessPlanStudio, { type PlanPrefill } from '../components/businessPlan/BusinessPlanStudio';
 import AILogoGenerator from '../components/AILogoGenerator';
 import AdvertGenerator from '../components/AdvertGenerator';
 import FundingNeedsTracker from '../components/FundingNeedsTracker';
@@ -23,10 +25,12 @@ import DocumentsVault from '../components/DocumentsVault';
 import { WhatsAppIngestion } from '../components/WhatsAppIngestion';
 import FundingHeatmap from '../components/FundingHeatmap';
 import AIFundingInsights from '../components/AIFundingInsights';
-import AIGatewayPanel from '../components/AIGatewayPanel';
 import FundingCountdown from '../components/FundingCountdown';
 import FundingAnalyticsSection from '../components/FundingAnalyticsSection';
+import PremierFundingGuideModal from '../components/PremierFundingGuideModal';
 import ApplicationFunnelChart from '../components/ApplicationFunnelChart';
+import AlertPreferences from '../components/AlertPreferences';
+import BrandKitPanel from '../components/BrandKitPanel';
 import { compileUserDeadlines, getCutoffCountdown, parseCutoffDate } from '../services/fundingDeadlineService';
 
 const XPCoin: React.FC<{ styleClass: string; index: number }> = ({ styleClass, index }) => (
@@ -125,6 +129,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   
   const [selectedApplicationForTracker, setSelectedApplicationForTracker] = useState<Application | null>(null);
   
+  const [allOpportunities, setAllOpportunities] = useState<FundingOpportunityDb[]>([]);
   const [aiMatches, setAiMatches] = useState<AIMatch[]>([]);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [hasProfile, setHasProfile] = useState(false);
@@ -135,10 +140,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   
   const [showFormDigitizer, setShowFormDigitizer] = useState(false);
   const [showPresentationDesigner, setShowPresentationDesigner] = useState(false);
+  const [showProposalStudio, setShowProposalStudio] = useState(false);
+  const [showPlanStudio, setShowPlanStudio] = useState(false);
+  const [planPrefill, setPlanPrefill] = useState<PlanPrefill | undefined>(undefined);
   const [showLogoGenerator, setShowLogoGenerator] = useState(false);
   const [showAdvertGenerator, setShowAdvertGenerator] = useState(false);
   const [showWhatsAppIngestion, setShowWhatsAppIngestion] = useState(false);
   const [showOtpGuide, setShowOtpGuide] = useState(false);
+  // UI hint only: the server decides who really is an admin (ADMIN_EMAILS on the server).
+  const intakeAdminEmails = (
+    ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_ADMIN_EMAILS) ?? ''
+  )
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const isIntakeAdmin = intakeAdminEmails.includes((user?.email ?? '').toLowerCase());
   const [initialAdvertPrompt, setInitialAdvertPrompt] = useState('');
   
   const [prevTotalCoins, setPrevTotalCoins] = useState(-1);
@@ -182,6 +198,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         setShowFormDigitizer(true);
       } else if (tool === 'presentation') {
         setShowPresentationDesigner(true);
+      } else if (tool === 'proposal') {
+        setShowProposalStudio(true);
+      } else if (tool === 'business_plan') {
+        setPlanPrefill(event.detail?.prefill || undefined);
+        setShowPlanStudio(true);
       }
     };
     window.addEventListener('open_ai_tool', handleOpenAiTool);
@@ -211,6 +232,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     window.addEventListener('open_opportunity_from_notification', handleOpenOppFromNotif);
     return () => window.removeEventListener('open_opportunity_from_notification', handleOpenOppFromNotif);
   }, [onBrowseFunding]);
+
+  // Load published opportunities (Firestore + built-in fallback) on mount
+  // and refresh them whenever the admin publishes/rejects from the intake screen.
+  useEffect(() => {
+    let cancelled = false;
+    loadOpportunities().then((ops) => {
+      if (!cancelled) setAllOpportunities(ops);
+    });
+    const handleInvalidate = () => loadOpportunities(true).then((ops) => {
+      if (!cancelled) setAllOpportunities(ops);
+    });
+    window.addEventListener('stacfund_opportunities_invalidated', handleInvalidate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('stacfund_opportunities_invalidated', handleInvalidate);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -316,7 +354,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       const prompt = `
         You are a business funding expert. Analyze:
         USER PROFILE: ${profileData}
-        FUNDING: ${JSON.stringify(MOCK_FUNDING)}
+        FUNDING: ${JSON.stringify(allOpportunities.filter((o) => o.status !== 'CLOSED'))}
         Return JSON array of objects with "id", "matchReason", "score".
       `;
 
@@ -358,7 +396,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     }
   }, [activeTab]);
 
-  const handleToolClick = (tool: 'digitizer' | 'presentation' | 'logo' | 'register' | 'whatsapp') => {
+  const handleToolClick = (tool: 'digitizer' | 'presentation' | 'proposal' | 'business_plan' | 'logo' | 'register' | 'whatsapp') => {
     if (tool !== 'digitizer' && user?.subscriptionPlan === 'free') {
       onUpgrade();
       return;
@@ -366,6 +404,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     
     if (tool === 'digitizer') setShowFormDigitizer(true);
     if (tool === 'presentation') setShowPresentationDesigner(true);
+    if (tool === 'proposal') setShowProposalStudio(true);
+    if (tool === 'business_plan') { setPlanPrefill(undefined); setShowPlanStudio(true); }
     if (tool === 'logo') setShowLogoGenerator(true);
     if (tool === 'whatsapp') setShowWhatsAppIngestion(true);
   };
@@ -433,6 +473,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       )}
       {showPresentationDesigner && (
         <PresentationDesigner user={user} onClose={() => setShowPresentationDesigner(false)} />
+      )}
+      {showProposalStudio && (
+        <ProposalStudio user={user} onClose={() => setShowProposalStudio(false)} />
+      )}
+      {showPlanStudio && (
+        <BusinessPlanStudio user={user} onClose={() => setShowPlanStudio(false)} prefill={planPrefill} />
       )}
       {showLogoGenerator && (
         <AILogoGenerator user={user} onClose={() => setShowLogoGenerator(false)} />
@@ -589,7 +635,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                   <FundingAnalyticsSection
                     user={user}
                     applications={applications}
-                    opportunities={MOCK_FUNDING}
+                    opportunities={allOpportunities}
                     onBrowseFunding={() => onBrowseFunding()}
                     onOpenNeedsTracker={() => {
                       if (onNavigateToSection) onNavigateToSection('needs');
@@ -610,7 +656,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 <FundingCountdown
                   user={user}
                   applications={applications}
-                  opportunities={MOCK_FUNDING}
+                  opportunities={allOpportunities}
                   onOpenApplication={(oppId, isDraft, fallback) => {
                     onBrowseFunding(oppId, isDraft, fallback);
                   }}
@@ -631,11 +677,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 />
 
                 <FundingHeatmap onSelectOpportunity={(oppId) => onBrowseFunding(oppId)} />
-
-                {/* AI Gateway status — provider health + the user's rolling 24h usage */}
-                <div className="glass-panel p-4 sm:p-5 rounded-2xl">
-                  <AIGatewayPanel />
-                </div>
 
                 <div className="space-y-4 w-full min-w-0">
                   <div className="flex justify-between items-center">
@@ -740,7 +781,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <p className="text-xs text-gray-500 font-medium truncate">{app.provider} • Applied on {app.date}</p>
                                   {(() => {
-                                    const matchingOpp = MOCK_FUNDING.find(o => o.opportunity_id === app.opportunityId);
+                                    const matchingOpp = allOpportunities.find(o => o.opportunity_id === app.opportunityId);
                                     const cutoffDate = parseCutoffDate(app.deadline || matchingOpp?.closing_date);
                                     const countdown = cutoffDate ? getCutoffCountdown(cutoffDate) : null;
                                     if (!countdown || countdown.passed) return null;
@@ -881,6 +922,56 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     </div>
                   </div>
 
+                  {/* Business Plan Studio Card — the flagship long-form tool */}
+                  <div 
+                    onClick={() => handleToolClick('business_plan')}
+                    className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-sky-500/50 hover:bg-sky-500/5 transition-all cursor-pointer group relative overflow-hidden"
+                  >
+                    {!isPaid && (
+                       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
+                         <div className="bg-black border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
+                            <Lock size={12} /> Pro Feature
+                         </div>
+                       </div>
+                    )}
+                    <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-sky-500/20 rounded-full blur-[50px] group-hover:bg-sky-500/30 transition-all"></div>
+                    <div className="w-16 h-16 rounded-2xl bg-sky-500/10 text-sky-400 flex items-center justify-center mb-6 shadow-lg shadow-sky-500/10">
+                      <BookOpen size={32} />
+                    </div>
+                    <h4 className="text-xl font-black mb-2 group-hover:text-sky-400 transition-colors">Business Plan Studio</h4>
+                    <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                      Full 70–120 page funder-ready business plans, generated section by section to your funder's exact rules. Professional and sober — text, tables and graphs only. Edit every line, download a searchable PDF.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                       <BookOpen size={14} className="text-sky-400" /> 70–120 Pages · Text PDF
+                    </div>
+                  </div>
+
+                  {/* Proposal Studio Card */}
+                  <div 
+                    onClick={() => handleToolClick('proposal')}
+                    className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all cursor-pointer group relative overflow-hidden"
+                  >
+                    {!isPaid && (
+                       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
+                         <div className="bg-black border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
+                            <Lock size={12} /> Pro Feature
+                         </div>
+                       </div>
+                    )}
+                    <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-emerald-500/20 rounded-full blur-[50px] group-hover:bg-emerald-500/30 transition-all"></div>
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+                      <FileText size={32} />
+                    </div>
+                    <h4 className="text-xl font-black mb-2 group-hover:text-emerald-400 transition-colors">Proposal Studio</h4>
+                    <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                      Premium funding proposals in minutes. Pick a template, review the AI outline, edit every line, and download a funder-ready PDF — written to each funder's exact rules.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                       <ShieldCheck size={14} /> Funder-Ready Templates
+                    </div>
+                  </div>
+
                   {/* AI Logo Generator Card */}
                   <div 
                     onClick={() => handleToolClick('logo')}
@@ -906,31 +997,45 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     </div>
                   </div>
 
-                  {/* WhatsApp Ingestion Card */}
+                  {/* Funding intake (admin only) */}
+                  {isIntakeAdmin && (
                   <div 
                     onClick={() => handleToolClick('whatsapp')}
                     className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all cursor-pointer group relative overflow-hidden"
                   >
-                    {!isPaid && (
-                       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                         <div className="bg-black border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
-                            <Lock size={12} /> Pro Feature
-                         </div>
-                       </div>
-                    )}
                     <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-emerald-500/20 rounded-full blur-[50px] group-hover:bg-emerald-500/30 transition-all"></div>
                     <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
-                      <MessageCircle size={32} />
+                      <Upload size={32} />
                     </div>
-                    <h4 className="text-xl font-black mb-2 group-hover:text-emerald-400 transition-colors">WhatsApp Crowdsourcer</h4>
+                    <h4 className="text-xl font-black mb-2 group-hover:text-emerald-400 transition-colors">Add a Funding Opportunity</h4>
                     <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                      Extract and digitize funding posters forwarded to our verified WhatsApp bot number using Vision AI.
+                      Upload a poster, PDF or pasted text. AI reads it, you check it, then it goes live in the directory.
                     </p>
                     <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
-                       <CheckCircle size={14} className="text-emerald-400" /> Database Integration
+                       <CheckCircle size={14} className="text-emerald-400" /> Reviewed before publishing
                     </div>
                   </div>
+                  )}
                 </div>
+
+                {/* Funding alert preferences — shown to every signed-in user.
+                    Lets them opt into email / push / WhatsApp alerts for new
+                    funding matches. Server-side endpoint writes to
+                    users/{uid}/alert_prefs/main. */}
+                {user && (
+                  <div className="mt-8">
+                    <AlertPreferences user={user} />
+                  </div>
+                )}
+
+                {/* Brand Kit — logo + accent + default tagline, applied to
+                    business plans, proposals and their PDF / Word exports.
+                    Stored at users/{uid}/brand_kit/main. */}
+                {user && (
+                  <div className="mt-8">
+                    <BrandKitPanel user={user} />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -939,7 +1044,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-6 lg:space-y-8 min-w-0">
           {/* Cutoff Radar Widget */}
           {(() => {
-            const deadlines = compileUserDeadlines(applications, MOCK_FUNDING);
+            const deadlines = compileUserDeadlines(applications, allOpportunities);
             const criticalDeadlines = deadlines.filter(d => d.urgency === 'critical');
             const nextDeadline = deadlines[0];
 

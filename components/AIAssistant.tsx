@@ -150,6 +150,22 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
         parameters: { type: Type.OBJECT, properties: {} }
       },
       {
+        name: 'open_business_plan_studio',
+        description: "Open the Business Plan Studio to generate a full funder-ready business plan (70-120 pages, professional and sober). Use when the user says things like 'open my business plan', 'write my business plan', 'build a business plan for SEFA', or 'generate a business plan'. Works with voice commands.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            amount: { type: Type.STRING, description: 'The funding amount requested, e.g. "R500 000" or "500000" — only if the user mentioned one.' },
+            purpose: { type: Type.STRING, description: 'What the funding is for, if the user said (e.g. "delivery vans and working capital").' }
+          }
+        }
+      },
+      {
+        name: 'open_proposal_studio',
+        description: "Open the Proposal Studio to create a designed funding proposal document from premium templates (Canva-style). Use when the user says things like 'create a proposal', 'build my funding proposal', or 'open the proposal studio'. Works with voice commands.",
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
         name: 'open_presentation_designer',
         description: 'Open the AI Pitch Deck Designer tool to create a funding presentation.',
         parameters: { type: Type.OBJECT, properties: {} }
@@ -337,6 +353,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
           - Register a business with CIPC using 'register_business'.
           - Access user applications via 'get_applications' and 'clear_applications'.
           - Open the offline form digitizer with 'open_form_digitizer'.
+          - Open the Business Plan Studio with 'open_business_plan_studio' — a full 70-120 page funder-ready business plan. Pass amount/purpose when the user gave them.
+          - Open the Proposal Studio with 'open_proposal_studio' — a designed funding proposal from premium templates.
           - Open the AI pitch deck designer with 'open_presentation_designer'.
           - List all uploaded documents with 'list_documents'.
           - Switch Dashboard tabs using 'open_dashboard_tab' (e.g. applications, opportunities, needs, tools).
@@ -469,6 +487,16 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
             if (onNavigate) onNavigate('dashboard');
             window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'digitizer' } }));
             result = { success: true, detail: `Navigated to dashboard and opened Form Digitizer popup.` };
+          }
+          else if (fc.name === 'open_business_plan_studio') {
+            if (onNavigate) onNavigate('dashboard');
+            window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'business_plan', prefill: { amount: fc.args?.amount || undefined, purpose: fc.args?.purpose || undefined } } }));
+            result = { success: true, detail: `Opened the Business Plan Studio${fc.args?.amount ? ` prefilled with ${fc.args.amount}` : ''}. The studio shows the target length (70-120 pages) based on the funder and amount before generating.` };
+          }
+          else if (fc.name === 'open_proposal_studio') {
+            if (onNavigate) onNavigate('dashboard');
+            window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'proposal' } }));
+            result = { success: true, detail: `Opened the Proposal Studio. Templates first, then details, then the AI outline.` };
           }
           else if (fc.name === 'open_presentation_designer') {
             if (onNavigate) onNavigate('dashboard');

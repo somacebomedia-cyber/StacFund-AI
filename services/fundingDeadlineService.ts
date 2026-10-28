@@ -64,117 +64,6 @@ export function getCutoffCountdown(targetDate: Date, now: Date = new Date()) {
 }
 
 /**
- * Generates dynamic cohort cutoff dates anchored to current time to guarantee
- * realistic South African grants with deadlines within < 48 hours and upcoming cohorts.
- */
-export function getCuratedFundingDeadlines(now: Date = new Date()): FundingDeadlineItem[] {
-  // Anchor dates relative to now to provide realistic upcoming cutoff cycles
-  const nowMs = now.getTime();
-
-  // 1. Critical Deadline: SEDA Technology Transfer Grant (34 hours remaining)
-  const sedaCutoff = new Date(nowMs + 34 * 3600 * 1000);
-  // 2. Critical Deadline: DTIC Support Programme for Industrial Innovation (44 hours remaining)
-  const dticCutoff = new Date(nowMs + 44 * 3600 * 1000);
-  // 3. Imminent: IDC Green Tourism & Solar Energy Incentive (4 days remaining)
-  const idcCutoff = new Date(nowMs + 4 * 86400 * 1000 + 12 * 3600 * 1000);
-  // 4. Imminent: TIA Youth Technology Commercialization Seed (6 days remaining)
-  const tiaCutoff = new Date(nowMs + 6 * 86400 * 1000 + 18 * 3600 * 1000);
-  // 5. Upcoming: NEF Women Empowerment Equity Window (14 days remaining)
-  const nefCutoff = new Date(nowMs + 14 * 86400 * 1000);
-  // 6. Upcoming: NYDA Youth Enterprise Q4 Challenge (22 days remaining)
-  const nydaCutoff = new Date(nowMs + 22 * 86400 * 1000);
-
-  const curatedDefs = [
-    {
-      id: 'cutoff_seda_sttp_001',
-      opportunityId: 'seda_sttp_001',
-      title: 'SEDA Technology Transfer Programme (STTP)',
-      provider: 'Small Enterprise Development Agency (SEDA)',
-      logoUrl: '/assets/logos/hero/seda.png',
-      type: FundingType.GRANT,
-      amountText: 'Up to R800,000 Grant (100% Non-Repayable)',
-      cutoffDate: sedaCutoff.toISOString(),
-      requiredDocs: ['CIPC Certificate', 'Tax PIN', 'Quotations from 3 Tech Suppliers', 'Business Profile'],
-      eligibilitySummary: 'Direct grant for small enterprises to acquire specialized tech machinery, tooling, and quality certification.',
-      applicationUrl: 'https://www.seda.org.za'
-    },
-    {
-      id: 'cutoff_dtic_spii_002',
-      opportunityId: 'dtic_spii_002',
-      title: 'DTIC Support Programme for Industrial Innovation',
-      provider: 'Department of Trade, Industry and Competition',
-      logoUrl: '/assets/logos/hero/dtic.png',
-      type: FundingType.GRANT,
-      amountText: 'R250,000 – R2,000,000 (Non-dilutive)',
-      cutoffDate: dticCutoff.toISOString(),
-      requiredDocs: ['Business Plan', 'Proof of Prototype/MVP', 'Tax Clearance', 'Audited/Management Accounts'],
-      eligibilitySummary: 'Financial support for qualifying South African businesses to commercialize novel industrial & digital innovations.',
-      applicationUrl: 'http://www.thedtic.gov.za'
-    },
-    {
-      id: 'cutoff_idc_gtip_003',
-      opportunityId: 'idc_general_005',
-      title: 'IDC Green Tourism Incentive Programme (GTIP)',
-      provider: 'Industrial Development Corporation (IDC)',
-      logoUrl: '/assets/logos/hero/idc.png',
-      type: FundingType.GRANT,
-      amountText: 'Up to R1,000,000 Co-funding Grant',
-      cutoffDate: idcCutoff.toISOString(),
-      requiredDocs: ['Water/Energy Audit', 'CIPC Document', 'Bank Statements (6 Mo)', 'Quotations'],
-      eligibilitySummary: 'Grant co-funding to deploy solar PV systems, rainwater harvesting, and eco-efficiency technology.',
-      applicationUrl: 'https://www.idc.co.za'
-    },
-    {
-      id: 'cutoff_tia_seed_004',
-      opportunityId: 'tia_seed_002',
-      title: 'TIA Seed Fund Commercialization Cohort',
-      provider: 'Technology Innovation Agency (TIA)',
-      logoUrl: '/assets/logos/hero/tia.png',
-      type: FundingType.GRANT,
-      amountText: 'R50,000 – R500,000 Seed Grant',
-      cutoffDate: tiaCutoff.toISOString(),
-      requiredDocs: ['Pitch Deck', 'Technical Overview', 'Commercialization Strategy'],
-      eligibilitySummary: 'Advances early-stage IP, prototypes, and novel software solutions into bankable market ventures.',
-      applicationUrl: 'https://www.tia.org.za'
-    },
-    {
-      id: 'cutoff_nef_wef_005',
-      opportunityId: 'nef_general_004',
-      title: 'NEF Women Empowerment & Growth Facility',
-      provider: 'National Empowerment Fund (NEF)',
-      logoUrl: '/assets/logos/hero/nef.png',
-      type: FundingType.HYBRID,
-      amountText: 'R500,000 – R10,000,000 Growth Capital',
-      cutoffDate: nefCutoff.toISOString(),
-      requiredDocs: ['B-BBEE Certificate', 'Financial Model', 'Off-take Agreements', 'FICA'],
-      eligibilitySummary: 'Geared towards majority black women-owned businesses needing expansion capital and quasi-equity.',
-      applicationUrl: 'https://www.nefcorp.co.za'
-    },
-    {
-      id: 'cutoff_nyda_micro_006',
-      opportunityId: 'nyda_grant_001',
-      title: 'NYDA Youth Micro-Grant National Sprint',
-      provider: 'National Youth Development Agency (NYDA)',
-      logoUrl: '/assets/logos/hero/nyda.png',
-      type: FundingType.GRANT,
-      amountText: 'R1,000 – R200,000 Equipment Grant',
-      cutoffDate: nydaCutoff.toISOString(),
-      requiredDocs: ['Certified ID', 'Proof of Address', 'Equipment Quotation', 'Bank Confirmation'],
-      eligibilitySummary: 'Targeted support for South African youth entrepreneurs (aged 18–35) for tooling, stock, or formalization.',
-      applicationUrl: 'https://erp.nyda.gov.za/'
-    }
-  ];
-
-  return curatedDefs.map(item => {
-    const countdown = getCutoffCountdown(new Date(item.cutoffDate), now);
-    return {
-      ...item,
-      ...countdown
-    };
-  });
-}
-
-/**
  * Builds a merged list of all deadline countdown items for a user, combining:
  * 1. User's active/draft applications with deadlines or associated opportunity cutoffs.
  * 2. Curated & database funding opportunities with upcoming cutoffs.
@@ -196,15 +85,7 @@ export function compileUserDeadlines(
 
     // Match opportunity for fallback deadline if application doesn't have an explicit one
     const matchingOpp = opportunities.find(o => o.opportunity_id === app.opportunityId);
-    let targetCutoffStr = app.deadline || matchingOpp?.closing_date;
-
-    // If it's rolling or missing, check if it's in our curated list to provide a valid deadline
-    if (!targetCutoffStr || targetCutoffStr === 'Rolling' || targetCutoffStr === 'Unknown') {
-      const curated = getCuratedFundingDeadlines(now).find(c => c.opportunityId === app.opportunityId);
-      if (curated) {
-        targetCutoffStr = curated.cutoffDate;
-      }
-    }
+    const targetCutoffStr = app.deadline || matchingOpp?.closing_date;
 
     const cutoffDate = parseCutoffDate(targetCutoffStr);
     if (!cutoffDate) return;
@@ -233,23 +114,7 @@ export function compileUserDeadlines(
     });
   });
 
-  // 2. Add Curated & Opportunity Deadlines
-  const curated = getCuratedFundingDeadlines(now);
-  curated.forEach(item => {
-    if (processedOpportunityIds.has(item.opportunityId)) {
-      return; // Already represented via user's application
-    }
-    const countdown = getCutoffCountdown(new Date(item.cutoffDate), now);
-    if (!countdown.passed) {
-      result.push({
-        ...item,
-        ...countdown
-      });
-      processedOpportunityIds.add(item.opportunityId);
-    }
-  });
-
-  // 3. Add any additional database opportunities with explicit closing_date
+  // 2. Add opportunities that have a real, explicit closing_date (rolling / unknown dates are never given a countdown)
   opportunities.forEach(opp => {
     if (processedOpportunityIds.has(opp.opportunity_id)) return;
     const cutoffDate = parseCutoffDate(opp.closing_date);

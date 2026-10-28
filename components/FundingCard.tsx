@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FundingOpportunityDb, FundingType, RoadmapStep } from '../types';
 import { Heart, ChevronRight, ChevronDown, CheckCircle2, Share2, Copy, MessageCircle, X, ArrowUpRight, Info, Download, ShieldCheck, AlertTriangle, Clock, ListChecks } from 'lucide-react';
+import type { EligibilityResult } from '../services/eligibilityEngine';
 
 interface InstitutionLogoProps {
   opportunity: FundingOpportunityDb;
@@ -155,9 +156,13 @@ interface FundingCardProps {
   onStartApplication: (id: string) => void;
   onDownloadForm: (id: string) => void;
   matchScore?: number; // Optional match score
+  /** Hard-rule eligibility breakdown. When present, the card shows a green/amber/red badge and a reason list. */
+  eligibilityReport?: EligibilityResult;
+  /** Optional one-line reason from the matching engine (used when eligibilityReport is absent). */
+  matchReason?: string;
 }
 
-const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, onStartApplication, onDownloadForm, matchScore }) => {
+const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, onStartApplication, onDownloadForm, matchScore, eligibilityReport, matchReason }) => {
   const [showRoadmap, setShowRoadmap] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -207,6 +212,49 @@ const FundingCard: React.FC<FundingCardProps> = ({ opportunity, onViewDetails, o
       {matchScore !== undefined && (
         <div className="absolute top-0 right-0 px-4 py-2 bg-cyan-500 text-white font-black text-[10px] uppercase tracking-widest rounded-bl-2xl z-10">
           {matchScore}% AI Match
+        </div>
+      )}
+
+      {/* Hard-rule eligibility badge. Renders only when the page passed an
+          eligibilityReport. Green = eligible with all data; amber = eligible
+          but missing data; red = failed a hard rule (the parent should not
+          even show the card in MATCH_ME/APPLY_READY modes, but in DISCOVER
+          mode we want users to see why something won't work for them). */}
+      {eligibilityReport && (
+        <div className={`mt-2 mb-2 rounded-xl px-3 py-2 text-xs border ${
+          eligibilityReport.eligible
+            ? eligibilityReport.hasUnknowns
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+        }`}>
+          <div className="flex items-center gap-2 font-black uppercase tracking-wider text-[10px] mb-1">
+            {eligibilityReport.eligible
+              ? eligibilityReport.hasUnknowns
+                ? <><AlertTriangle size={12} /> Eligible — missing data</>
+                : <><CheckCircle2 size={12} /> Eligible</>
+              : <><X size={12} /> Not eligible</>}
+          </div>
+          {eligibilityReport.blockingReasons.length > 0 && (
+            <ul className="space-y-0.5 text-[11px] leading-snug">
+              {eligibilityReport.blockingReasons.map((r, i) => (
+                <li key={`b-${i}`}>• {r}</li>
+              ))}
+            </ul>
+          )}
+          {eligibilityReport.missingDataReasons.length > 0 && (
+            <ul className="space-y-0.5 text-[11px] leading-snug mt-1 opacity-90">
+              {eligibilityReport.missingDataReasons.map((r, i) => (
+                <li key={`u-${i}`}>• {r}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {/* Fallback one-line reason when no full report is available */}
+      {!eligibilityReport && matchReason && (
+        <div className="mt-2 mb-2 rounded-xl px-3 py-2 text-xs border bg-white/5 border-white/10 text-gray-300">
+          {matchReason}
         </div>
       )}
 

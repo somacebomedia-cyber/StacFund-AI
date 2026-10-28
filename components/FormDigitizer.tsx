@@ -5,9 +5,15 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { createGeminiClient } from '../services/geminiClient';
 import { handleGeminiError } from '../services/geminiError';
 import { User } from '../types';
+import { buildAutofillContext } from '../services/autofillContext';
+import { getOpportunityById } from '../services/opportunitiesStore';
 
 interface FormDigitizerProps {
   user: User | null;
+  /** Optional: when the digitizer is opened for a specific opportunity, the
+   * AI uses the funder's real eligibility rules, tiers and required document
+   * list to fill the scanned form. Pass undefined for the generic case. */
+  opportunityId?: string | null;
   onClose: () => void;
 }
 
@@ -19,7 +25,7 @@ interface FormField {
   confidence: number;
 }
 
-const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
+const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, opportunityId, onClose }) => {
   const [step, setStep] = useState<'upload' | 'analyzing' | 'results'>('upload');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formFields, setFormFields] = useState<FormField[]>([]);
@@ -44,8 +50,30 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
   const analyzeForm = async (base64Image: string) => {
     try {
       const ai = await createGeminiClient();
-      const profileData = localStorage.getItem(`stacfund_profile_${user?.id}`);
-      const docsData = localStorage.getItem('stacfund_documents');
+
+      // Build the autofill context if the digitizer was opened for a specific
+      // opportunity. This brings in the funder's real eligibility rules,
+      // funding tiers, required documents, and the user's profile + document
+      // vault — much more reliable than the old `localStorage` snapshot.
+      let ctxBlock = '';
+      if (user && opportunityId) {
+        const opportunity = await getOpportunityById(opportunityId);
+        if (opportunity) {
+          try {
+            const ctx = await buildAutofillContext(user.id, opportunity);
+            ctxBlock = ctx.promptBlock;
+          } catch (e) {
+            console.warn('[FormDigitizer] Could not build autofill context', e);
+          }
+        }
+      }
+
+      // Legacy fallback: read from localStorage if no opportunity context was built.
+      if (!ctxBlock) {
+        const profileData = localStorage.getItem(`stacfund_profile_${user?.id}`);
+        const docsData = localStorage.getItem('stacfund_documents');
+        ctxBlock = `USER PROFILE: ${profileData || 'No profile data'}\nAVAILABLE DOCUMENTS: ${docsData || 'No documents'}`;
+      }
       
       // Clean base64 string
       const cleanBase64 = base64Image.split(',')[1];
@@ -54,8 +82,7 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
         You are an expert administrative assistant for South African business funding.
         
         CONTEXT:
-        User Profile: ${profileData || 'No profile data'}
-        Available Documents List: ${docsData || 'No documents'}
+        ${ctxBlock}
         
         TASK:
         1. Analyze the uploaded image of a physical application form.
@@ -63,6 +90,7 @@ const FormDigitizer: React.FC<FormDigitizerProps> = ({ user, onClose }) => {
         3. Match the field with the User Profile data to provide the correct answer.
         4. If the data is missing in the profile but can be inferred (e.g. Current Date), do so.
         5. If the data is strictly missing (e.g. Tax Clearance Number not in profile), mark as "missing".
+        6. If the opportunity context above lists required documents the user does NOT have, surface those in the "missing" status when the form asks for them.
         
         OUTPUT FORMAT:
         Return a strict JSON array of objects.

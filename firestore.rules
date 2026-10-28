@@ -46,6 +46,18 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      match /plans/{planId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /proposals/{proposalId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /brand_kit/{kitId} {
+        allow read, write: if isOwner(userId);
+      }
+
       match /notifications/{notifId} {
         allow read, write: if isOwner(userId);
       }
