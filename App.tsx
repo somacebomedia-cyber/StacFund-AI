@@ -55,10 +55,15 @@ const App: React.FC = () => {
           msg.includes('quota') ||
           msg.includes('api key not valid') ||
           msg.includes('api_key_invalid') ||
-          msg.includes('invalid_argument')
+          msg.includes('invalid_argument') ||
+          msg.includes('network-request-failed')
         ) {
           event.preventDefault(); // Stop standard error reporting
-          setQuotaError(error.message || "Your prepayment credits are depleted. Please manage your project and billing in Google AI Studio.");
+          if (msg.includes('network-request-failed')) {
+            console.warn('[Firebase Auth] Handled unhandled network-request-failed rejection:', error);
+          } else {
+            setQuotaError(error.message || "Your prepayment credits are depleted. Please manage your project and billing in Google AI Studio.");
+          }
         }
       }
     };
@@ -89,7 +94,13 @@ const App: React.FC = () => {
       return;
     }
     const q = query(collection(db, 'users', currentUser.id, 'notifications'), where('isRead', '==', false));
-    const unsub = onSnapshot(q, (snap) => setUnreadCount(snap.size));
+    const unsub = onSnapshot(
+      q,
+      (snap) => setUnreadCount(snap.size),
+      (err) => {
+        console.warn("Notifications listener offline:", err.message);
+      }
+    );
     return () => unsub();
   }, [currentUser]);
 
@@ -140,8 +151,12 @@ const App: React.FC = () => {
               billingCycle: userData.billingCycle
             });
           }
-        } catch (e) {
-          console.error("Error fetching user profile:", e);
+        } catch (e: any) {
+          if (e?.message?.includes('offline') || e?.code === 'unavailable') {
+            console.warn("User profile will sync once connection is established.");
+          } else {
+            console.error("Error fetching user profile:", e);
+          }
         }
       } else {
         // User is signed out

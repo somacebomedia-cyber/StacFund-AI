@@ -6,6 +6,10 @@ import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
+
+// Force IPv4-first lookup to prevent 30-second timeouts on IPv6 in Linux containers
+dns.setDefaultResultOrder('ipv4first');
+
 import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -34,16 +38,14 @@ if (fs.existsSync(envPath)) {
 import { startScraper, runAdvancedScraper } from './services/advancedScraper';
 import { registerIntakeRoutes } from './services/intakeRoutes';
 import { getAlertPrefs } from './services/userAlerts';
-import { chromium } from 'playwright';
-import type { Browser } from 'playwright';
 
 // Initialize Firebase Admin
 let db: FirebaseFirestore.Firestore | null = null;
 let adminAuth: Auth | null = null;
+let config: any = {};
 try {
   const serviceAccountKeyStr = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-  let config: any = {};
   if (fs.existsSync(configPath)) {
     config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   }
@@ -191,8 +193,18 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
-  // SECURITY FIX: this used to call next() for ANY request that carried an `x-custom-gemini-key`
-  // header, which let anyone skip sign-in on every requireAuth route. That header only matters to the Gemini proxy.
+  // SECURITY (2026-10-20): The legacy `x-custom-gemini-key` header previously
+  // bypassed authentication entirely on this route. That allowed any client
+  // to consume the server's proxy with their own Gemini key — but it also
+  // allowed anonymous abuse of any other logic chained behind requireAuth.
+  //
+  // The header is now DISABLED by default. To re-enable the BYOK mechanism
+  // (e.g. for local development where you want to test with your own key),
+  // set STACFUND_ALLOW_CUSTOM_GEMINI_KEY=true. In production, leave it off
+  // and keep all provider credentials server-side only.
+  if (req.headers['x-custom-gemini-key'] && process.env.STACFUND_ALLOW_CUSTOM_GEMINI_KEY === 'true') {
+    return next();
+  }
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: "Unauthorized: Missing token" });
@@ -309,8 +321,7 @@ async function searchPixabay(apiKey: string, query: string, orientation: 'landsc
 async function startServer() {
   const app = express();
   app.set('trust proxy', 1);
-  // PORT env var respected (most PaaS hosts inject it); 3000 locally.
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = 3000;
 
   app.use((req, res, next) => {
     const url = req.originalUrl || req.url;
@@ -400,11 +411,60 @@ async function startServer() {
     })
   );
 
+  // Proxy Firebase Auth helper iframe & handler (/__/auth/*) to resolve cross-origin iframe
+  // restrictions in preview containers that cause auth/network-request-failed
+  app.use(
+    '/__/auth',
+    createProxyMiddleware({
+      target: `https://${config.authDomain || 'fundhubv1-fixed.firebaseapp.com'}/__/auth`,
+      changeOrigin: true,
+      secure: true,
+      on: {
+        error: (err, req: any, res: any) => {
+          console.error('[Firebase Auth Proxy Error]:', err);
+          if (!res.headersSent) {
+            res.status(502).send('Auth proxy error');
+          }
+        },
+      },
+    })
+  );
+
   // Admin intake / review-queue routes. They accept uploads larger than express.json()'s default
   // 100 kB limit, so they parse their own bodies and MUST be registered before the global parser below.
   registerIntakeRoutes(app, { db, adminAuth });
 
   app.use(express.json());
+
+  // Initialise the AI Gateway usage tracker with Firestore (for durable usage records).
+  // Falls back to in-memory only if Firestore is unavailable. The gateway itself
+  // is loaded lazily on first request, so we don't fail boot if a provider key is missing.
+  try {
+    const { initUsageTracker, gateway } = await import('./services/ai-gateway');
+    initUsageTracker(db);
+    // Eagerly init the gateway so provider init errors surface at boot, not first request.
+    gateway.getConfigs();
+    console.log('[Server] AI Gateway initialised.');
+  } catch (e) {
+    console.error('[Server] AI Gateway failed to initialise:', e);
+  }
+
+  // Mount the multi-provider AI Gateway routes under /api/ai/gateway/*.
+  // These routes require Firebase auth (via optionalAuth set earlier in the chain).
+  try {
+    const { mountGatewayRoutes } = await import('./services/ai-gateway/httpRoutes');
+    // Apply auth + CORS to the gateway routes
+    app.use('/api/ai/gateway', (req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      if (req.method === 'OPTIONS') return res.sendStatus(204);
+      next();
+    }, optionalAuth);
+    mountGatewayRoutes(app);
+  } catch (e) {
+    console.error('[Server] Failed to mount AI Gateway routes:', e);
+  }
 
   // Initialize the funding scraper (daily cron + manual trigger endpoint).
   // Runs after Firebase Admin is set up so the scraper can write to Firestore.
@@ -755,7 +815,6 @@ Include these slides:
     }
   });
 
-
   // ─── Stock Photos API (Pexels + Pixabay proxy) ────────────────────────────
   // Provides a unified endpoint for the client to search stock photos from
   // both Pexels and Pixabay in parallel. Used as a fallback (or alternative)
@@ -835,162 +894,6 @@ Include these slides:
       res.status(500).json({ error: 'Failed to search stock photos', details: error.message });
     }
   });
-
-  // ─── Business plan PDF export (text-based, Chromium print) ───────────────
-  // The client sends the fully-paginated, inline-styled page HTML as a
-  // text/plain body (express.json skips it; this route parses it with a
-  // larger limit). Chromium prints it to a real A4 text PDF — selectable,
-  // searchable, a fraction of image-PDF size. Each .pdf-page div maps to
-  // exactly one A4 page via the embedded @page CSS.
-  app.post(
-    "/api/plan/export-pdf",
-    requireAuth,
-    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '32mb' }),
-    async (req, res) => {
-      try {
-        const html = typeof req.body === 'string' ? req.body : '';
-        if (!html || html.length < 200) {
-          return res.status(400).json({ error: 'Empty document — nothing to export.' });
-        }
-        if (html.length > 30_000_000) {
-          return res.status(413).json({ error: 'Document too large to render.' });
-        }
-        const filename =
-          String(req.query.filename || 'Business_Plan.pdf')
-            .replace(/[^\w.\- ]/g, '')
-            .slice(0, 140) || 'Business_Plan.pdf';
-
-        let browser: Browser | null = null;
-        try {
-          browser = await chromium.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
-          });
-          const page = await browser.newPage();
-          await page.setContent(html, { waitUntil: 'networkidle', timeout: 90_000 });
-          // Ensure web fonts (Source Serif 4 / Inter) are fully loaded before print.
-          await page.evaluate(() => {
-            const d = document as Document & { fonts?: { ready: Promise<unknown> } };
-            return d.fonts ? d.fonts.ready.then(() => undefined) : Promise.resolve();
-          });
-          await page.emulateMedia({ media: 'print' });
-          const pdfBuffer = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            preferCSSPageSize: true,
-            margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
-          });
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-          res.setHeader('Content-Length', pdfBuffer.length);
-          return res.send(pdfBuffer);
-        } finally {
-          if (browser) await browser.close().catch(() => undefined);
-        }
-      } catch (error: any) {
-        console.error('[Plan Export] PDF rendering failed:', error?.message || error);
-        return res.status(500).json({ error: 'PDF rendering failed on the server. Try again or use the image-PDF fallback.' });
-      }
-    }
-  );
-
-  // ─── Word (.docx) exports — plan + proposal ──────────────────────────────
-  // Same transport pattern as the PDF export above: the typed document JSON
-  // arrives as a text/plain body (bypasses the global express.json 100kb
-  // limit; this route parses it with an explicit larger limit), and the
-  // server builds a real, fully editable .docx with the `docx` package.
-  // requireAuth prevents anonymous build-quota burn.
-  const sanitizeDocxBrand = (raw: any): {
-    businessName?: string;
-    tagline?: string;
-    logoDataUrl?: string;
-    logoWidth?: number;
-    logoHeight?: number;
-    accentColor?: string;
-  } | undefined => {
-    if (!raw || typeof raw !== 'object') return undefined;
-    const logo = String(raw.logoDataUrl || '');
-    const safeLogo =
-      /^data:image\/(png|jpe?g);base64,/i.test(logo) && logo.length < 600_000 ? logo : undefined;
-    const accent = /^#?[0-9a-fA-F]{6}$/.test(String(raw.accentColor || '').trim())
-      ? String(raw.accentColor).trim()
-      : undefined;
-    return {
-      businessName: raw.businessName ? String(raw.businessName).slice(0, 120) : undefined,
-      tagline: raw.tagline ? String(raw.tagline).slice(0, 200) : undefined,
-      logoDataUrl: safeLogo,
-      logoWidth: Number(raw.logoWidth) || undefined,
-      logoHeight: Number(raw.logoHeight) || undefined,
-      accentColor: accent,
-    };
-  };
-
-  app.post(
-    "/api/plan/export-docx",
-    requireAuth,
-    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '12mb' }),
-    async (req, res) => {
-      try {
-        let payload: any;
-        try {
-          payload = JSON.parse(typeof req.body === 'string' ? req.body : '{}');
-        } catch {
-          return res.status(400).json({ error: 'Malformed request body.' });
-        }
-        const plan = payload?.plan;
-        if (!plan || !Array.isArray(plan.chapters) || !plan.chapters.length) {
-          return res.status(400).json({ error: 'No business plan document supplied.' });
-        }
-        if (JSON.stringify(plan).length > 10_000_000) {
-          return res.status(413).json({ error: 'Plan too large to convert.' });
-        }
-        const filename =
-          String(req.query.filename || 'Business_Plan.docx').replace(/[^\w.\- ]/g, '').slice(0, 140) ||
-          'Business_Plan.docx';
-        const { planDocxBuffer } = await import('./services/docx/planDocx');
-        const buffer = await planDocxBuffer(plan, sanitizeDocxBrand(payload?.brand));
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Length', buffer.length);
-        return res.send(buffer);
-      } catch (error: any) {
-        console.error('[Plan Export] DOCX build failed:', error?.message || error);
-        return res.status(500).json({ error: 'Word export failed on the server. Please try again.' });
-      }
-    }
-  );
-
-  app.post(
-    "/api/proposal/export-docx",
-    requireAuth,
-    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '6mb' }),
-    async (req, res) => {
-      try {
-        let payload: any;
-        try {
-          payload = JSON.parse(typeof req.body === 'string' ? req.body : '{}');
-        } catch {
-          return res.status(400).json({ error: 'Malformed request body.' });
-        }
-        const proposal = payload?.proposal;
-        if (!proposal || !Array.isArray(proposal.sections)) {
-          return res.status(400).json({ error: 'No proposal document supplied.' });
-        }
-        const filename =
-          String(req.query.filename || 'Funding_Proposal.docx').replace(/[^\w.\- ]/g, '').slice(0, 140) ||
-          'Funding_Proposal.docx';
-        const { proposalDocxBuffer } = await import('./services/docx/proposalDocx');
-        const buffer = await proposalDocxBuffer(proposal, sanitizeDocxBrand(payload?.brand));
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Length', buffer.length);
-        return res.send(buffer);
-      } catch (error: any) {
-        console.error('[Proposal Export] DOCX build failed:', error?.message || error);
-        return res.status(500).json({ error: 'Word export failed on the server. Please try again.' });
-      }
-    }
-  );
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

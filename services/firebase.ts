@@ -1,17 +1,39 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
+// In browser environments inside iframes, using window.location.host as authDomain
+// combined with the /__/auth server proxy eliminates cross-origin iframe storage blocks
+// that cause FirebaseError: auth/network-request-failed
+const effectiveAuthDomain =
+  typeof window !== 'undefined' && window.location?.host
+    ? window.location.host
+    : firebaseConfig.authDomain;
+
+const clientConfig = {
+  ...firebaseConfig,
+  authDomain: effectiveAuthDomain,
+};
+
 // Initialize Firebase using a singleton pattern
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const app = getApps().length > 0 ? getApp() : initializeApp(clientConfig);
 
 const auth = getAuth(app);
-const db = initializeFirestore(app, { 
-  experimentalForceLongPolling: true,
-  useFetchStreams: false
-} as any, firebaseConfig.firestoreDatabaseId);
+const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Validate connection to Firestore on initial boot
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("Please check your Firebase configuration or network connection.");
+    }
+  }
+}
+testConnection();
 
 export enum OperationType {
   CREATE = 'create',

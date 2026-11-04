@@ -137,6 +137,21 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       }
     } catch (err: any) {
       console.error(err);
+      if (err.code === 'auth/network-request-failed' || err.message?.includes('network-request-failed')) {
+        console.warn('Network issue during online demo creation, activating offline demo founder profile.');
+        const mockUser: User = {
+          id: 'demo-user-preview',
+          email: 'demo.founder@stacfund.test',
+          businessName: 'NeoTech Industries (Demo)',
+          isVerified: true,
+          subscriptionPlan: 'pro',
+          billingCycle: 'yearly',
+          onboardingComplete: true
+        };
+        onAuthSuccess(mockUser);
+        setIsLoading(false);
+        return;
+      }
       setError("Demo setup failed: " + err.message);
       setIsLoading(false);
     }
@@ -166,6 +181,8 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       console.error(err);
       if (err.code === 'auth/invalid-credential') {
          setError('Invalid email or password.');
+      } else if (err.code === 'auth/network-request-failed' || err.message?.includes('network-request-failed')) {
+         setError('Network request failed. Please check your connection or use Quick Demo.');
       } else {
          setError('Login failed: ' + err.message);
       }
@@ -259,6 +276,8 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       console.error(err);
       if (err.code === 'auth/popup-closed-by-user' || err.message?.includes('popup-closed-by-user')) {
         setError('Sign-in cancelled. The Google login window was closed before completion. Please try again.');
+      } else if (err.code === 'auth/network-request-failed' || err.message?.includes('network-request-failed')) {
+        setError('Google popup sign-in timed out or was blocked by browser cross-site tracking restrictions. Please sign in with email/password or use Quick Demo.');
       } else {
         setError('Google Sign-In failed: ' + err.message);
       }
@@ -358,6 +377,8 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onBack }) => {
       console.error(err);
       if (err.code === 'auth/email-already-in-use') {
         setError('Email already in use. Please log in.');
+      } else if (err.code === 'auth/network-request-failed' || err.message?.includes('network-request-failed')) {
+        setError('Network request failed. Please check your connection or use Quick Demo.');
       } else {
         setError('Signup failed: ' + err.message);
       }

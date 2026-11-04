@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Building2, Trash2, MessageCircle, BookOpen } from 'lucide-react';
+import { CheckCircle, Upload, Star, Trophy, FileText, Zap, Plus, Search, Clock, AlertCircle, Sparkles, Loader2, Target, ChevronRight, Info, WifiOff, AlertTriangle, XCircle, ShieldCheck, FolderOpen, ScanLine, Smartphone, Presentation, Lock, Wand2, Building, Trash2, MessageCircle } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createGeminiClient } from '../services/geminiClient';
 import { motion } from 'motion/react';
@@ -16,7 +16,6 @@ import { User, Application, ApplicationStatus, FundingType, AppDocument, Funding
 import FormDigitizer from '../components/FormDigitizer';
 import PresentationDesigner from '../components/PresentationDesigner';
 import ProposalStudio from '../components/proposal/ProposalStudio';
-import BusinessPlanStudio, { type PlanPrefill } from '../components/businessPlan/BusinessPlanStudio';
 import AILogoGenerator from '../components/AILogoGenerator';
 import AdvertGenerator from '../components/AdvertGenerator';
 import FundingNeedsTracker from '../components/FundingNeedsTracker';
@@ -27,10 +26,8 @@ import FundingHeatmap from '../components/FundingHeatmap';
 import AIFundingInsights from '../components/AIFundingInsights';
 import FundingCountdown from '../components/FundingCountdown';
 import FundingAnalyticsSection from '../components/FundingAnalyticsSection';
-import PremierFundingGuideModal from '../components/PremierFundingGuideModal';
 import ApplicationFunnelChart from '../components/ApplicationFunnelChart';
 import AlertPreferences from '../components/AlertPreferences';
-import BrandKitPanel from '../components/BrandKitPanel';
 import { compileUserDeadlines, getCutoffCountdown, parseCutoffDate } from '../services/fundingDeadlineService';
 
 const XPCoin: React.FC<{ styleClass: string; index: number }> = ({ styleClass, index }) => (
@@ -141,12 +138,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
   const [showFormDigitizer, setShowFormDigitizer] = useState(false);
   const [showPresentationDesigner, setShowPresentationDesigner] = useState(false);
   const [showProposalStudio, setShowProposalStudio] = useState(false);
-  const [showPlanStudio, setShowPlanStudio] = useState(false);
-  const [planPrefill, setPlanPrefill] = useState<PlanPrefill | undefined>(undefined);
   const [showLogoGenerator, setShowLogoGenerator] = useState(false);
   const [showAdvertGenerator, setShowAdvertGenerator] = useState(false);
   const [showWhatsAppIngestion, setShowWhatsAppIngestion] = useState(false);
-  const [showOtpGuide, setShowOtpGuide] = useState(false);
   // UI hint only: the server decides who really is an admin (ADMIN_EMAILS on the server).
   const intakeAdminEmails = (
     ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_ADMIN_EMAILS) ?? ''
@@ -200,9 +194,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
         setShowPresentationDesigner(true);
       } else if (tool === 'proposal') {
         setShowProposalStudio(true);
-      } else if (tool === 'business_plan') {
-        setPlanPrefill(event.detail?.prefill || undefined);
-        setShowPlanStudio(true);
       }
     };
     window.addEventListener('open_ai_tool', handleOpenAiTool);
@@ -282,8 +273,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     calculateReadiness(JSON.stringify(combinedProfile), docSnapshot.size);
                 }
             }
-        } catch (e) {
-            handleFirestoreError(e, OperationType.GET, `users/${user.id}`);
+        } catch (e: any) {
+            if (e?.message?.includes('offline') || e?.code === 'unavailable') {
+              console.warn('Dashboard data fetch offline, will sync once connected.');
+            } else {
+              handleFirestoreError(e, OperationType.GET, `users/${user.id}`);
+            }
         }
     };
 
@@ -354,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       const prompt = `
         You are a business funding expert. Analyze:
         USER PROFILE: ${profileData}
-        FUNDING: ${JSON.stringify(allOpportunities.filter((o) => o.status !== 'CLOSED'))}
+        FUNDING: ${JSON.stringify(allOpportunities)}
         Return JSON array of objects with "id", "matchReason", "score".
       `;
 
@@ -396,7 +391,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     }
   }, [activeTab]);
 
-  const handleToolClick = (tool: 'digitizer' | 'presentation' | 'proposal' | 'business_plan' | 'logo' | 'register' | 'whatsapp') => {
+  const handleToolClick = (tool: 'digitizer' | 'presentation' | 'proposal' | 'logo' | 'register' | 'whatsapp') => {
     if (tool !== 'digitizer' && user?.subscriptionPlan === 'free') {
       onUpgrade();
       return;
@@ -405,7 +400,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
     if (tool === 'digitizer') setShowFormDigitizer(true);
     if (tool === 'presentation') setShowPresentationDesigner(true);
     if (tool === 'proposal') setShowProposalStudio(true);
-    if (tool === 'business_plan') { setPlanPrefill(undefined); setShowPlanStudio(true); }
     if (tool === 'logo') setShowLogoGenerator(true);
     if (tool === 'whatsapp') setShowWhatsAppIngestion(true);
   };
@@ -476,9 +470,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
       )}
       {showProposalStudio && (
         <ProposalStudio user={user} onClose={() => setShowProposalStudio(false)} />
-      )}
-      {showPlanStudio && (
-        <BusinessPlanStudio user={user} onClose={() => setShowPlanStudio(false)} prefill={planPrefill} />
       )}
       {showLogoGenerator && (
         <AILogoGenerator user={user} onClose={() => setShowLogoGenerator(false)} />
@@ -589,45 +580,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform shrink-0"><Search size={20} className="md:w-6 md:h-6" /></div>
                     <div className="min-w-0"><h4 className="font-bold text-sm md:text-base leading-tight md:leading-normal truncate">Browse Funding</h4><p className="text-[10px] md:text-xs text-emerald-400/80 font-bold tracking-wider mt-1 md:mt-0 truncate">Find perfect match</p></div>
                   </button>
-                </div>
-
-                {/* Office of the Premier (OTP) Spotlight Banner */}
-                <div className="glass-panel p-5 sm:p-6 rounded-2xl relative overflow-hidden group border border-cyan-500/20 bg-gradient-to-r from-cyan-950/30 via-slate-900/60 to-indigo-950/30">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-                    <div className="space-y-1.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-2 text-xs font-bold text-cyan-400 uppercase tracking-widest">
-                        <Building2 size={15} />
-                        <span>Provincial Government Spotlight</span>
-                        <span>·</span>
-                        <span className="text-emerald-400">R1k – R2M Grants</span>
-                      </div>
-                      <h4 className="text-base sm:text-lg font-black text-white">
-                        Office of the Premier (OTP) Youth Development Funds
-                      </h4>
-                      <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-                        Non-repayable equipment and capital assets for 100% youth-owned businesses (KZN KZNYEF, Eastern Cape Isiqalo, Mpumalanga PYDF & Gauteng Moswa Kgwebong).
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
-                      <button
-                        type="button"
-                        onClick={() => setShowOtpGuide(true)}
-                        className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-xs transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
-                      >
-                        <ShieldCheck size={15} />
-                        <span>Audit OTP Readiness</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onBrowseFunding('kznotp_yef_001')}
-                        className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white font-semibold text-xs transition-colors border border-white/10 flex items-center justify-center gap-1.5"
-                      >
-                        <span>View Funds</span>
-                        <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Funding Analytics & Application Stage Funnel (Recharts) */}
@@ -922,31 +874,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                     </div>
                   </div>
 
-                  {/* Business Plan Studio Card — the flagship long-form tool */}
-                  <div 
-                    onClick={() => handleToolClick('business_plan')}
-                    className="glass-panel p-8 rounded-[2rem] border border-white/10 hover:border-sky-500/50 hover:bg-sky-500/5 transition-all cursor-pointer group relative overflow-hidden"
-                  >
-                    {!isPaid && (
-                       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                         <div className="bg-black border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
-                            <Lock size={12} /> Pro Feature
-                         </div>
-                       </div>
-                    )}
-                    <div className="absolute top-[-20%] right-[-20%] w-32 h-32 bg-sky-500/20 rounded-full blur-[50px] group-hover:bg-sky-500/30 transition-all"></div>
-                    <div className="w-16 h-16 rounded-2xl bg-sky-500/10 text-sky-400 flex items-center justify-center mb-6 shadow-lg shadow-sky-500/10">
-                      <BookOpen size={32} />
-                    </div>
-                    <h4 className="text-xl font-black mb-2 group-hover:text-sky-400 transition-colors">Business Plan Studio</h4>
-                    <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                      Full 70–120 page funder-ready business plans, generated section by section to your funder's exact rules. Professional and sober — text, tables and graphs only. Edit every line, download a searchable PDF.
-                    </p>
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
-                       <BookOpen size={14} className="text-sky-400" /> 70–120 Pages · Text PDF
-                    </div>
-                  </div>
-
                   {/* Proposal Studio Card */}
                   <div 
                     onClick={() => handleToolClick('proposal')}
@@ -1025,15 +952,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
                 {user && (
                   <div className="mt-8">
                     <AlertPreferences user={user} />
-                  </div>
-                )}
-
-                {/* Brand Kit — logo + accent + default tagline, applied to
-                    business plans, proposals and their PDF / Word exports.
-                    Stored at users/{uid}/brand_kit/main. */}
-                {user && (
-                  <div className="mt-8">
-                    <BrandKitPanel user={user} />
                   </div>
                 )}
               </div>
@@ -1231,20 +1149,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onCompleteProfile, onBrowseFundin
           onClose={() => setSelectedApplicationForTracker(null)} 
         />
       )}
-
-      {/* Office of the Premier Guide Modal */}
-      <PremierFundingGuideModal
-        isOpen={showOtpGuide}
-        onClose={() => setShowOtpGuide(false)}
-        onFilterPremierFunds={() => {
-          setShowOtpGuide(false);
-          onBrowseFunding('kznotp_yef_001');
-        }}
-        onSelectOpportunity={(oppId) => {
-          setShowOtpGuide(false);
-          onBrowseFunding(oppId);
-        }}
-      />
     </div>
   );
 };

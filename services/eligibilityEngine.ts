@@ -90,19 +90,12 @@ function normaliseProvince(s: string | null | undefined): string | null {
 }
 
 function sectorMatches(profileIndustry: string, excluded: string): boolean {
-  const a = (profileIndustry || '').trim().toLowerCase();
-  const b = (excluded || '').trim().toLowerCase();
+  const a = profileIndustry.trim().toLowerCase();
+  const b = excluded.trim().toLowerCase();
   if (!a || !b) return false;
   if (a === b) return true;
   // Substring both ways: "Construction & Engineering" vs "Construction"
-  if (a.includes(b) || b.includes(a)) return true;
-  // Token overlap, so "Minibus taxi operator" matches "Minibus, coach or app
-  // taxis" (the official exclusion wording) even though neither contains the
-  // other. Short glue words are ignored so "and"/"services" never match alone.
-  const stop = new Set(['and', 'or', 'the', 'of', 'for', 'with', 'a', 'an', 'in', 'as', 'to', 'any', 'other', 'related', 'business', 'businesses', 'sales', 'standalone', 'services', 'activities', 'forms', 'form']);
-  const tokens = (s: string): string[] => s.split(/[^a-z0-9]+/).filter((t) => t.length >= 4 && !stop.has(t));
-  const tb = tokens(b);
-  return tokens(a).some((t) => tb.includes(t));
+  return a.includes(b) || b.includes(a);
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -189,30 +182,12 @@ export function evaluateEligibility(
 
   // 3. Legal form
   if (opp.legal_form_required.length > 0 && !opp.legal_form_required.includes('Any')) {
-    // Profiles store either readable names ("Private Company", the ProfileForm
-    // default) or codes ("PTY_LTD" from older synths) or "Not specified"
-    // (OnboardingWizard). Codes map to the readable names records use;
-    // "Not specified" stays unknown instead of hard-failing.
-    const rawEntity = (profile.entity_type || '').trim();
-    const entityAliases: Record<string, string> = {
-      pty_ltd: 'Private Company',
-      pty: 'Private Company',
-      cc: 'Close Corporation',
-      'close corp': 'Close Corporation',
-      sole_proprietor: 'Sole Proprietor',
-      sole_trader: 'Sole Proprietor',
-      coop: 'Cooperative',
-      cooperative: 'Cooperative',
-      trust: 'Trust',
-      partnership: 'Partnership',
-    };
-    const b = (entityAliases[rawEntity.toLowerCase()] ?? rawEntity).toLowerCase();
-    const known = b !== '' && !/^(not specified|unknown|n\/a|none|other)$/.test(b);
-    const hasForm = known && opp.legal_form_required.some((f) => {
+    const hasForm = opp.legal_form_required.some((f) => {
       const a = f.trim().toLowerCase();
-      return a && (a === b || a.includes(b) || b.includes(a));
+      const b = (profile.entity_type || '').trim().toLowerCase();
+      return a && b && (a === b || a.includes(b) || b.includes(a));
     });
-    if (!known) {
+    if (!profile.entity_type) {
       rules.push({
         id: 'legal_form',
         label: 'Legal form',

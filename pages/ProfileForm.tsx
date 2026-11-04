@@ -159,8 +159,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onBack, user, onUpgrade, onCa
           const docsSnap = await getDocs(docsRef);
           const fetchedDocs = docsSnap.docs.map(d => ({ id: d.id, ...d.data() } as AppDocument));
           setDocuments(fetchedDocs);
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `users/${user.id}`);
+        } catch (error: any) {
+          if (error?.message?.includes('offline') || error?.code === 'unavailable') {
+            console.warn('Profile data fetch offline, will sync once connected.');
+          } else {
+            handleFirestoreError(error, OperationType.GET, `users/${user.id}`);
+          }
         }
     };
 

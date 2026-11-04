@@ -61,6 +61,14 @@ service cloud.firestore {
       match /notifications/{notifId} {
         allow read, write: if isOwner(userId);
       }
+
+      match /alert_prefs/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /device_tokens/{tokenId} {
+        allow read, write: if isOwner(userId);
+      }
     }
   }
 }

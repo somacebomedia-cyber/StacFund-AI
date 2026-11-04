@@ -57,8 +57,12 @@ export const FundingAnalyticsSection: React.FC<FundingAnalyticsSectionProps> = (
           sum += val;
         });
         setNeedsTotal(sum);
-      } catch (err) {
-        console.error('Error loading funding goal data:', err);
+      } catch (err: any) {
+        if (err?.message?.includes('offline') || err?.code === 'unavailable') {
+          console.warn('Funding goal data will sync once connected:', err.message);
+        } else {
+          console.error('Error loading funding goal data:', err);
+        }
       }
     };
 

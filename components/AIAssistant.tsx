@@ -493,7 +493,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
             window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'business_plan', prefill: { amount: fc.args?.amount || undefined, purpose: fc.args?.purpose || undefined } } }));
             result = { success: true, detail: `Opened the Business Plan Studio${fc.args?.amount ? ` prefilled with ${fc.args.amount}` : ''}. The studio shows the target length (70-120 pages) based on the funder and amount before generating.` };
           }
-          else if (fc.name === 'open_proposal_studio') {
+          else if (fc.name === 'open_proposal_studio' || fc.name === 'open_funding_proposal') {
             if (onNavigate) onNavigate('dashboard');
             window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: 'proposal' } }));
             result = { success: true, detail: `Opened the Proposal Studio. Templates first, then details, then the AI outline.` };

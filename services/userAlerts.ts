@@ -88,8 +88,12 @@ async function sendEmail(to: string, subject: string, body: string): Promise<boo
   if (!host || !port || !user || !pass || !from) return false;
   try {
     // Lazy-import nodemailer so the build doesn't need it when SMTP isn't used.
-    const nodemailer = await import('nodemailer');
-    const transporter = nodemailer.createTransport({
+    const nodemailerModule: any = await (import('nodemailer' as any) as Promise<any>).catch(() => null);
+    if (!nodemailerModule) {
+      console.warn('[Alerts] nodemailer package not available; skipping email send.');
+      return false;
+    }
+    const transporter = (nodemailerModule.default || nodemailerModule).createTransport({
       host,
       port: Number(port),
       secure: Number(port) === 465,
@@ -104,16 +108,19 @@ async function sendEmail(to: string, subject: string, body: string): Promise<boo
 }
 
 async function sendWhatsApp(to: string, body: string): Promise<boolean> {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  // Can be standard Auth Token or API Key Secret
+  const secret = process.env.TWILIO_AUTH_TOKEN || process.env.TWILIO_API_KEY_SECRET;
+  // If API key SID (starts with SK) is provided, use it as the HTTP Basic Auth username
+  const authUser = process.env.TWILIO_API_KEY_SID || accountSid;
   const from = process.env.TWILIO_WHATSAPP_FROM; // e.g. "whatsapp:+14155238886"
-  if (!sid || !token || !from) return false;
+  if (!accountSid || !secret || !authUser || !from) return false;
   if (!to.startsWith('whatsapp:')) to = `whatsapp:${to.replace(/[^\d+]/g, '')}`;
   try {
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
       method: 'POST',
       headers: {
-        Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
+        Authorization: 'Basic ' + Buffer.from(`${authUser}:${secret}`).toString('base64'),
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({ From: from, To: to, Body: body.slice(0, 1500) }),

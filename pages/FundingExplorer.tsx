@@ -1,26 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck, Server, Mic, AlertCircle, Building2 } from 'lucide-react';
+import { Search, Globe, DollarSign, Users, Clock, CheckCircle2, Sparkles, Loader2, ExternalLink, ArrowRight, X, Calendar, Info, RefreshCw, Database, Lock, Briefcase, Bell, Target, FileCheck, ShieldCheck, Server, Mic, AlertCircle } from 'lucide-react';
 import { collection, addDoc, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../services/firebase';
 import { loadOpportunities } from '../services/opportunitiesStore';
 import { FundingType, User, ApplicationStatus, FundingOpportunityDb, UserBusinessProfile } from '../types';
 import FundingCard from '../components/FundingCard';
 import ApplicationWorkflow from '../components/ApplicationWorkflow';
-import PremierFundingGuideModal from '../components/PremierFundingGuideModal';
-import { describeClosing } from '../services/opportunityStatus';
-import { findFormTemplate } from '../services/formTemplates';
-import { findPortalTemplate } from '../services/portalFormTemplates';
-import type { FormTemplate, PortalFormTemplate } from '../services/formModel';
 import { calculateMatch, getMatchMeOpportunities, getApplyReadyOpportunities } from '../services/matchingEngine';
 import { evaluateEligibility } from '../services/eligibilityEngine';
 import { useSpeechRecognition } from '../utils/useSpeechRecognition';
-
-/** Returns the PDF template if one matches, otherwise the portal template, otherwise null. */
-const autofillTemplateFor = (opp: Parameters<typeof findFormTemplate>[0]): FormTemplate | PortalFormTemplate | null =>
-  findFormTemplate(opp) ?? findPortalTemplate(opp);
-
-// The PDF filler (pdf-lib, ~214 KB) is only downloaded when someone opens the wizard.
-const FormAutofillWizard = React.lazy(() => import('../components/FormAutofillWizard'));
 
 interface FundingExplorerProps {
   user: User | null;
@@ -41,9 +29,6 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   const [showToast, setShowToast] = useState<{show: boolean, message: string, type: 'success' | 'info' | 'error'}>({ show: false, message: '', type: 'success' });
   const [selectedOpp, setSelectedOpp] = useState<FundingOpportunityDb | null>(null);
   const [workflowOpp, setWorkflowOpp] = useState<FundingOpportunityDb | null>(null);
-  const [autofillOpp, setAutofillOpp] = useState<FundingOpportunityDb | null>(null);
-  const [showOtpGuide, setShowOtpGuide] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'OTP' | 'GRANT' | 'LOAN' | 'EQUITY'>('ALL');
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
   
   // The Encyclopedia State
@@ -216,39 +201,17 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
   const displayOpportunities = useMemo(() => {
      const q = searchQuery.trim().toLowerCase();
      const filtered = opportunities.filter(item => {
-        // Category / Issuer filter
-        if (categoryFilter === 'OTP') {
-           const isOtp = (item.issuer_type || '').toLowerCase().includes('otp') ||
-                         (item.programme_name || '').toLowerCase().includes('premier') ||
-                         (item.issuer_name || '').toLowerCase().includes('premier');
-           if (!isOtp) return false;
-        } else if (categoryFilter === 'GRANT') {
-           if (item.funding_type !== FundingType.GRANT && item.funding_type !== 'GRANT') return false;
-        } else if (categoryFilter === 'LOAN') {
-           if (item.funding_type !== FundingType.LOAN && item.funding_type !== 'LOAN') return false;
-        } else if (categoryFilter === 'EQUITY') {
-           const isEquityOrHybrid = item.funding_type === FundingType.EQUITY || 
-                                   item.funding_type === 'EQUITY' || 
-                                   item.funding_type === FundingType.HYBRID || 
-                                   item.funding_type === 'HYBRID';
-           if (!isEquityOrHybrid) return false;
-        }
-
         if (!q) return true;
         const progName = (item.programme_name || '').toLowerCase();
         const eligSumm = (item.eligibility_summary || '').toLowerCase();
         const issuerName = (item.issuer_name || '').toLowerCase();
         const fundingType = (item.funding_type || '').toLowerCase();
-        const issuerType = (item.issuer_type || '').toLowerCase();
-        const geoScope = (item.geo_scope || '').toLowerCase();
         const sectorMatch = (item.sector_tags || []).some(t => t.toLowerCase().includes(q));
         
         return progName.includes(q) || 
                eligSumm.includes(q) || 
                issuerName.includes(q) || 
                fundingType.includes(q) || 
-               issuerType.includes(q) || 
-               geoScope.includes(q) || 
                sectorMatch;
      });
 
@@ -276,7 +239,7 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
         }
      }
      return [];
-  }, [opportunities, searchQuery, mode, categoryFilter, userProfile]);
+  }, [opportunities, searchQuery, mode, userProfile]);
 
   const handleStartApplication = React.useCallback(async (opportunityId: string) => {
     if (!user) {
@@ -430,14 +393,6 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                    <span className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
                      <Server size={14} className="text-emerald-400" /> Centrally Maintained
                    </span>
-                   <button 
-                     type="button"
-                     onClick={() => setShowOtpGuide(true)}
-                     className="flex items-center gap-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 px-3 py-1.5 rounded-lg border border-cyan-500/30 transition-all font-bold"
-                   >
-                     <Building2 size={14} className="text-cyan-400" />
-                     <span>Office of the Premier (OTP) Guide</span>
-                   </button>
                  </div>
                </div>
              </div>
@@ -557,77 +512,6 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
             </div>
           )}
         </div>
-      </div>
-
-      {/* Category and Provincial Fast-Filters */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-white/[0.03] rounded-xl border border-white/5">
-          <button
-            type="button"
-            onClick={() => setCategoryFilter('ALL')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
-              categoryFilter === 'ALL'
-                ? 'bg-cyan-500 text-white shadow-sm'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            All Categories
-          </button>
-          <button
-            type="button"
-            onClick={() => setCategoryFilter('OTP')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-              categoryFilter === 'OTP'
-                ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-md'
-                : 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10'
-            }`}
-          >
-            <Building2 size={13} />
-            <span>Office of the Premier (OTP)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCategoryFilter('GRANT')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
-              categoryFilter === 'GRANT'
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            Grants
-          </button>
-          <button
-            type="button"
-            onClick={() => setCategoryFilter('LOAN')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
-              categoryFilter === 'LOAN'
-                ? 'bg-blue-500 text-white shadow-sm'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            Loans
-          </button>
-          <button
-            type="button"
-            onClick={() => setCategoryFilter('EQUITY')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
-              categoryFilter === 'EQUITY'
-                ? 'bg-purple-500 text-white shadow-sm'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            Equity / Blended
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowOtpGuide(true)}
-          className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-colors"
-        >
-          <Building2 size={13} />
-          <span>OTP Guide & Readiness Auditor</span>
-        </button>
       </div>
 
       {/* Results Grid */}
@@ -751,93 +635,9 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
                    <p className="text-2xl font-black text-white">R{selectedOpp.amount_min.toLocaleString()} - R{selectedOpp.amount_max.toLocaleString()}</p>
                  </div>
                )}
-
-               {selectedOpp.closing_date && (
-                 <div className="bg-white/5 p-6 rounded-2xl">
-                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">Closing date</h4>
-                   <p className="text-xl font-black text-white">{describeClosing(selectedOpp.closing_date)}</p>
-                   {selectedOpp.opening_date && <p className="text-sm text-gray-400 mt-1">Opened {describeClosing(selectedOpp.opening_date).replace(/ \(.*\)$/, '')}</p>}
-                 </div>
-               )}
-
-               {selectedOpp.thresholds && selectedOpp.thresholds.length > 0 && (
-                 <div className="bg-white/5 p-6 rounded-2xl">
-                   <h4 className="text-sm font-bold text-gray-500 mb-3 uppercase">Funding tiers</h4>
-                   <ul className="space-y-3 text-sm text-gray-300">
-                     {selectedOpp.thresholds.map((t) => (
-                       <li key={t.name}>
-                         <p className="font-bold text-white">{t.name}</p>
-                         <p>
-                           {t.amount_min != null && t.amount_max != null ? `R${t.amount_min.toLocaleString()} to R${t.amount_max.toLocaleString()}` : 'Amount not stated'}
-                           {t.min_jobs != null ? `, at least ${t.min_jobs} jobs to be created` : ''}
-                         </p>
-                       </li>
-                     ))}
-                   </ul>
-                 </div>
-               )}
-
-               {(selectedOpp.how_to_apply || selectedOpp.application_channel) && (
-                 <div className="bg-white/5 p-6 rounded-2xl">
-                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">How to apply</h4>
-                   {selectedOpp.how_to_apply && <p className="text-gray-300">{selectedOpp.how_to_apply}</p>}
-                   {selectedOpp.emailed_applications_accepted === false && <p className="mt-2 text-sm font-bold text-amber-300">Emailed applications are not accepted.</p>}
-                 </div>
-               )}
-
-               {selectedOpp.required_documents && selectedOpp.required_documents.length > 0 && (
-                 <div className="bg-white/5 p-6 rounded-2xl">
-                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">Documents you need</h4>
-                   <ul className="list-disc space-y-1 pl-5 text-sm text-gray-300">
-                     {selectedOpp.required_documents.map((d) => <li key={d}>{d}</li>)}
-                   </ul>
-                 </div>
-               )}
-
-               {selectedOpp.eligibility_rules && selectedOpp.eligibility_rules.sectors_excluded.length > 0 && (
-                 <div className="bg-white/5 p-6 rounded-2xl">
-                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">Not funded</h4>
-                   <ul className="list-disc space-y-1 pl-5 text-sm text-gray-300">
-                     {selectedOpp.eligibility_rules.sectors_excluded.map((x) => <li key={x}>{x}</li>)}
-                   </ul>
-                 </div>
-               )}
-
-               {(selectedOpp.contact_email || selectedOpp.contact_phone || selectedOpp.last_verified_at) && (
-                 <div className="bg-white/5 p-6 rounded-2xl text-sm text-gray-300">
-                   <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase">Contact and checking</h4>
-                   {selectedOpp.contact_email && <p>{selectedOpp.contact_email}</p>}
-                   {selectedOpp.contact_phone && <p>{selectedOpp.contact_phone}</p>}
-                   {selectedOpp.review_status === 'published' && selectedOpp.last_verified_at && (
-                     <p className="mt-2 text-xs text-gray-500">
-                       Checked by a person on {new Date(selectedOpp.last_verified_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}
-                       {selectedOpp.official_status ? ' against the funder’s official channel.' : '.'}
-                     </p>
-                   )}
-                 </div>
-               )}
             </div>
 
-            <div className="mt-8 flex flex-col sm:flex-row gap-4">
-              {autofillTemplateFor(selectedOpp) && (
-                <button
-                  onClick={() => {
-                    if (!user) {
-                      onLogin();
-                      return;
-                    }
-                    // Filling official funder forms is a Pro capability.
-                    if (user.subscriptionPlan === 'free') {
-                      onUpgrade();
-                      return;
-                    }
-                    setAutofillOpp(selectedOpp);
-                  }}
-                  className="flex-1 border border-cyan-400/50 text-cyan-300 hover:bg-cyan-500/10 font-black py-4 rounded-xl flex justify-center"
-                >
-                  Fill the official form
-                </button>
-              )}
+            <div className="mt-8 flex gap-4">
               <button 
                 onClick={() => {
                   handleStartApplication(selectedOpp.opportunity_id);
@@ -850,12 +650,6 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
             </div>
           </div>
         </div>
-      )}
-
-      {autofillOpp && user && autofillTemplateFor(autofillOpp) && (
-        <React.Suspense fallback={null}>
-          <FormAutofillWizard template={autofillTemplateFor(autofillOpp)!} user={user} onClose={() => setAutofillOpp(null)} />
-        </React.Suspense>
       )}
 
       {workflowOpp && user && (
@@ -876,24 +670,6 @@ const FundingExplorer: React.FC<FundingExplorerProps> = ({ user, activeOpportuni
           }}
         />
       )}
-
-      {/* Office of the Premier Guide and Readiness Modal */}
-      <PremierFundingGuideModal
-        isOpen={showOtpGuide}
-        onClose={() => setShowOtpGuide(false)}
-        onFilterPremierFunds={() => {
-          setCategoryFilter('OTP');
-          setMode('DISCOVER');
-          setShowOtpGuide(false);
-          triggerToast("Filtered for Office of the Premier (OTP) funds", "info");
-        }}
-        onSelectOpportunity={(oppId) => {
-          const opp = opportunities.find(o => o.opportunity_id === oppId);
-          if (opp) {
-            setSelectedOpp(opp);
-          }
-        }}
-      />
     </div>
   );
 };
