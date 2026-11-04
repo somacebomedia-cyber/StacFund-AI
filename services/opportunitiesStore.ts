@@ -13,6 +13,7 @@
  *  - Hides scraper-only records (those with `scraped_at` but no `review_status`).
  *  - Returns the same shape as `MOCK_FUNDING` so callers do not need to branch.
  */
+import { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
 import { MOCK_FUNDING } from '../constants';
@@ -80,4 +81,25 @@ export function invalidateOpportunities(): void {
 export async function getOpportunityById(id: string): Promise<FundingOpportunityDb | null> {
   const all = await loadOpportunities();
   return all.find((o) => o.opportunity_id === id) ?? null;
+}
+
+/** React hook for components needing opportunities reactively with fallback to MOCK_FUNDING */
+export function useOpportunities(force = false): { opportunities: FundingOpportunityDb[]; loading: boolean } {
+  const [opportunities, setOpportunities] = useState<FundingOpportunityDb[]>(() => cache ?? MOCK_FUNDING);
+  const [loading, setLoading] = useState<boolean>(() => !cache);
+
+  useEffect(() => {
+    let active = true;
+    loadOpportunities(force).then((ops) => {
+      if (active) {
+        setOpportunities(ops);
+        setLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [force]);
+
+  return { opportunities, loading };
 }
