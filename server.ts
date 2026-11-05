@@ -14,6 +14,7 @@ import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
+import { chromium, type Browser } from 'playwright';
 import fs from 'fs';
 
 // Load .env manually if it exists to support local configuration
@@ -894,6 +895,172 @@ Include these slides:
       res.status(500).json({ error: 'Failed to search stock photos', details: error.message });
     }
   });
+
+  // ─── Business plan PDF export (text-based, Chromium print) ───────────────
+  // The client sends the fully-paginated, inline-styled page HTML as a
+  // text/plain body (express.json skips it; this route parses it with a
+  // larger limit). Chromium prints it to a real A4 text PDF — selectable,
+  // searchable, a fraction of image-PDF size. Each .pdf-page div maps to
+  // exactly one A4 page via the embedded @page CSS.
+  app.post(
+    "/api/plan/export-pdf",
+    requireAuth,
+    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '32mb' }),
+    async (req, res) => {
+      try {
+        const html = typeof req.body === 'string' ? req.body : '';
+        if (!html || html.length < 200) {
+          return res.status(400).json({ error: 'Empty document — nothing to export.' });
+        }
+        if (html.length > 30_000_000) {
+          return res.status(413).json({ error: 'Document too large to render.' });
+        }
+
+        const filename =
+          String(req.query.filename || 'Business_Plan.pdf')
+            .replace(/[^\w.\- ]/g, '')
+            .slice(0, 140) || 'Business_Plan.pdf';
+
+        let browser: Browser | null = null;
+        try {
+          browser = await chromium.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
+          });
+          const page = await browser.newPage();
+          await page.setContent(html, { waitUntil: 'networkidle', timeout: 90_000 });
+
+          // Ensure web fonts (Source Serif 4 / Inter) are fully loaded before print.
+          await page.evaluate(() => {
+            const d = document as Document & { fonts?: { ready: Promise<unknown> } };
+            return d.fonts ? d.fonts.ready.then(() => undefined) : Promise.resolve();
+          });
+
+          await page.emulateMedia({ media: 'print' });
+          const pdfBuffer = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            preferCSSPageSize: true,
+            margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
+          });
+
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          res.setHeader('Content-Length', pdfBuffer.length);
+          return res.send(pdfBuffer);
+        } finally {
+          if (browser) await browser.close().catch(() => undefined);
+        }
+      } catch (error: any) {
+        console.error('[Plan Export] PDF rendering failed:', error?.message || error);
+        return res.status(500).json({ error: 'PDF rendering failed on the server. Try again or use the image-PDF fallback.' });
+      }
+    }
+  );
+
+  // ─── Word (.docx) exports — plan + proposal ──────────────────────────────
+  // Same transport pattern as the PDF export above: the typed document JSON
+  // arrives as a text/plain body (bypasses the global express.json 100kb
+  // limit; this route parses it with an explicit larger limit), and the
+  // server builds a real, fully editable .docx with the `docx` package.
+  // requireAuth prevents anonymous build-quota burn.
+  const sanitizeDocxBrand = (raw: any): {
+    businessName?: string;
+    tagline?: string;
+    logoDataUrl?: string;
+    logoWidth?: number;
+    logoHeight?: number;
+    accentColor?: string;
+  } | undefined => {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const logo = String(raw.logoDataUrl || '');
+    const safeLogo =
+      /^data:image\/(png|jpe?g);base64,/i.test(logo) && logo.length < 600_000 ? logo : undefined;
+    const accent = /^#?[0-9a-fA-F]{6}$/.test(String(raw.accentColor || '').trim())
+      ? String(raw.accentColor).trim()
+      : undefined;
+    return {
+      businessName: raw.businessName ? String(raw.businessName).slice(0, 120) : undefined,
+      tagline: raw.tagline ? String(raw.tagline).slice(0, 200) : undefined,
+      logoDataUrl: safeLogo,
+      logoWidth: Number(raw.logoWidth) || undefined,
+      logoHeight: Number(raw.logoHeight) || undefined,
+      accentColor: accent,
+    };
+  };
+
+  app.post(
+    "/api/plan/export-docx",
+    requireAuth,
+    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '12mb' }),
+    async (req, res) => {
+      try {
+        let payload: any;
+        try {
+          payload = JSON.parse(typeof req.body === 'string' ? req.body : '{}');
+        } catch {
+          return res.status(400).json({ error: 'Malformed request body.' });
+        }
+        const plan = payload?.plan;
+        if (!plan || !Array.isArray(plan.chapters) || !plan.chapters.length) {
+          return res.status(400).json({ error: 'No business plan document supplied.' });
+        }
+        if (JSON.stringify(plan).length > 10_000_000) {
+          return res.status(413).json({ error: 'Plan too large to convert.' });
+        }
+
+        const filename =
+          String(req.query.filename || 'Business_Plan.docx').replace(/[^\w.\- ]/g, '').slice(0, 140) ||
+          'Business_Plan.docx';
+
+        const { planDocxBuffer } = await import('./services/docx/planDocx');
+        const buffer = await planDocxBuffer(plan, sanitizeDocxBrand(payload?.brand));
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', buffer.length);
+        return res.send(buffer);
+      } catch (error: any) {
+        console.error('[Plan Export] DOCX build failed:', error?.message || error);
+        return res.status(500).json({ error: 'Word export failed on the server. Please try again.' });
+      }
+    }
+  );
+
+  app.post(
+    "/api/proposal/export-docx",
+    requireAuth,
+    express.text({ type: ['text/plain', 'text/plain; charset=utf-8'], limit: '6mb' }),
+    async (req, res) => {
+      try {
+        let payload: any;
+        try {
+          payload = JSON.parse(typeof req.body === 'string' ? req.body : '{}');
+        } catch {
+          return res.status(400).json({ error: 'Malformed request body.' });
+        }
+        const proposal = payload?.proposal;
+        if (!proposal || !Array.isArray(proposal.sections)) {
+          return res.status(400).json({ error: 'No proposal document supplied.' });
+        }
+
+        const filename =
+          String(req.query.filename || 'Funding_Proposal.docx').replace(/[^\w.\- ]/g, '').slice(0, 140) ||
+          'Funding_Proposal.docx';
+
+        const { proposalDocxBuffer } = await import('./services/docx/proposalDocx');
+        const buffer = await proposalDocxBuffer(proposal, sanitizeDocxBrand(payload?.brand));
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', buffer.length);
+        return res.send(buffer);
+      } catch (error: any) {
+        console.error('[Proposal Export] DOCX build failed:', error?.message || error);
+        return res.status(500).json({ error: 'Word export failed on the server. Please try again.' });
+      }
+    }
+  );
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

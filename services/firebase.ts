@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // In browser environments inside iframes, using window.location.host as authDomain
@@ -21,7 +21,18 @@ const clientConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(clientConfig);
 
 const auth = getAuth(app);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// In browser / iframe environments, enabling auto-detect long polling prevents the
+// 10-second duplex WebChannel streaming timeout and offline fallback warnings
+const db = (() => {
+  try {
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+    }, firebaseConfig.firestoreDatabaseId);
+  } catch {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+})();
 
 // Validate connection to Firestore on initial boot
 async function testConnection() {

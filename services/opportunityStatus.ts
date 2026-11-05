@@ -47,3 +47,55 @@ export function withComputedStatus<T extends Pick<FundingOpportunityDb, 'status'
   if (!hasDates) return opp;
   return { ...opp, status: computeStatus(opp.opening_date, opp.closing_date, now) };
 }
+
+/**
+ * Returns a human-friendly description of the closing date relative to today in SAST.
+ */
+export function describeClosing(closingDate: string | null | undefined, now: Date = new Date()): string {
+  if (!closingDate) return 'Open';
+  if (/rolling/i.test(closingDate)) return 'Open all year';
+  if (!ISO_DATE.test(closingDate)) return closingDate;
+
+  const todayStr = todayInSouthAfrica(now);
+  if (closingDate === todayStr) {
+    return 'closes today';
+  }
+
+  const todayMs = new Date(`${todayStr}T00:00:00Z`).getTime();
+  const closingMs = new Date(`${closingDate}T00:00:00Z`).getTime();
+  const diffDays = Math.round((closingMs - todayMs) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return 'closed';
+  }
+  if (diffDays === 0) {
+    return 'closes today';
+  }
+  if (diffDays === 1) {
+    return '1 day left';
+  }
+  return `${diffDays} days left`;
+}
+
+/**
+ * Determines whether an opportunity record is visible to end users.
+ */
+export function isPublicRecord(record: { review_status?: string | null; scraped_at?: string | null }): boolean {
+  return (
+    record.review_status === 'published' ||
+    (!record.review_status && !record.scraped_at)
+  );
+}
+
+/**
+ * Merges base opportunities with remote overrides by opportunity_id.
+ */
+export function mergeOpportunities(
+  base: FundingOpportunityDb[],
+  remote: FundingOpportunityDb[]
+): FundingOpportunityDb[] {
+  const map = new Map<string, FundingOpportunityDb>();
+  base.forEach((op) => map.set(op.opportunity_id, op));
+  remote.forEach((op) => map.set(op.opportunity_id, op));
+  return Array.from(map.values());
+}
