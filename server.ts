@@ -39,6 +39,10 @@ if (fs.existsSync(envPath)) {
 import { startScraper, runAdvancedScraper } from './services/advancedScraper';
 import { registerIntakeRoutes } from './services/intakeRoutes';
 import { getAlertPrefs } from './services/userAlerts';
+import { ensurePlaywrightBrowserLinks, getChromiumLaunchOptions } from './utils/chromiumHelper';
+
+// Ensure browser binary links exist for Playwright
+ensurePlaywrightBrowserLinks();
 
 // Initialize Firebase Admin
 let db: FirebaseFirestore.Firestore | null = null;
@@ -927,10 +931,7 @@ Include these slides:
 
         let browser: Browser | null = null;
         try {
-          browser = await chromium.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
-          });
+          browser = await chromium.launch(getChromiumLaunchOptions());
           const page = await browser.newPage();
           await page.setContent(html, { waitUntil: 'networkidle', timeout: 90_000 });
 

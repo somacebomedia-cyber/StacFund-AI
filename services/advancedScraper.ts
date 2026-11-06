@@ -47,6 +47,7 @@
 
 import { chromium } from 'playwright';
 import type { Browser } from 'playwright';
+import { getChromiumLaunchOptions } from '../utils/chromiumHelper';
 import cron from 'node-cron';
 import dns from 'node:dns/promises';
 import net from 'node:net';
@@ -331,7 +332,7 @@ export async function runAdvancedScraper(): Promise<void> {
 
   let browser: Browser | null = null;
   try {
-    browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    browser = await chromium.launch(getChromiumLaunchOptions());
     stats.usedBrowser = true;
   } catch (e) {
     noteError(stats, `Chromium could not start (${e instanceof Error ? e.message.split('\n')[0] : String(e)}). Falling back to plain fetch.`);
