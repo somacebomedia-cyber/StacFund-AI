@@ -244,7 +244,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   }
 };
 
-const geminiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
+const geminiLimiter = rateLimit({ windowMs: 60 * 1000, max: 150 });
 const paystackLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
 // FIX (2026-07-08): Pexels/Pixabay keys are shared server-side across every
 // user of the app — Pexels' free tier caps at 200 req/hr and Pixabay at
@@ -364,6 +364,10 @@ async function startServer() {
         }
         if (!cleanedPath.startsWith('/')) {
           cleanedPath = '/' + cleanedPath;
+        }
+        // Route requests from quota-exhausted or legacy models to gemini-3.1-flash-lite which has active quota on Free Tier
+        if (/models\/gemini-(3\.8-flash|3\.5-flash|2\.5-flash|flash-latest)/.test(cleanedPath)) {
+          cleanedPath = cleanedPath.replace(/models\/gemini-(3\.8-flash|3\.5-flash|2\.5-flash|flash-latest)/, 'models/gemini-3.1-flash-lite');
         }
         return search ? `${cleanedPath}?${search}` : cleanedPath;
       },

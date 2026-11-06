@@ -14,6 +14,9 @@ import PricingModal from './components/PricingModal';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationsPanel from './components/NotificationsPanel';
 import OnboardingWizard from './components/OnboardingWizard';
+import MobileBottomNav from './components/MobileBottomNav';
+import MobileQuickActionSheet from './components/MobileQuickActionSheet';
+import MobileMoreSheet from './components/MobileMoreSheet';
 import { User, AppNotification } from './types';
 import astronautBackground from './src/assets/images/astronaut_background_png_1779097044670.png';
 
@@ -38,6 +41,8 @@ const App: React.FC = () => {
   const [profileVersion, setProfileVersion] = useState(0); 
   const [configError, setConfigError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [quotaError, setQuotaError] = useState<string | null>(null);
@@ -413,6 +418,8 @@ const App: React.FC = () => {
   const handleToolNavigation = (toolId: string) => {
     setCurrentPage('tools');
     setIsMobileMenuOpen(false);
+    setIsMoreOpen(false);
+    setIsQuickActionOpen(false);
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('open_ai_tool', { detail: { tool: toolId } }));
     }, 150);
@@ -552,6 +559,139 @@ const App: React.FC = () => {
     </div>
   );
 
+  const mobileMenuContent = (
+    <div className="flex flex-col h-full bg-[#050510]/98 custom-scrollbar overflow-y-auto w-full">
+      <div className="p-5 border-b border-white/10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 overflow-hidden flex items-center justify-center shrink-0">
+            {currentUser?.logoUrl ? (
+              <img src={currentUser.logoUrl} className="w-full h-full object-cover" alt="Logo" />
+            ) : (
+              <span className="text-white text-xs font-bold font-mono">
+                {(currentUser?.businessName || 'U').charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-black text-white truncate">{currentUser?.businessName || 'My Business'}</h2>
+            <p className="text-[10px] text-gray-400 truncate">{currentUser?.email}</p>
+          </div>
+        </div>
+        <button 
+          className="p-2 text-gray-400 hover:text-white transition-colors" 
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-label="Close menu"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="p-5 space-y-5">
+        {/* Current Plan Badge & Upgrade */}
+        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-bold text-gray-400">Membership Tier</span>
+            <div className="flex items-center gap-1.5">
+              <Crown size={14} className={currentUser?.subscriptionPlan !== 'free' ? 'text-amber-400' : 'text-gray-500'} />
+              <span className={`text-xs font-black uppercase tracking-wider ${currentUser?.subscriptionPlan !== 'free' ? 'text-amber-300' : 'text-gray-400'}`}>
+                {currentUser?.subscriptionPlan === 'free' ? 'Cadet (Free)' : currentUser?.subscriptionPlan === 'business' ? 'Constellation' : 'Orbital'}
+              </span>
+            </div>
+          </div>
+          <button 
+            onClick={() => { setCurrentPage('pricing'); setIsMobileMenuOpen(false); }}
+            className={`w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+              currentUser?.subscriptionPlan === 'free'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black hover:opacity-90 shadow-lg shadow-amber-950/20'
+                : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            {currentUser?.subscriptionPlan === 'free' ? 'Upgrade to Pro' : 'Manage Subscription'}
+          </button>
+        </div>
+
+        {/* Account Nav Items */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2">Account Settings</div>
+          
+          <button
+            onClick={() => { setCurrentPage('profile'); setIsMobileMenuOpen(false); }}
+            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-gray-200 hover:text-white border border-white/5 font-bold text-xs transition-all text-left"
+          >
+            <UserCircle size={18} className="text-indigo-400" />
+            <span>Profile & Business Details</span>
+            <ChevronRight size={16} className="ml-auto text-gray-500" />
+          </button>
+
+          <button
+            onClick={() => {
+              localStorage.setItem('stacfund_profile_active_tab', 'subscription');
+              setCurrentPage('profile');
+              setIsMobileMenuOpen(false);
+            }}
+            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-gray-200 hover:text-white border border-white/5 font-bold text-xs transition-all text-left"
+          >
+            <Zap size={18} className="text-purple-400" />
+            <span>API Keys & Model BYOK</span>
+            <ChevronRight size={16} className="ml-auto text-gray-500" />
+          </button>
+
+          <button
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              setIsNotificationsOpen(true);
+            }}
+            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-gray-200 hover:text-white border border-white/5 font-bold text-xs transition-all text-left"
+          >
+            <div className="relative">
+              <Bell size={18} className="text-pink-400" />
+              {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />}
+            </div>
+            <span>Notifications & Deadlines</span>
+            {unreadCount > 0 && (
+              <span className="text-[10px] font-bold text-red-300 bg-red-500/20 px-2 py-0.5 rounded-full border border-red-500/30">
+                {unreadCount} new
+              </span>
+            )}
+            <ChevronRight size={16} className="ml-auto text-gray-500" />
+          </button>
+        </div>
+
+        {/* Quick Destinations */}
+        <div className="space-y-1.5 pt-2 border-t border-white/5">
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2">Vault & Records</div>
+          <button
+            onClick={() => { setCurrentPage('documents'); setIsMobileMenuOpen(false); }}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-white/5 text-gray-400 hover:text-white font-bold text-xs transition-all text-left"
+          >
+            <FolderOpen size={16} className="text-emerald-400" />
+            <span>Documents Vault</span>
+          </button>
+          <button
+            onClick={() => { setCurrentPage('applications'); setIsMobileMenuOpen(false); }}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-white/5 text-gray-400 hover:text-white font-bold text-xs transition-all text-left"
+          >
+            <FileText size={16} className="text-blue-400" />
+            <span>Applications Tracker</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-auto p-5 border-t border-white/5">
+        <button 
+          onClick={() => {
+            setIsMobileMenuOpen(false);
+            handleLogout();
+          }}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/25 text-red-400 hover:text-red-300 font-extrabold text-xs uppercase tracking-widest transition-all shadow-lg shadow-red-950/20"
+        >
+          <LogOut size={16} className="shrink-0" />
+          Log Out
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen text-white relative flex w-full max-w-full overflow-x-hidden"
       style={{ backgroundImage: `linear-gradient(rgba(5, 5, 10, 0.75), rgba(5, 5, 10, 0.75)), url(${astronautBackground})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#050510', backgroundAttachment: 'fixed' }}
@@ -626,6 +766,7 @@ const App: React.FC = () => {
             <button 
               className="p-2 -ml-2 text-gray-400 hover:text-white transition-colors" 
               onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open account menu"
             >
               <Menu size={24} />
             </button>
@@ -639,33 +780,81 @@ const App: React.FC = () => {
             <button 
               onClick={() => setIsNotificationsOpen(true)} 
               className="relative p-2 rounded-full hover:bg-white/5 transition-colors text-gray-400"
+              aria-label="Notifications"
             >
               <Bell size={18} />
               {unreadCount > 0 && <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-red-500 rounded-full"></span>}
             </button>
-            <button onClick={() => setCurrentPage('profile')} className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 overflow-hidden shrink-0">
+            <button onClick={() => setCurrentPage('profile')} className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 overflow-hidden shrink-0" aria-label="Profile">
                {currentUser?.logoUrl && <img src={currentUser.logoUrl} className="w-full h-full object-cover" alt="Logo" />}
             </button>
           </div>
         </header>
 
-        {/* Mobile Slide-out Menu */}
+        {/* Mobile Slide-out Menu (Account & Settings Focus) */}
         {isMobileMenuOpen && (
           <div className="md:hidden fixed inset-0 z-[100] flex">
             <div 
               className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" 
               onClick={() => setIsMobileMenuOpen(false)} 
             />
-            <div className="relative w-[280px] max-w-[85%] bg-[#050510] h-full shadow-2xl flex flex-col border-r border-white/10 animate-in slide-in-from-left duration-300">
-              {sidebarContent}
+            <div className="relative w-[300px] max-w-[85%] bg-[#050510] h-full shadow-2xl flex flex-col border-r border-white/10 animate-in slide-in-from-left duration-300">
+              {mobileMenuContent}
             </div>
           </div>
         )}
 
-        {/* Main Content */}
-        <main className="flex-1 min-w-0 w-full animate-in fade-in slide-in-from-bottom-2 duration-700 pb-safe">
+        {/* Main Content with bottom padding so content doesn't collide with bottom dock */}
+        <main className="flex-1 min-w-0 w-full animate-in fade-in slide-in-from-bottom-2 duration-700 pb-24 md:pb-safe">
           {renderPage()}
         </main>
+
+        {/* Canva-Style Mobile Bottom Navigation Bar & Action Sheets */}
+        <MobileBottomNav 
+          currentPage={currentPage}
+          onNavigate={(page) => {
+            setCurrentPage(page as Page);
+            setIsMoreOpen(false);
+            setIsQuickActionOpen(false);
+          }}
+          onOpenQuickAction={() => {
+            setIsMoreOpen(false);
+            setIsQuickActionOpen(true);
+          }}
+          onOpenMore={() => {
+            setIsQuickActionOpen(false);
+            setIsMoreOpen(true);
+          }}
+          isMoreOpen={isMoreOpen}
+        />
+
+        <MobileQuickActionSheet 
+          isOpen={isQuickActionOpen}
+          onClose={() => setIsQuickActionOpen(false)}
+          onNavigate={(page) => {
+            setCurrentPage(page as Page);
+            setIsQuickActionOpen(false);
+          }}
+          onTriggerTool={handleToolNavigation}
+          onAskAI={() => {
+            setIsQuickActionOpen(false);
+            window.dispatchEvent(new CustomEvent('open_ai_assistant'));
+          }}
+        />
+
+        <MobileMoreSheet 
+          isOpen={isMoreOpen}
+          onClose={() => setIsMoreOpen(false)}
+          onNavigate={(page) => {
+            setCurrentPage(page as Page);
+            setIsMoreOpen(false);
+          }}
+          onOpenNotifications={() => setIsNotificationsOpen(true)}
+          onOpenPricing={triggerPricing}
+          onLogout={handleLogout}
+          user={currentUser}
+          unreadCount={unreadCount}
+        />
 
         {/* AI Assistant */}
         <AIAssistant 
@@ -675,7 +864,7 @@ const App: React.FC = () => {
         />
 
         {/* Simple Footer for Non-Landing Pages */}
-        <footer className="py-8 border-t border-white/5 text-center text-gray-400 text-xs font-medium">
+        <footer className="py-8 mb-16 md:mb-0 border-t border-white/5 text-center text-gray-400 text-xs font-medium">
            <p>© 2026 StacFund. Level up your business.</p>
         </footer>
       </div>

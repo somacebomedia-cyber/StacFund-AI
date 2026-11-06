@@ -62,6 +62,7 @@ export interface PlanPrefill {
   amount?: string;
   purpose?: string;
   businessName?: string;
+  preparedFor?: string;
 }
 
 interface Props {
@@ -128,7 +129,7 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
     businessName: prefill?.businessName || user.businessName || '',
     tagline: '', preparedBy: '', contactEmail: user.email || '', contactPhone: '',
     contactWebsite: '', contactAddress: '', amount: prefill?.amount || '',
-    purpose: prefill?.purpose || '', preparedFor: '', opportunityId: prefill?.opportunityId || '',
+    purpose: prefill?.purpose || '', preparedFor: prefill?.preparedFor || '', opportunityId: prefill?.opportunityId || '',
     themeId: 'navy', depthOverride: 'auto',
   });
   const patchSetup = (p: Partial<PlanSetupState>) => setSetup((s) => ({ ...s, ...p }));
@@ -161,8 +162,17 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
   const [paginated, setPaginated] = useState<PaginatedPlan | null>(null);
   const measureRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(0.62);
+  const [mobileView, setMobileView] = useState<'tree' | 'preview' | 'editor'>('preview');
   const previewRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<{ kind: 'meta' } | { kind: 'sub'; id: string }>({ kind: 'meta' });
+
+  // Auto-fit zoom on mobile viewport so pages fit without overflowing horizontally
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      const fitZoom = Math.max(0.35, Math.min(0.65, (window.innerWidth - 32) / PAGE_W));
+      setZoom(+fitZoom.toFixed(2));
+    }
+  }, []);
   const [rewriteBusyId, setRewriteBusyId] = useState<string | null>(null);
   const [deepenBusy, setDeepenBusy] = useState(false);
   const [deepenNote, setDeepenNote] = useState<string | null>(null);
@@ -328,9 +338,11 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
       savePlanCheckpoint(skeleton, req);
       setResumeCp(null);
       setStep('outline');
-    } catch (e) {
+    } catch (e: any) {
+      console.error('[PlanStudio] Outline error:', e);
       handleGeminiError(e);
-      setToast('Could not structure the plan. Please try again.');
+      const userMsg = e?.message ? `Could not structure the plan: ${e.message.slice(0, 120)}` : 'Could not structure the plan. Please try again.';
+      setToast(userMsg);
     } finally {
       setOutlineBusy(false);
     }
@@ -366,6 +378,9 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
         const chapter = current.chapters.find((c) => c.id === item.chapterId)!;
         const sub = chapter.subsections.find((s) => s.id === item.subId)!;
         try {
+          if (i > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 350));
+          }
           const written = chapter.subsections.filter((s) => s.status === 'filled').map((s) => s.title);
           const filled = await fillPlanSubsection(sub, chapter, req, {
             writtenSiblingTitles: written,
@@ -772,17 +787,17 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
   const stepLabels = ['Details', 'Outline', 'Writing', 'Edit & Export'];
 
   const header = (
-    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-slate-900/80 backdrop-blur flex-shrink-0">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+    <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 border-b border-slate-800 bg-slate-900/90 backdrop-blur flex-shrink-0 z-20">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
           <BookOpen size={16} className="text-emerald-400" />
         </div>
-        <div>
-          <div className="text-sm font-bold text-white leading-tight">Business Plan Studio</div>
-          <div className="text-[11px] text-slate-400">Full funder-ready plans · 70–120 pages · sober &amp; professional</div>
+        <div className="min-w-0">
+          <div className="text-xs sm:text-sm font-bold text-white leading-tight truncate">Business Plan Studio</div>
+          <div className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block truncate">Full funder-ready plans · 70–120 pages</div>
         </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         {stepIndex > 1 && pageBadge && (
           <span className={`hidden md:flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${
             pageBadge.ok ? 'bg-emerald-500/15 text-emerald-300' : pageBadge.low ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/15 text-red-300'
@@ -790,7 +805,7 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
             {pageBadge.pages} pages {pageBadge.ok ? '✓' : pageBadge.low ? `· expanding to ${doc?.depth.minPages}` : `· over ${doc?.depth.maxPages}`}
           </span>
         )}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 scale-90 sm:scale-100 origin-right">
           {stepLabels.map((label, i) => {
             const n = i + 1;
             const active = n === stepIndex;
@@ -809,7 +824,7 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
           })}
         </div>
         {step === 'editor' && (
-          <>
+          <div className="hidden md:flex items-center gap-2">
             <button
               onClick={saveToCloud}
               disabled={savingCloud}
@@ -817,7 +832,7 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
               title="Save to your account"
             >
               {savingCloud ? <Loader2 size={13} className="animate-spin" /> : <Cloud size={13} />}
-              <span className="hidden sm:inline">Save</span>
+              <span>Save</span>
             </button>
             <button
               onClick={handleExportDocx}
@@ -826,7 +841,7 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
               title="Download as an editable Word document"
             >
               {docxExporting ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
-              <span className="hidden sm:inline">Word</span>
+              <span>Word</span>
             </button>
             <button
               onClick={handleExport}
@@ -836,9 +851,14 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
               {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
               {exporting ? (exportMsg ? 'Rendering…' : 'Preparing…') : 'Download PDF'}
             </button>
-          </>
+          </div>
         )}
-        <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition" aria-label="Close">
+        <button
+          onClick={onClose}
+          className="p-1.5 sm:p-2 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg transition shrink-0 ml-1"
+          aria-label="Close"
+          title="Close Business Plan Studio"
+        >
           <X size={18} />
         </button>
       </div>
@@ -1040,130 +1060,212 @@ const BusinessPlanStudio: React.FC<Props> = ({ user, onClose, prefill }) => {
 
       {/* ═══════ EDITOR ═══════ */}
       {step === 'editor' && doc && paginated && (
-        <div className="flex-1 flex min-h-0">
-          {/* Left: tree */}
-          <div className="w-[260px] flex-shrink-0 border-r border-slate-800 overflow-y-auto bg-slate-900/40">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Mobile View Switcher (Tabs) */}
+          <div className="flex md:hidden border-b border-slate-800 bg-slate-900/95 p-1.5 gap-1 shrink-0 z-10">
             <button
-              onClick={() => setSelected({ kind: 'meta' })}
-              className={`w-full flex items-center gap-2 px-4 py-3 text-left border-b border-slate-800 transition ${selected.kind === 'meta' ? 'bg-emerald-500/10 text-white' : 'text-slate-300 hover:bg-slate-800/50'}`}
+              type="button"
+              onClick={() => setMobileView('tree')}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                mobileView === 'tree'
+                  ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-              <FileText size={13} className={selected.kind === 'meta' ? 'text-emerald-400' : 'text-slate-500'} />
-              <span className="text-[12.5px] font-bold">Cover &amp; contact</span>
+              <BookOpen size={13} />
+              Chapters
             </button>
-            {doc.chapters.map((ch) => (
-              <div key={ch.id} className="border-b border-slate-800/60">
-                <div className="px-4 pt-3 pb-1.5 flex items-center gap-2">
-                  <span className="text-[9.5px] font-black text-emerald-400/80">{String(ch.number).padStart(2, '0')}</span>
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide truncate">{ch.title}</span>
-                </div>
-                {ch.subsections.map((s) => {
-                  const active = selected.kind === 'sub' && selected.id === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => setSelected({ kind: 'sub', id: s.id })}
-                      className={`w-full flex items-center gap-2 pl-6 pr-3 py-1.5 text-left transition ${active ? 'bg-emerald-500/10' : 'hover:bg-slate-800/50'}`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.status === 'filled' ? '#34d399' : s.status === 'failed' ? '#f87171' : '#475569' }} />
-                      <span className={`text-[12px] truncate ${active ? 'text-white font-semibold' : 'text-slate-400'}`}>{s.title}</span>
-                      {rewriteBusyId === s.id && <Loader2 size={10} className="animate-spin text-emerald-400 ml-auto flex-shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-            {pendingCount > 0 && (
-              <div className="p-4">
-                <button
-                  onClick={continueOrStartWriting}
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3 py-2.5 rounded-lg transition"
-                >
-                  <RefreshCw size={13} /> Continue writing ({pendingCount})
-                </button>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => setMobileView('preview')}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                mobileView === 'preview'
+                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <FileText size={13} />
+              Preview &amp; PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileView('editor')}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                mobileView === 'editor'
+                  ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <PenLine size={13} />
+              Edit
+            </button>
           </div>
 
-          {/* Center: preview */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900/40 flex-shrink-0">
-              <span className="text-[11px] text-slate-400">
-                {paginated.totalPages} pages · {totalWords.toLocaleString('en-ZA')} words
-                {pageBadge && !pageBadge.ok && (pageBadge.low
-                  ? <span className="text-amber-400 font-semibold"> · below the {doc.depth.minPages}-page floor</span>
-                  : <span className="text-red-400 font-semibold"> · trimming to {doc.depth.maxPages}</span>)}
-              </span>
-              <div className="flex items-center gap-1.5">
-                {deepenNote && <span className="text-[10.5px] text-emerald-300 font-semibold animate-pulse mr-2">{deepenNote}</span>}
-                <button onClick={() => setZoom((z) => Math.max(0.35, +(z - 0.08).toFixed(2)))} className="p-1.5 text-slate-400 hover:text-white transition"><ZoomOut size={14} /></button>
-                <span className="text-[10.5px] text-slate-500 w-9 text-center">{Math.round(zoom * 100)}%</span>
-                <button onClick={() => setZoom((z) => Math.min(1.2, +(z + 0.08).toFixed(2)))} className="p-1.5 text-slate-400 hover:text-white transition"><ZoomIn size={14} /></button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto bg-slate-950/80 p-6" ref={previewRef}>
-              <div style={{ width: PAGE_W * zoom, margin: '0 auto' }}>
-                {paginated.pages.map((page) => (
-                  <div
-                    key={page.index}
-                    data-page={page.index}
-                    style={{ width: PAGE_W * zoom, height: PAGE_H * zoom, position: 'relative', marginBottom: 20 * zoom }}
-                  >
-                    <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: PAGE_W, height: PAGE_H }}>
-                      {page.kind === 'cover' ? (
-                        <PlanCoverPage meta={doc.meta} theme={theme} total={paginated.totalPages} logoUrl={brandKit?.logoDataUrl || undefined} />
-                      ) : page.kind === 'toc' ? (
-                        <PlanTocPage rows={page.tocRows || []} meta={doc.meta} theme={theme} pageNo={page.pageNo} total={paginated.totalPages} showTitle={page.index === 1} />
-                      ) : page.kind === 'chapter' ? (
-                        (() => {
-                          const ch = doc.chapters.find((c) => c.id === page.chapterId);
-                          return ch ? (
-                            <PlanChapterOpener chapter={ch} meta={doc.meta} theme={theme} pageNo={page.pageNo} total={paginated.totalPages} />
-                          ) : null;
-                        })()
-                      ) : (
-                        (() => {
-                          const ch = doc.chapters.find((c) => c.id === page.chapterId);
-                          return (
-                            <PlanContentPage
-                              page={page}
-                              chapterTitle={ch ? ch.title : ''}
-                              meta={doc.meta}
-                              theme={theme}
-                              pageNo={page.pageNo}
-                              total={paginated.totalPages}
-                            />
-                          );
-                        })()
-                      )}
-                    </div>
+          <div className="flex-1 flex min-h-0 overflow-hidden relative">
+            {/* Left: tree */}
+            <div className={`w-full md:w-[260px] flex-shrink-0 border-r border-slate-800 overflow-y-auto bg-slate-900/40 pb-24 md:pb-6 ${
+              mobileView === 'tree' ? 'block' : 'hidden md:block'
+            }`}>
+              <button
+                onClick={() => { setSelected({ kind: 'meta' }); setMobileView('editor'); }}
+                className={`w-full flex items-center gap-2 px-4 py-3 text-left border-b border-slate-800 transition ${selected.kind === 'meta' ? 'bg-emerald-500/10 text-white' : 'text-slate-300 hover:bg-slate-800/50'}`}
+              >
+                <FileText size={13} className={selected.kind === 'meta' ? 'text-emerald-400' : 'text-slate-500'} />
+                <span className="text-[12.5px] font-bold">Cover &amp; contact</span>
+              </button>
+              {doc.chapters.map((ch) => (
+                <div key={ch.id} className="border-b border-slate-800/60">
+                  <div className="px-4 pt-3 pb-1.5 flex items-center gap-2">
+                    <span className="text-[9.5px] font-black text-emerald-400/80">{String(ch.number).padStart(2, '0')}</span>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide truncate">{ch.title}</span>
                   </div>
-                ))}
+                  {ch.subsections.map((s) => {
+                    const active = selected.kind === 'sub' && selected.id === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => { setSelected({ kind: 'sub', id: s.id }); setMobileView('editor'); }}
+                        className={`w-full flex items-center gap-2 pl-6 pr-3 py-1.5 text-left transition ${active ? 'bg-emerald-500/10' : 'hover:bg-slate-800/50'}`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.status === 'filled' ? '#34d399' : s.status === 'failed' ? '#f87171' : '#475569' }} />
+                        <span className={`text-[12px] truncate ${active ? 'text-white font-semibold' : 'text-slate-400'}`}>{s.title}</span>
+                        {rewriteBusyId === s.id && <Loader2 size={10} className="animate-spin text-emerald-400 ml-auto flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+              {pendingCount > 0 && (
+                <div className="p-4">
+                  <button
+                    onClick={continueOrStartWriting}
+                    className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3 py-2.5 rounded-lg transition"
+                  >
+                    <RefreshCw size={13} /> Continue writing ({pendingCount})
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Center: preview */}
+            <div className={`flex-1 min-w-0 flex flex-col ${
+              mobileView === 'preview' ? 'flex' : 'hidden md:flex'
+            }`}>
+              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900/40 flex-shrink-0">
+                <span className="text-[11px] text-slate-400 truncate">
+                  {paginated.totalPages} pages · {totalWords.toLocaleString('en-ZA')} words
+                  {pageBadge && !pageBadge.ok && (pageBadge.low
+                    ? <span className="text-amber-400 font-semibold hidden sm:inline"> · below the {doc.depth.minPages}-page floor</span>
+                    : <span className="text-red-400 font-semibold hidden sm:inline"> · trimming to {doc.depth.maxPages}</span>)}
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {deepenNote && <span className="text-[10.5px] text-emerald-300 font-semibold animate-pulse mr-2 hidden sm:inline">{deepenNote}</span>}
+                  <button onClick={() => setZoom((z) => Math.max(0.35, +(z - 0.08).toFixed(2)))} className="p-1.5 text-slate-400 hover:text-white transition"><ZoomOut size={14} /></button>
+                  <span className="text-[10.5px] text-slate-500 w-9 text-center">{Math.round(zoom * 100)}%</span>
+                  <button onClick={() => setZoom((z) => Math.min(1.2, +(z + 0.08).toFixed(2)))} className="p-1.5 text-slate-400 hover:text-white transition"><ZoomIn size={14} /></button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto bg-slate-950/80 p-2 sm:p-4 md:p-6 pb-28 md:pb-6" ref={previewRef}>
+                <div style={{ width: PAGE_W * zoom, margin: '0 auto' }}>
+                  {paginated.pages.map((page) => (
+                    <div
+                      key={page.index}
+                      data-page={page.index}
+                      style={{ width: PAGE_W * zoom, height: PAGE_H * zoom, position: 'relative', marginBottom: 20 * zoom }}
+                    >
+                      <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: PAGE_W, height: PAGE_H }}>
+                        {page.kind === 'cover' ? (
+                          <PlanCoverPage meta={doc.meta} theme={theme} total={paginated.totalPages} logoUrl={brandKit?.logoDataUrl || undefined} />
+                        ) : page.kind === 'toc' ? (
+                          <PlanTocPage rows={page.tocRows || []} meta={doc.meta} theme={theme} pageNo={page.pageNo} total={paginated.totalPages} showTitle={page.index === 1} />
+                        ) : page.kind === 'chapter' ? (
+                          (() => {
+                            const ch = doc.chapters.find((c) => c.id === page.chapterId);
+                            return ch ? (
+                              <PlanChapterOpener chapter={ch} meta={doc.meta} theme={theme} pageNo={page.pageNo} total={paginated.totalPages} />
+                            ) : null;
+                          })()
+                        ) : (
+                          (() => {
+                            const ch = doc.chapters.find((c) => c.id === page.chapterId);
+                            return (
+                              <PlanContentPage
+                                page={page}
+                                chapterTitle={ch ? ch.title : ''}
+                                meta={doc.meta}
+                                theme={theme}
+                                pageNo={page.pageNo}
+                                total={paginated.totalPages}
+                              />
+                            );
+                          })()
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: editor panel */}
+            <div className={`w-full md:w-[350px] flex-shrink-0 border-l border-slate-800 overflow-y-auto bg-slate-900/40 p-4 pb-28 md:pb-6 ${
+              mobileView === 'editor' ? 'block' : 'hidden md:block'
+            }`}>
+              {exportError && (
+                <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-[11.5px] p-3">{exportError}</div>
+              )}
+              <PlanEditorPanel
+                mode={selected.kind === 'meta' ? 'meta' : 'subsection'}
+                meta={doc.meta}
+                subsection={selectedSub?.sub ?? null}
+                chapterTitle={selectedSub?.chapter.title ?? ''}
+                rewriteBusy={rewriteBusyId !== null}
+                onPatchMeta={patchMeta}
+                onPatchSubsection={patchSubsection}
+                onPatchBlock={patchBlock}
+                onDeleteBlock={deleteBlock}
+                onMoveBlock={moveBlock}
+                onRewrite={handleRewrite}
+              />
+              <div className="mt-6 pt-4 border-t border-slate-800 flex items-center gap-2 text-[10.5px] text-slate-500">
+                <PenLine size={11} />
+                Every AI-written word is editable. The PDF is a real text document — selectable and searchable.
               </div>
             </div>
           </div>
 
-          {/* Right: editor panel */}
-          <div className="w-[350px] flex-shrink-0 border-l border-slate-800 overflow-y-auto bg-slate-900/40 p-4">
-            {exportError && (
-              <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-[11.5px] p-3">{exportError}</div>
-            )}
-            <PlanEditorPanel
-              mode={selected.kind === 'meta' ? 'meta' : 'subsection'}
-              meta={doc.meta}
-              subsection={selectedSub?.sub ?? null}
-              chapterTitle={selectedSub?.chapter.title ?? ''}
-              rewriteBusy={rewriteBusyId !== null}
-              onPatchMeta={patchMeta}
-              onPatchSubsection={patchSubsection}
-              onPatchBlock={patchBlock}
-              onDeleteBlock={deleteBlock}
-              onMoveBlock={moveBlock}
-              onRewrite={handleRewrite}
-            />
-            <div className="mt-6 pt-4 border-t border-slate-800 flex items-center gap-2 text-[10.5px] text-slate-500">
-              <PenLine size={11} />
-              Every AI-written word is editable. The PDF is a real text document — selectable and searchable.
-            </div>
+          {/* Mobile Bottom Action Bar */}
+          <div className="md:hidden border-t border-slate-800 bg-slate-900/95 backdrop-blur-md px-3 py-2 flex items-center gap-2 shrink-0 z-30">
+            <button
+              onClick={saveToCloud}
+              disabled={savingCloud}
+              className="p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition shrink-0"
+              title="Save to account"
+            >
+              {savingCloud ? <Loader2 size={15} className="animate-spin text-emerald-400" /> : <Cloud size={15} />}
+            </button>
+            <button
+              onClick={handleExportDocx}
+              disabled={docxExporting || !doc}
+              className="p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition shrink-0"
+              title="Download Word Document"
+            >
+              {docxExporting ? <Loader2 size={15} className="animate-spin text-emerald-400" /> : <FileText size={15} />}
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={exporting || !paginated}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-slate-950 font-bold text-xs py-2.5 px-3 rounded-lg transition shadow-lg shadow-emerald-500/20"
+            >
+              {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              <span>{exporting ? 'Rendering…' : 'Download PDF'}</span>
+            </button>
+            <button
+              onClick={() => setMobileView((v) => (v === 'preview' ? 'editor' : 'preview'))}
+              className="px-2.5 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 text-xs font-semibold shrink-0"
+            >
+              {mobileView === 'preview' ? 'Edit' : 'Preview'}
+            </button>
           </div>
         </div>
       )}

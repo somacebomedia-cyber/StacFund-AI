@@ -8,6 +8,8 @@ import { handleGeminiError } from '../services/geminiError';
 import { User, AppDocument } from '../types';
 import BusinessPlanDocument from './BusinessPlanDocument';
 import PitchDeckDocument from './PitchDeckDocument';
+import ProposalStudio from './proposal/ProposalStudio';
+import BusinessPlanStudio from './businessPlan/BusinessPlanStudio';
 
 interface FundingNeedsTrackerProps {
   user: User | null;
@@ -37,6 +39,8 @@ const FundingNeedsTracker: React.FC<FundingNeedsTrackerProps> = ({ user, onUpgra
   const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
   const [generatedBusinessPlanData, setGeneratedBusinessPlanData] = useState<any | null>(null);
   const [generatedPitchDeckData, setGeneratedPitchDeckData] = useState<any | null>(null);
+  const [activeProposalNeed, setActiveProposalNeed] = useState<FundingNeed | null>(null);
+  const [activePlanNeed, setActivePlanNeed] = useState<FundingNeed | null>(null);
 
   const [editingLinkFor, setEditingLinkFor] = useState<string | null>(null);
   const [tempLink, setTempLink] = useState('');
@@ -1056,8 +1060,7 @@ WRITING REQUIREMENTS:
                    <div className="w-full lg:w-72 space-y-3">
                       <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Generate Document</p>
                       <button 
-                        onClick={() => handleGeneratePitchDeck(need)}
-                        disabled={isGeneratingProposal}
+                        onClick={() => setActiveProposalNeed(need)}
                         className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-cyan-500/10 hover:border-cyan-500/30 transition-all text-left"
                       >
                          <div className="flex items-center gap-3">
@@ -1068,8 +1071,7 @@ WRITING REQUIREMENTS:
                       </button>
                       
                       <button 
-                        onClick={() => handleGenerateProposal('businessplan', need)}
-                        disabled={isGeneratingProposal}
+                        onClick={() => setActivePlanNeed(need)}
                         className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all text-left"
                       >
                          <div className="flex items-center gap-3">
@@ -1118,6 +1120,32 @@ WRITING REQUIREMENTS:
            businessInfo={{...businessInfo, ...ownerInfo}}
            title="Pitch Deck"
            onClose={() => setGeneratedPitchDeckData(null)}
+        />
+      )}
+
+      {activeProposalNeed && user && (
+        <ProposalStudio
+          user={user}
+          onClose={() => setActiveProposalNeed(null)}
+          prefill={{
+            businessName: businessInfo?.name || user.businessName || '',
+            amount: activeProposalNeed.estimatedCost ? String(activeProposalNeed.estimatedCost) : '',
+            purpose: activeProposalNeed.reason || `Acquiring ${activeProposalNeed.itemName} for business operations and growth.`,
+            preparedFor: activeProposalNeed.appliedTo || '',
+          }}
+        />
+      )}
+
+      {activePlanNeed && user && (
+        <BusinessPlanStudio
+          user={user}
+          onClose={() => setActivePlanNeed(null)}
+          prefill={{
+            businessName: businessInfo?.name || user.businessName || '',
+            amount: activePlanNeed.estimatedCost ? String(activePlanNeed.estimatedCost) : '',
+            purpose: activePlanNeed.reason || `Acquiring ${activePlanNeed.itemName} for business operations and growth.`,
+            preparedFor: activePlanNeed.appliedTo || '',
+          }}
         />
       )}
       

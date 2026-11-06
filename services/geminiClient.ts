@@ -64,3 +64,42 @@ export async function createGeminiClient(): Promise<GoogleGenAI> {
     }
   });
 }
+
+/**
+ * Resilient retry wrapper with exponential backoff for Gemini calls.
+ * Automatically catches HTTP 429 (rate limits), quota warnings, 503s, and network drops,
+ * backing off gracefully so batch generations (like Business Plans and Proposals) do not fail.
+ */
+export async function withGeminiRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelayMs = 1500
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      attempt++;
+      const msg = (err?.message || String(err)).toLowerCase();
+      const isRateOrTransient =
+        msg.includes('429') ||
+        msg.includes('resource_exhausted') ||
+        msg.includes('quota') ||
+        msg.includes('too many requests') ||
+        msg.includes('rate limit') ||
+        msg.includes('503') ||
+        msg.includes('overloaded') ||
+        msg.includes('econnreset') ||
+        msg.includes('fetch failed') ||
+        msg.includes('network');
+
+      if (attempt > maxRetries || !isRateOrTransient) {
+        throw err;
+      }
+      const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 400;
+      console.warn(`[Gemini Retry] Attempt ${attempt} encountered transient issue (${err?.message || err}). Retrying in ${Math.round(delay)}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}

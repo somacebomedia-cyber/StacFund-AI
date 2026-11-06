@@ -23,7 +23,7 @@ export function getMonthlyQuotaLimit(plan: string | null | undefined): number {
   if (normalized === 'business' || normalized === 'constellation' || normalized === 'empire') {
     return 5000000; // 5M tokens
   }
-  return 100000; // 100k tokens for Free / Cadet
+  return 500000; // 500k tokens for Free / Cadet (supports business plan & proposal testing)
 }
 
 /**
@@ -43,8 +43,8 @@ export function getEstimatedTokenUsage(userId: string | null | undefined, plan: 
   
   // Seed a realistic initial usage based on the plan to show an active, realistic profile
   const limit = getMonthlyQuotaLimit(plan);
-  // Seed a random percentage between 22% and 38% for realistic past usage
-  const seedPercentage = 0.22 + (Math.random() * 0.16);
+  // Seed a conservative initial usage between 5% and 10%
+  const seedPercentage = 0.05 + (Math.random() * 0.05);
   const seededValue = Math.floor(limit * seedPercentage);
   
   localStorage.setItem(storageKey, String(seededValue));

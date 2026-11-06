@@ -193,11 +193,14 @@ const PlanSetupPanel: React.FC<PlanSetupPanelProps> = ({
             <label className={labelCls}>Link a funding opportunity (recommended)</label>
             <select className={inputCls} value={state.opportunityId} onChange={(e) => patch({ opportunityId: e.target.value })}>
               <option value="">General plan — no specific funder</option>
-              {opportunities.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.issuer_name || 'Funder'} — {o.programme_name || 'Programme'}
-                </option>
-              ))}
+              {opportunities.map((o) => {
+                const oppId = o.opportunity_id || (o as any).id;
+                return (
+                  <option key={oppId} value={oppId}>
+                    {o.issuer_name || 'Funder'} — {o.programme_name || 'Programme'}
+                  </option>
+                );
+              })}
             </select>
             <div className="flex items-center gap-2 mt-2 min-h-[22px]">
               {ctxLoading && <Loader2 size={13} className="animate-spin text-slate-500" />}

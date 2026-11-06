@@ -22,7 +22,7 @@
  * are built in code from the AutofillContext, never hallucinated.
  */
 import { Type } from '@google/genai';
-import { createGeminiClient } from '../geminiClient';
+import { createGeminiClient, withGeminiRetry } from '../geminiClient';
 import type { AutofillContext } from '../autofillContext';
 import {
   type PlanBlock,
@@ -50,7 +50,7 @@ import {
   fundingNeedsContextBlock,
 } from './planFinancials';
 
-const MODEL = 'gemini-3.8-flash';
+const MODEL = 'gemini-3.1-flash-lite';
 
 // ─── Request type ────────────────────────────────────────────────────────────
 
@@ -144,79 +144,81 @@ TASK — tailor the plan skeleton to THIS business:
 RULES: Ground everything in the context block. Where a fact is unknown, write a sensible direction with a [placeholder] rather than inventing precise numbers. Professional South African business English. R/ZAR formatting.
 OUTPUT: JSON only via the provided schema.`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          offerings: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                brief: { type: Type.STRING },
-                keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+  const response = await withGeminiRetry(() =>
+    ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            offerings: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  brief: { type: Type.STRING },
+                  keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                },
+                required: ['title', 'brief'],
               },
-              required: ['title', 'brief'],
+            },
+            models: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  brief: { type: Type.STRING },
+                  recommended: { type: Type.BOOLEAN },
+                },
+                required: ['title', 'brief'],
+              },
+            },
+            personas: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  sharePct: { type: Type.NUMBER },
+                  brief: { type: Type.STRING },
+                  keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                },
+                required: ['title', 'brief'],
+              },
+            },
+            subsectionTailoring: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  poolId: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  brief: { type: Type.STRING },
+                },
+                required: ['poolId', 'title'],
+              },
+            },
+            chapterSummaries: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  chapterId: { type: Type.STRING },
+                  summary: { type: Type.STRING },
+                },
+                required: ['chapterId', 'summary'],
+              },
             },
           },
-          models: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                brief: { type: Type.STRING },
-                recommended: { type: Type.BOOLEAN },
-              },
-              required: ['title', 'brief'],
-            },
-          },
-          personas: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                sharePct: { type: Type.NUMBER },
-                brief: { type: Type.STRING },
-                keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-              },
-              required: ['title', 'brief'],
-            },
-          },
-          subsectionTailoring: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                poolId: { type: Type.STRING },
-                title: { type: Type.STRING },
-                brief: { type: Type.STRING },
-              },
-              required: ['poolId', 'title'],
-            },
-          },
-          chapterSummaries: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                chapterId: { type: Type.STRING },
-                summary: { type: Type.STRING },
-              },
-              required: ['chapterId', 'summary'],
-            },
-          },
+          required: ['offerings', 'models', 'personas'],
         },
-        required: ['offerings', 'models', 'personas'],
       },
-    },
-  });
+    })
+  );
 
   let parsed: any;
   try {
@@ -709,14 +711,16 @@ OUTPUT: JSON only via the provided schema — an array of blocks in document ord
 
 async function callFill(sub: PlanSubsection, chapter: PlanChapter, req: PlanGenRequest, extras: FillExtras): Promise<PlanBlock[]> {
   const ai = await createGeminiClient();
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: buildFillPrompt(sub, chapter, req, extras),
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: blockResponseSchema(),
-    },
-  });
+  const response = await withGeminiRetry(() =>
+    ai.models.generateContent({
+      model: MODEL,
+      contents: buildFillPrompt(sub, chapter, req, extras),
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: blockResponseSchema(),
+      },
+    })
+  );
 
   let parsed: any;
   try {

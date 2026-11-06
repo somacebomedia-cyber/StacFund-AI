@@ -220,6 +220,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
     }
   }, [messages, user]);
 
+  // Support external trigger
+  useEffect(() => {
+    const handleOpenAssistant = () => setIsOpen(true);
+    window.addEventListener('open_ai_assistant', handleOpenAssistant);
+    return () => window.removeEventListener('open_ai_assistant', handleOpenAssistant);
+  }, []);
+
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -575,7 +582,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, onNavigate, onProfileUp
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end pointer-events-none">
+    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-[100] flex flex-col items-end pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <motion.div 

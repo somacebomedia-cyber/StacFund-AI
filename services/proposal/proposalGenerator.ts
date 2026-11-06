@@ -25,7 +25,7 @@
  * because funder-facing checklists must never be hallucinated.
  */
 import { Type } from '@google/genai';
-import { createGeminiClient } from '../geminiClient';
+import { createGeminiClient, withGeminiRetry } from '../geminiClient';
 import type { AutofillContext } from '../autofillContext';
 import {
   type SectionKind,
@@ -35,7 +35,7 @@ import {
   SECTION_KIND_BRIEFS,
 } from './proposalSchema';
 
-const MODEL = 'gemini-3.8-flash';
+const MODEL = 'gemini-3.1-flash-lite';
 
 export interface ProposalGenRequest {
   businessName: string;
@@ -81,26 +81,28 @@ For every chosen section write:
 TONE: professional South African business English. Use R/ZAR currency formatting (e.g. R1.2m or R500 000).
 OUTPUT: JSON array only, via the provided schema. No markdown fences.`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            kind: { type: Type.STRING, enum: KIND_ENUM },
-            title: { type: Type.STRING },
-            brief: { type: Type.STRING },
-            keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+  const response = await withGeminiRetry(() =>
+    ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              kind: { type: Type.STRING, enum: KIND_ENUM },
+              title: { type: Type.STRING },
+              brief: { type: Type.STRING },
+              keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ['kind', 'title', 'brief', 'keyPoints'],
           },
-          required: ['kind', 'title', 'brief', 'keyPoints'],
         },
       },
-    },
-  });
+    })
+  );
 
   let parsed: Array<{ kind: string; title: string; brief: string; keyPoints: string[] }>;
   try {
@@ -187,44 +189,46 @@ WRITE:
 TONE: confident, concrete, South African business English. R/ZAR formatting.
 OUTPUT: JSON only via the provided schema. No markdown fences.`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          paragraphs: { type: Type.ARRAY, items: { type: Type.STRING } },
-          bullets: { type: Type.ARRAY, items: { type: Type.STRING } },
-          stats: {
-            type: Type.ARRAY,
-            items: {
+  const response = await withGeminiRetry(() =>
+    ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            paragraphs: { type: Type.ARRAY, items: { type: Type.STRING } },
+            bullets: { type: Type.ARRAY, items: { type: Type.STRING } },
+            stats: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  value: { type: Type.STRING },
+                  label: { type: Type.STRING },
+                },
+                required: ['value', 'label'],
+              },
+            },
+            table: {
               type: Type.OBJECT,
               properties: {
-                value: { type: Type.STRING },
-                label: { type: Type.STRING },
+                caption: { type: Type.STRING },
+                columns: { type: Type.ARRAY, items: { type: Type.STRING } },
+                rows: {
+                  type: Type.ARRAY,
+                  items: { type: Type.ARRAY, items: { type: Type.STRING } },
+                },
               },
-              required: ['value', 'label'],
+              required: ['columns', 'rows'],
             },
           },
-          table: {
-            type: Type.OBJECT,
-            properties: {
-              caption: { type: Type.STRING },
-              columns: { type: Type.ARRAY, items: { type: Type.STRING } },
-              rows: {
-                type: Type.ARRAY,
-                items: { type: Type.ARRAY, items: { type: Type.STRING } },
-              },
-            },
-            required: ['columns', 'rows'],
-          },
+          required: ['paragraphs', 'bullets', 'stats'],
         },
-        required: ['paragraphs', 'bullets', 'stats'],
       },
-    },
-  });
+    })
+  );
 
   let parsed: any;
   try {

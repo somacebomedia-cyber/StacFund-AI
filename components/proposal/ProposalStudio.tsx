@@ -64,9 +64,18 @@ import {
 
 type Step = 'template' | 'setup' | 'outline' | 'editor';
 
+export interface ProposalPrefill {
+  opportunityId?: string;
+  amount?: string;
+  purpose?: string;
+  businessName?: string;
+  preparedFor?: string;
+}
+
 interface ProposalStudioProps {
   user: User;
   onClose: () => void;
+  prefill?: ProposalPrefill;
 }
 
 function formatRandLabel(raw: string): string {
@@ -75,7 +84,7 @@ function formatRandLabel(raw: string): string {
   return `R${Number(digits).toLocaleString('en-ZA').replace(/,/g, ' ')}`;
 }
 
-const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
+const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose, prefill }) => {
   // ── Step + design state ──────────────────────────────────────────────────
   const [step, setStep] = useState<Step>('template');
   const [templateId, setTemplateId] = useState('protea');
@@ -83,20 +92,25 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
   const template = useMemo(() => getProposalTemplate(templateId), [templateId]);
 
   // ── Setup state ──────────────────────────────────────────────────────────
-  const [businessName, setBusinessName] = useState(user.businessName || '');
+  const [businessName, setBusinessName] = useState(prefill?.businessName || user.businessName || '');
   const [tagline, setTagline] = useState('');
-  const [amount, setAmount] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [preparedFor, setPreparedFor] = useState('');
+  const [amount, setAmount] = useState(prefill?.amount || '');
+  const [purpose, setPurpose] = useState(prefill?.purpose || '');
+  const [preparedFor, setPreparedFor] = useState(prefill?.preparedFor || '');
   const [contactLine, setContactLine] = useState('');
   const [opportunities, setOpportunities] = useState<FundingOpportunityDb[]>([]);
-  const [opportunityId, setOpportunityId] = useState<string>('');
+  const [opportunityId, setOpportunityId] = useState<string>(prefill?.opportunityId || '');
   const [ctx, setCtx] = useState<AutofillContext | null>(null);
   const [ctxLoading, setCtxLoading] = useState(false);
 
   // ── Document state ───────────────────────────────────────────────────────
   const [sections, setSections] = useState<ProposalSection[]>([]);
-  const [meta, setMeta] = useState<ProposalMeta>(() => createProposalMeta());
+  const [meta, setMeta] = useState<ProposalMeta>(() => ({
+    ...createProposalMeta(),
+    businessName: prefill?.businessName || user.businessName || '',
+    preparedFor: prefill?.preparedFor || 'The Review Committee',
+    requestedAmountLabel: prefill?.amount ? formatRandLabel(prefill.amount) : '',
+  }));
 
   // ── Persistence + brand state ──────────────────────────────────────────
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
@@ -115,11 +129,26 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
 
   // ── Preview + export ─────────────────────────────────────────────────────
   const [zoom, setZoom] = useState(0.68);
+  const [mobileTab, setMobileTab] = useState<'sections' | 'preview'>('preview');
   const previewRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Auto-fit zoom on mobile viewport so A4 pages fit without overflowing horizontally
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      const fitZoom = Math.max(0.35, Math.min(0.65, (window.innerWidth - 32) / A4_WIDTH_PX));
+      setZoom(+fitZoom.toFixed(2));
+    }
+  }, []);
+
+  // Count unwritten outline sections
+  const pendingOutlineCount = useMemo(
+    () => sections.filter((s) => s.include && !s.deterministic && s.status === 'outline').length,
+    [sections]
+  );
 
   // NOTE: named `proposalDoc` (not `doc`) — the Firestore `doc()` helper is
   // imported at the top and must not be shadowed inside the component.
@@ -146,8 +175,10 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
           );
           setMeta((m) => ({
             ...m,
-            businessName: profile.name || user.businessName || m.businessName,
+            businessName: prefill?.businessName || profile.name || user.businessName || m.businessName,
             preparedBy: ownerInfo.name || profile.name || m.preparedBy,
+            preparedFor: prefill?.preparedFor || m.preparedFor,
+            requestedAmountLabel: prefill?.amount ? formatRandLabel(prefill.amount) : m.requestedAmountLabel,
             contactLine: [ownerInfo.name || profile.name || '', profile.whatsapp || profile.email || user.email || '']
               .filter(Boolean)
               .join(' · '),
@@ -223,9 +254,11 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
       }));
       setActiveSectionId(withCompliance[0]?.id ?? null);
       setStep('outline');
-    } catch (e) {
+    } catch (e: any) {
+      console.error('[ProposalStudio] Outline generation error:', e);
       handleGeminiError(e);
-      setToast('Could not generate the outline. Please try again.');
+      const userMsg = e?.message ? `Outline generation failed: ${e.message.slice(0, 120)}` : 'Could not generate the outline. Please try again.';
+      setToast(userMsg);
     } finally {
       setOutlineBusy(false);
     }
@@ -253,6 +286,9 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
     setFillAllProgress({ current: 0, total: pending.length });
     let ok = 0;
     for (let i = 0; i < pending.length; i++) {
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
       setFillAllProgress({ current: i + 1, total: pending.length });
       setFillBusyId(pending[i].id);
       try {
@@ -266,6 +302,7 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
     setFillBusyId(null);
     setFillAllProgress(null);
     if (ok < pending.length) setToast(`${pending.length - ok} section(s) failed — you can retry them individually in the editor.`);
+    setMobileTab('preview');
     setStep('editor');
   };
 
@@ -482,21 +519,27 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
   return (
     <div className="fixed inset-0 z-[200] bg-slate-950 flex flex-col animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-slate-900/80 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+      <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 border-b border-slate-800 bg-slate-900/90 backdrop-blur z-20 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
             <FileText size={16} className="text-emerald-400" />
           </div>
-          <div>
-            <div className="text-sm font-bold text-white leading-tight">Proposal Studio</div>
-            <div className="text-[11px] text-slate-400">Premium funding proposals, written with AI</div>
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-bold text-white leading-tight truncate">Proposal Studio</div>
+            <div className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block truncate">Premium funding proposals, written with AI</div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          {stepIndex > 1 && stepIndex < 4 && readinessChip}
-          {stepsBar}
+
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          {stepIndex > 1 && stepIndex < 4 && readinessChip && (
+            <div className="hidden md:block">{readinessChip}</div>
+          )}
+          <div className="scale-90 sm:scale-100 origin-right">
+            {stepsBar}
+          </div>
+
           {step === 'editor' && (
-            <>
+            <div className="hidden md:flex items-center gap-2">
               <button
                 onClick={() => void cloudSave(false)}
                 disabled={savingCloud}
@@ -504,7 +547,7 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
                 title="Save to your account"
               >
                 {savingCloud ? <Loader2 size={13} className="animate-spin" /> : <Cloud size={13} />}
-                <span className="hidden sm:inline">Save</span>
+                <span>Save</span>
               </button>
               <button
                 onClick={handleExportDocx}
@@ -513,7 +556,7 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
                 title="Download as an editable Word document"
               >
                 {docxExporting ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
-                <span className="hidden sm:inline">Word</span>
+                <span>Word</span>
               </button>
               <button
                 onClick={handleExport}
@@ -523,9 +566,15 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
                 {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                 {exporting ? 'Rendering…' : 'Download PDF'}
               </button>
-            </>
+            </div>
           )}
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition" aria-label="Close">
+
+          <button
+            onClick={onClose}
+            className="p-1.5 sm:p-2 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg transition shrink-0 ml-1"
+            aria-label="Close"
+            title="Close Proposal Studio"
+          >
             <X size={18} />
           </button>
         </div>
@@ -660,11 +709,14 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
                   <label className={fieldLabel}>Link a funding opportunity (optional, recommended)</label>
                   <select className={inputCls} value={opportunityId} onChange={(e) => setOpportunityId(e.target.value)}>
                     <option value="">General proposal — no specific funder</option>
-                    {opportunities.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.issuer_name || 'Funder'} — {o.programme_name || 'Programme'}
-                      </option>
-                    ))}
+                    {opportunities.map((o) => {
+                      const oppId = o.opportunity_id || (o as any).id;
+                      return (
+                        <option key={oppId} value={oppId}>
+                          {o.issuer_name || 'Funder'} — {o.programme_name || 'Programme'}
+                        </option>
+                      );
+                    })}
                   </select>
                   <div className="flex items-center gap-2 mt-2 min-h-[24px]">
                     {ctxLoading && <Loader2 size={13} className="animate-spin text-slate-500" />}
@@ -796,7 +848,7 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
                   ? `Writing section ${fillAllProgress.current} of ${fillAllProgress.total}…`
                   : `Write all sections (${sections.filter((s) => s.include && !s.deterministic && s.status === 'outline').length})`}
               </button>
-              <button onClick={() => setStep('editor')} className="text-xs font-semibold text-slate-400 hover:text-white px-3 py-2 rounded-lg hover:bg-slate-800 transition">
+              <button onClick={() => { setMobileTab('sections'); setStep('editor'); }} className="text-xs font-semibold text-slate-400 hover:text-white px-3 py-2 rounded-lg hover:bg-slate-800 transition">
                 Skip to editor →
               </button>
             </div>
@@ -807,8 +859,36 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
       {/* ═══════════ STEP 4: EDITOR ═══════════ */}
       {step === 'editor' && (
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Mobile View Switcher (Tabs) */}
+          <div className="flex md:hidden border-b border-slate-800 bg-slate-900/95 p-1.5 gap-1 shrink-0 z-10">
+            <button
+              type="button"
+              onClick={() => setMobileTab('sections')}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                mobileTab === 'sections'
+                  ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <PenLine size={13} />
+              Sections ({sections.filter((s) => s.include).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab('preview')}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                mobileTab === 'preview'
+                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <FileText size={13} />
+              Document Preview &amp; PDF
+            </button>
+          </div>
+
           {/* Toolbar */}
-          <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-slate-800 bg-slate-900/60 overflow-x-auto">
+          <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 border-b border-slate-800 bg-slate-900/60 overflow-x-auto shrink-0">
             <div className="flex items-center gap-2">
               <Palette size={14} className="text-slate-500 shrink-0" />
               {PROPOSAL_TEMPLATES.map((t) => (
@@ -832,12 +912,12 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
               ))}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {readinessChip}
-              <button onClick={() => setShowCoverEditor((v) => !v)} className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition ${showCoverEditor ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
-                <PenLine size={13} /> Cover details
+              <div className="hidden lg:block">{readinessChip}</div>
+              <button onClick={() => setShowCoverEditor((v) => !v)} className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg transition ${showCoverEditor ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                <PenLine size={13} /> <span className="hidden sm:inline">Cover details</span>
               </button>
               <div className="w-px h-5 bg-slate-700" />
-              <button onClick={() => setZoom((z) => Math.max(0.4, +(z - 0.08).toFixed(2)))} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg" aria-label="Zoom out"><ZoomOut size={15} /></button>
+              <button onClick={() => setZoom((z) => Math.max(0.35, +(z - 0.08).toFixed(2)))} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg" aria-label="Zoom out"><ZoomOut size={15} /></button>
               <span className="text-[11px] text-slate-500 w-9 text-center">{Math.round(zoom * 100)}%</span>
               <button onClick={() => setZoom((z) => Math.min(1.2, +(z + 0.08).toFixed(2)))} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg" aria-label="Zoom in"><ZoomIn size={15} /></button>
             </div>
@@ -863,9 +943,30 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
           )}
 
           {/* Body: side panel + live preview */}
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden relative">
             {/* Side panel */}
-            <div className="w-[390px] shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-900/50">
+            <div className={`w-full md:w-[390px] shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-900/50 pb-28 md:pb-6 ${
+              mobileTab === 'sections' ? 'block' : 'hidden md:block'
+            }`}>
+              {/* Unwritten sections banner with direct Generate All action */}
+              {pendingOutlineCount > 0 && (
+                <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between gap-2 sticky top-0 bg-slate-900/95 backdrop-blur z-10">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-emerald-300 truncate">
+                      {pendingOutlineCount} unwritten section{pendingOutlineCount > 1 ? 's' : ''}
+                    </div>
+                    <div className="text-[10px] text-slate-400">Ready to write with AI</div>
+                  </div>
+                  <button
+                    onClick={runFillAll}
+                    disabled={fillAllProgress !== null}
+                    className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg transition shrink-0"
+                  >
+                    {fillAllProgress ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    {fillAllProgress ? `Writing…` : `Generate all`}
+                  </button>
+                </div>
+              )}
               {sections.filter((s) => s.include).length === 0 && (
                 <div className="p-6 text-sm text-slate-500 text-center">All sections excluded. Include at least one section to build a proposal.</div>
               )}
@@ -1087,13 +1188,52 @@ const ProposalStudio: React.FC<ProposalStudioProps> = ({ user, onClose }) => {
             </div>
 
             {/* Live preview */}
-            <div className="flex-1 overflow-auto bg-slate-800/40 p-8" ref={previewRef}>
+            <div
+              className={`flex-1 overflow-auto bg-slate-950 md:bg-slate-800/40 p-2 sm:p-4 md:p-8 pb-32 md:pb-8 ${
+                mobileTab === 'preview' ? 'block' : 'hidden md:block'
+              }`}
+              ref={previewRef}
+            >
               <div style={{ width: A4_WIDTH_PX * zoom, margin: '0 auto' }}>
                 <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
                   <ProposalDocumentPages doc={proposalDoc} template={template} logoUrl={brandKit?.logoDataUrl || undefined} />
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Mobile Bottom Action Bar */}
+          <div className="md:hidden border-t border-slate-800 bg-slate-900/95 backdrop-blur-md px-3 py-2 flex items-center gap-2 shrink-0 z-30">
+            <button
+              onClick={() => void cloudSave(false)}
+              disabled={savingCloud}
+              className="p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition shrink-0"
+              title="Save to account"
+            >
+              {savingCloud ? <Loader2 size={15} className="animate-spin text-emerald-400" /> : <Cloud size={15} />}
+            </button>
+            <button
+              onClick={handleExportDocx}
+              disabled={docxExporting}
+              className="p-2.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition shrink-0"
+              title="Download Word Document"
+            >
+              {docxExporting ? <Loader2 size={15} className="animate-spin text-emerald-400" /> : <FileText size={15} />}
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-slate-950 font-bold text-xs py-2.5 px-3 rounded-lg transition shadow-lg shadow-emerald-500/20"
+            >
+              {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              <span>{exporting ? 'Rendering…' : 'Download PDF'}</span>
+            </button>
+            <button
+              onClick={() => setMobileTab((t) => (t === 'sections' ? 'preview' : 'sections'))}
+              className="px-2.5 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 text-xs font-semibold shrink-0"
+            >
+              {mobileTab === 'sections' ? 'Preview' : 'Edit'}
+            </button>
           </div>
         </div>
       )}
