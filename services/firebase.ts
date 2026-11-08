@@ -22,12 +22,12 @@ const app = getApps().length > 0 ? getApp() : initializeApp(clientConfig);
 
 const auth = getAuth(app);
 
-// In browser / iframe environments, enabling auto-detect long polling prevents the
+// In browser / iframe environments, forcing long polling prevents the
 // 10-second duplex WebChannel streaming timeout and offline fallback warnings
 const db = (() => {
   try {
     return initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
     }, firebaseConfig.firestoreDatabaseId);
   } catch {
     return getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -39,8 +39,8 @@ async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn("Please check your Firebase configuration or network connection.");
+    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('offline') || error.message.includes('unavailable'))) {
+      console.warn("Firestore operating in resilient long-polling / offline mode:", error.message);
     }
   }
 }
